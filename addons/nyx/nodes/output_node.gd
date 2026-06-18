@@ -6,14 +6,14 @@ func _ready() -> void:
 	title = "Output"
 	set_slot(0, true, 0, Color.WHITE, false, -1, Color.WHITE)
 	set_slot(1, true, 1, Color.GRAY, false, -1, Color.WHITE)
+	set_slot(2, true, 1, Color.GRAY, false, -1, Color.WHITE)
+	set_slot(3, true, 1, Color.GRAY, false, -1, Color.WHITE)
+	set_slot(4, true, 0, Color.WHITE, false, -1, Color.WHITE)
 
-	var albedo_label := Label.new()
-	albedo_label.text = "Albedo"
-	add_child(albedo_label)
-
-	var alpha_label := Label.new()
-	alpha_label.text = "Alpha"
-	add_child(alpha_label)
+	for label_text in ["Albedo", "Alpha", "Roughness", "Metallic", "Emission"]:
+		var label := Label.new()
+		label.text = label_text
+		add_child(label)
 
 
 func _apply_style() -> void:

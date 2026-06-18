@@ -7,6 +7,7 @@ const AddNode = preload("res://addons/nyx/nodes/add_node.gd")
 const MultiplyNode = preload("res://addons/nyx/nodes/multiply_node.gd")
 const MixNode = preload("res://addons/nyx/nodes/mix_node.gd")
 const UVNode = preload("res://addons/nyx/nodes/uv_node.gd")
+const FloatNode = preload("res://addons/nyx/nodes/float_node.gd")
 
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
@@ -15,11 +16,15 @@ const NODE_CLASSES := {
 	"MultiplyNode": MultiplyNode,
 	"MixNode": MixNode,
 	"UVNode": UVNode,
+	"FloatNode": FloatNode,
 }
 
-var _split: HSplitContainer
+var _graph_container: VBoxContainer
 var _graph: GraphEdit
-var _preview_panel: VBoxContainer
+var _preview_panel: Panel
+var _preview_dragging: bool = false
+var _preview_resizing: bool = false
+var _preview_positioned: bool = false
 var _viewport: SubViewport
 var _sphere: MeshInstance3D
 var _shader_material: ShaderMaterial
@@ -30,6 +35,9 @@ var _save_dialog: EditorFileDialog
 var _load_dialog: EditorFileDialog
 var _spawn_position: Vector2
 var _last_shader_code: String
+var _undo_stack: Array = []
+var _redo_stack: Array = []
+var _pre_drag_snapshot = null
 
 
 func _ready() -> void:
@@ -41,27 +49,23 @@ func _ready() -> void:
 	_compile_timer.timeout.connect(_compile_shader)
 	add_child(_compile_timer)
 
-	_split = HSplitContainer.new()
-	_split.position = Vector2.ZERO
-	add_child(_split)
-
 	_graph = GraphEdit.new()
 	_graph.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_graph.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_graph.right_disconnects = true
 	_graph.connection_request.connect(_on_connection_request)
 	_graph.disconnection_request.connect(_on_disconnection_request)
+	_graph.delete_nodes_request.connect(_on_delete_nodes_request)
 	_graph.gui_input.connect(_on_graph_gui_input)
 
-	var graph_container := VBoxContainer.new()
-	graph_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	graph_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	graph_container.add_child(_build_graph_toolbar())
-	graph_container.add_child(_graph)
-	_split.add_child(graph_container)
+	_graph_container = VBoxContainer.new()
+	_graph_container.add_child(_build_graph_toolbar())
+	_graph_container.add_child(_graph)
+	add_child(_graph_container)
 
 	_context_menu = PopupMenu.new()
 	_context_menu.add_item("Color", 0)
+	_context_menu.add_item("Float", 5)
 	_context_menu.add_separator()
 	_context_menu.add_item("Add", 1)
 	_context_menu.add_item("Multiply", 2)
@@ -93,18 +97,32 @@ func _ready() -> void:
 	add_child(_load_dialog)
 
 	_preview_panel = _build_preview_panel()
-	_split.add_child(_preview_panel)
+	add_child(_preview_panel)
 
 	_add_node(OutputNode.new(), Vector2(400, 200), "OutputNode")
 	_add_node(ColorNode.new(), Vector2(150, 200))
 
 
-func _build_preview_panel() -> VBoxContainer:
-	var panel := VBoxContainer.new()
-	panel.custom_minimum_size = Vector2(280, 0)
+func _build_preview_panel() -> Panel:
+	var floating := Panel.new()
+	floating.size = Vector2(220, 200)
+
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.13, 0.13, 0.16, 0.95)
+	bg.corner_radius_top_left = 6
+	bg.corner_radius_top_right = 6
+	bg.corner_radius_bottom_left = 6
+	bg.corner_radius_bottom_right = 6
+	floating.add_theme_stylebox_override("panel", bg)
+
+	var vbox := VBoxContainer.new()
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	floating.add_child(vbox)
 
 	var header := HBoxContainer.new()
-	panel.add_child(header)
+	header.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	header.gui_input.connect(_on_preview_header_input)
+	vbox.add_child(header)
 
 	var title := Label.new()
 	title.text = "Preview"
@@ -125,7 +143,7 @@ func _build_preview_panel() -> VBoxContainer:
 	vpc.stretch = true
 	vpc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vpc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_child(vpc)
+	vbox.add_child(vpc)
 
 	_viewport = SubViewport.new()
 	_viewport.own_world_3d = true
@@ -133,7 +151,7 @@ func _build_preview_panel() -> VBoxContainer:
 	vpc.add_child(_viewport)
 
 	var camera := Camera3D.new()
-	camera.position = Vector3(0, 0, 2.5)
+	camera.position = Vector3(0, 0, 1.2)
 	_viewport.add_child(camera)
 
 	_sphere = MeshInstance3D.new()
@@ -148,7 +166,19 @@ func _build_preview_panel() -> VBoxContainer:
 	light.rotation_degrees = Vector3(-45, 45, 0)
 	_viewport.add_child(light)
 
-	return panel
+	var grip := Control.new()
+	grip.size = Vector2(16, 16)
+	grip.anchor_left = 1.0
+	grip.anchor_top = 1.0
+	grip.anchor_right = 1.0
+	grip.anchor_bottom = 1.0
+	grip.offset_left = -16
+	grip.offset_top = -16
+	grip.mouse_default_cursor_shape = 12
+	grip.gui_input.connect(_on_preview_resize_input)
+	floating.add_child(grip)
+
+	return floating
 
 
 func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
@@ -158,6 +188,19 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	_graph.add_child(node)
 	if node.has_signal("value_changed"):
 		node.value_changed.connect(_request_compile)
+	node.gui_input.connect(func(event: InputEvent):
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			_pre_drag_snapshot = _serialize_graph()
+	)
+	if node.has_signal("dragged"):
+		node.dragged.connect(func(_f: Vector2, _t: Vector2):
+			if _pre_drag_snapshot != null:
+				_undo_stack.push_back(_pre_drag_snapshot)
+				if _undo_stack.size() > 50:
+					_undo_stack.pop_front()
+				_redo_stack.clear()
+				_pre_drag_snapshot = null
+		)
 
 
 func _toggle_preview() -> void:
@@ -170,10 +213,13 @@ func _request_compile() -> void:
 
 
 func _build_shader_code() -> String:
-	var connections = _graph.get_connection_list()
-	var albedo = _get_snippet_for("OutputNode", 0, connections, "vec3(0.5, 0.5, 0.5)")
-	var alpha = _get_snippet_for("OutputNode", 1, connections, "1.0")
-	return "shader_type spatial;\nvoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n}\n" % [albedo, alpha]
+	var c = _graph.get_connection_list()
+	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
+	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
+	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
+	var metallic  = _get_snippet_for("OutputNode", 3, c, "0.0")
+	var emission  = _get_snippet_for("OutputNode", 4, c, "vec3(0.0, 0.0, 0.0)")
+	return "shader_type spatial;\nvoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n}\n" % [albedo, alpha, roughness, metallic, emission]
 
 
 func _compile_shader() -> void:
@@ -230,16 +276,80 @@ func _get_node_snippet(node: Node, connections: Array) -> String:
 
 
 func sync_size(new_size: Vector2) -> void:
-	if _split:
-		_split.size = new_size
+	if _graph_container:
+		_graph_container.size = new_size
+	if not _preview_positioned and _preview_panel:
+		_preview_positioned = true
+		call_deferred("_position_preview_default")
+
+
+func _position_preview_default() -> void:
+	_preview_panel.position = Vector2(_graph_container.size.x - _preview_panel.size.x - 20, 20)
+
+
+func _on_preview_header_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_preview_dragging = event.pressed
+	elif event is InputEventMouseMotion and _preview_dragging:
+		_preview_panel.position += event.relative
+
+
+func _on_preview_resize_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_preview_resizing = event.pressed
+	elif event is InputEventMouseMotion and _preview_resizing:
+		var new_size: Vector2 = _preview_panel.size + event.relative
+		new_size.x = max(new_size.x, 160.0)
+		new_size.y = max(new_size.y, 120.0)
+		_preview_panel.size = new_size
+
+
+func _push_undo_state() -> void:
+	_undo_stack.push_back(_serialize_graph())
+	if _undo_stack.size() > 50:
+		_undo_stack.pop_front()
+	_redo_stack.clear()
+
+
+func _undo() -> void:
+	if _undo_stack.is_empty():
+		return
+	_redo_stack.push_back(_serialize_graph())
+	_deserialize_graph(_undo_stack.pop_back())
+
+
+func _redo() -> void:
+	if _redo_stack.is_empty():
+		return
+	_undo_stack.push_back(_serialize_graph())
+	_deserialize_graph(_redo_stack.pop_back())
+
+
+func _on_delete_nodes_request(nodes: Array[StringName]) -> void:
+	_push_undo_state()
+	for node_name in nodes:
+		if str(node_name) == "OutputNode":
+			continue
+		var to_disconnect := []
+		for conn in _graph.get_connection_list():
+			if str(conn["from_node"]) == str(node_name) or str(conn["to_node"]) == str(node_name):
+				to_disconnect.append(conn)
+		for conn in to_disconnect:
+			_graph.disconnect_node(conn["from_node"], conn["from_port"], conn["to_node"], conn["to_port"])
+		var node := _graph.get_node_or_null(str(node_name))
+		if node:
+			node.queue_free()
+	_request_compile()
 
 
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
+	_push_undo_state()
 	_graph.connect_node(from_node, from_port, to_node, to_port)
 	_request_compile()
 
 
 func _on_disconnection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
+	_push_undo_state()
 	_graph.disconnect_node(from_node, from_port, to_node, to_port)
 	_request_compile()
 
@@ -252,12 +362,14 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 
 
 func _on_context_menu_selected(id: int) -> void:
+	_push_undo_state()
 	match id:
 		0: _add_node(ColorNode.new(), _spawn_position)
 		1: _add_node(AddNode.new(), _spawn_position)
 		2: _add_node(MultiplyNode.new(), _spawn_position)
 		3: _add_node(MixNode.new(), _spawn_position)
 		4: _add_node(UVNode.new(), _spawn_position)
+		5: _add_node(FloatNode.new(), _spawn_position)
 
 
 func _build_graph_toolbar() -> HBoxContainer:
@@ -272,6 +384,19 @@ func _build_graph_toolbar() -> HBoxContainer:
 	load_btn.text = "Load"
 	load_btn.pressed.connect(func(): _load_dialog.popup_centered_ratio(0.5))
 	toolbar.add_child(load_btn)
+
+	var sep := VSeparator.new()
+	toolbar.add_child(sep)
+
+	var undo_btn := Button.new()
+	undo_btn.text = "Undo"
+	undo_btn.pressed.connect(_undo)
+	toolbar.add_child(undo_btn)
+
+	var redo_btn := Button.new()
+	redo_btn.text = "Redo"
+	redo_btn.pressed.connect(_redo)
+	toolbar.add_child(redo_btn)
 
 	return toolbar
 
