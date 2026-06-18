@@ -101,6 +101,10 @@ func get_shader_snippet(inputs: Array = []) -> String:
 	return ""
 
 
+func get_output_snippet(port: int, inputs: Array = []) -> String:
+	return get_shader_snippet(inputs)
+
+
 func get_default_inputs() -> Array:
 	return []
 

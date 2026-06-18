@@ -1,6 +1,8 @@
 @tool
 extends "res://addons/nyx/nodes/nyx_node.gd"
 
+signal edit_started
+
 var _color := Color.WHITE
 var _popup: Popup
 var _picker: ColorPicker
@@ -33,6 +35,7 @@ func _ready() -> void:
 
 func _on_clicked(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		edit_started.emit()
 		_popup.popup_centered()
 
 

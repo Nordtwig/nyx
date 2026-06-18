@@ -8,6 +8,12 @@ const MultiplyNode = preload("res://addons/nyx/nodes/multiply_node.gd")
 const MixNode = preload("res://addons/nyx/nodes/mix_node.gd")
 const UVNode = preload("res://addons/nyx/nodes/uv_node.gd")
 const FloatNode = preload("res://addons/nyx/nodes/float_node.gd")
+const SubtractNode = preload("res://addons/nyx/nodes/subtract_node.gd")
+const ClampNode = preload("res://addons/nyx/nodes/clamp_node.gd")
+const PowerNode = preload("res://addons/nyx/nodes/power_node.gd")
+const SinNode = preload("res://addons/nyx/nodes/sin_node.gd")
+const CosNode = preload("res://addons/nyx/nodes/cos_node.gd")
+const TimeNode = preload("res://addons/nyx/nodes/time_node.gd")
 
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
@@ -17,6 +23,12 @@ const NODE_CLASSES := {
 	"MixNode": MixNode,
 	"UVNode": UVNode,
 	"FloatNode": FloatNode,
+	"SubtractNode": SubtractNode,
+	"ClampNode": ClampNode,
+	"PowerNode": PowerNode,
+	"SinNode": SinNode,
+	"CosNode": CosNode,
+	"TimeNode": TimeNode,
 }
 
 var _graph_container: VBoxContainer
@@ -70,10 +82,16 @@ func _ready() -> void:
 	_context_menu.add_item("Float", 5)
 	_context_menu.add_separator()
 	_context_menu.add_item("Add", 1)
+	_context_menu.add_item("Subtract", 6)
 	_context_menu.add_item("Multiply", 2)
 	_context_menu.add_item("Mix", 3)
+	_context_menu.add_item("Clamp", 7)
+	_context_menu.add_item("Power", 8)
+	_context_menu.add_item("Sin", 9)
+	_context_menu.add_item("Cos", 10)
 	_context_menu.add_separator()
 	_context_menu.add_item("UV", 4)
+	_context_menu.add_item("Time", 11)
 	_context_menu.id_pressed.connect(_on_context_menu_selected)
 	add_child(_context_menu)
 
@@ -190,6 +208,8 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	_graph.add_child(node)
 	if node.has_signal("value_changed"):
 		node.value_changed.connect(_request_compile)
+	if node.has_signal("edit_started"):
+		node.edit_started.connect(_push_undo_state)
 	node.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			_pre_drag_snapshot = _serialize_graph()
@@ -264,17 +284,17 @@ func _get_snippet_for(to_node: String, to_port: int, connections: Array, default
 		if str(conn["to_node"]) == to_node and conn["to_port"] == to_port:
 			var from := _graph.get_node_or_null(str(conn["from_node"]))
 			if from:
-				return _get_node_snippet(from, connections)
+				return _get_node_snippet(from, conn["from_port"], connections)
 	return default_val
 
 
-func _get_node_snippet(node: Node, connections: Array) -> String:
+func _get_node_snippet(node: Node, from_port: int, connections: Array) -> String:
 	var defaults = node.get_default_inputs() if node.has_method("get_default_inputs") else []
 	var inputs := []
 	for i in range(node.get_input_port_count()):
 		var default_val = defaults[i] if i < defaults.size() else "0.0"
 		inputs.append(_get_snippet_for(node.name, i, connections, default_val))
-	return node.get_shader_snippet(inputs)
+	return node.get_output_snippet(from_port, inputs)
 
 
 func sync_size(new_size: Vector2) -> void:
@@ -378,6 +398,12 @@ func _on_context_menu_selected(id: int) -> void:
 		3: _add_node(MixNode.new(), _spawn_position)
 		4: _add_node(UVNode.new(), _spawn_position)
 		5: _add_node(FloatNode.new(), _spawn_position)
+		6: _add_node(SubtractNode.new(), _spawn_position)
+		7: _add_node(ClampNode.new(), _spawn_position)
+		8: _add_node(PowerNode.new(), _spawn_position)
+		9: _add_node(SinNode.new(), _spawn_position)
+		10: _add_node(CosNode.new(), _spawn_position)
+		11: _add_node(TimeNode.new(), _spawn_position)
 
 
 func _build_graph_toolbar() -> HBoxContainer:
