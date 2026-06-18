@@ -8,6 +8,15 @@ const MultiplyNode = preload("res://addons/nyx/nodes/multiply_node.gd")
 const MixNode = preload("res://addons/nyx/nodes/mix_node.gd")
 const UVNode = preload("res://addons/nyx/nodes/uv_node.gd")
 
+const NODE_CLASSES := {
+	"OutputNode": OutputNode,
+	"ColorNode": ColorNode,
+	"AddNode": AddNode,
+	"MultiplyNode": MultiplyNode,
+	"MixNode": MixNode,
+	"UVNode": UVNode,
+}
+
 var _split: HSplitContainer
 var _graph: GraphEdit
 var _preview_panel: VBoxContainer
@@ -17,7 +26,10 @@ var _shader_material: ShaderMaterial
 var _compile_timer: Timer
 var _context_menu: PopupMenu
 var _export_dialog: EditorFileDialog
+var _save_dialog: EditorFileDialog
+var _load_dialog: EditorFileDialog
 var _spawn_position: Vector2
+var _last_shader_code: String
 
 
 func _ready() -> void:
@@ -40,7 +52,13 @@ func _ready() -> void:
 	_graph.connection_request.connect(_on_connection_request)
 	_graph.disconnection_request.connect(_on_disconnection_request)
 	_graph.gui_input.connect(_on_graph_gui_input)
-	_split.add_child(_graph)
+
+	var graph_container := VBoxContainer.new()
+	graph_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	graph_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	graph_container.add_child(_build_graph_toolbar())
+	graph_container.add_child(_graph)
+	_split.add_child(graph_container)
 
 	_context_menu = PopupMenu.new()
 	_context_menu.add_item("Color", 0)
@@ -59,6 +77,20 @@ func _ready() -> void:
 	_export_dialog.add_filter("*.gdshader", "GDShader File")
 	_export_dialog.file_selected.connect(_on_export_file_selected)
 	add_child(_export_dialog)
+
+	_save_dialog = EditorFileDialog.new()
+	_save_dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
+	_save_dialog.access = EditorFileDialog.ACCESS_RESOURCES
+	_save_dialog.add_filter("*.nyx", "Nyx Graph")
+	_save_dialog.file_selected.connect(_on_save_file_selected)
+	add_child(_save_dialog)
+
+	_load_dialog = EditorFileDialog.new()
+	_load_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
+	_load_dialog.access = EditorFileDialog.ACCESS_RESOURCES
+	_load_dialog.add_filter("*.nyx", "Nyx Graph")
+	_load_dialog.file_selected.connect(_on_load_file_selected)
+	add_child(_load_dialog)
 
 	_preview_panel = _build_preview_panel()
 	_split.add_child(_preview_panel)
@@ -147,7 +179,11 @@ func _build_shader_code() -> String:
 func _compile_shader() -> void:
 	if not _graph.get_node_or_null("OutputNode"):
 		return
-	_shader_material.shader.code = _build_shader_code()
+	var code := _build_shader_code()
+	if code == _last_shader_code:
+		return
+	_last_shader_code = code
+	_shader_material.shader.code = code
 
 
 func _on_export_file_selected(path: String) -> void:
@@ -222,3 +258,104 @@ func _on_context_menu_selected(id: int) -> void:
 		2: _add_node(MultiplyNode.new(), _spawn_position)
 		3: _add_node(MixNode.new(), _spawn_position)
 		4: _add_node(UVNode.new(), _spawn_position)
+
+
+func _build_graph_toolbar() -> HBoxContainer:
+	var toolbar := HBoxContainer.new()
+
+	var save_btn := Button.new()
+	save_btn.text = "Save"
+	save_btn.pressed.connect(func(): _save_dialog.popup_centered_ratio(0.5))
+	toolbar.add_child(save_btn)
+
+	var load_btn := Button.new()
+	load_btn.text = "Load"
+	load_btn.pressed.connect(func(): _load_dialog.popup_centered_ratio(0.5))
+	toolbar.add_child(load_btn)
+
+	return toolbar
+
+
+func _get_node_type(node: Node) -> String:
+	for type_name in NODE_CLASSES:
+		if node.get_script() == NODE_CLASSES[type_name]:
+			return type_name
+	return ""
+
+
+func _serialize_graph() -> Dictionary:
+	var nodes := []
+	for child in _graph.get_children():
+		if not child is GraphNode:
+			continue
+		var type := _get_node_type(child)
+		if type == "":
+			continue
+		nodes.append({
+			"type": type,
+			"name": str(child.name),
+			"position": [child.position_offset.x, child.position_offset.y],
+			"state": child.get_state(),
+		})
+
+	var connections := []
+	for conn in _graph.get_connection_list():
+		connections.append({
+			"from_node": str(conn["from_node"]),
+			"from_port": conn["from_port"],
+			"to_node": str(conn["to_node"]),
+			"to_port": conn["to_port"],
+		})
+
+	return {"nodes": nodes, "connections": connections}
+
+
+func _deserialize_graph(data: Dictionary) -> void:
+	_graph.clear_connections()
+	for child in _graph.get_children():
+		if child is GraphNode:
+			_graph.remove_child(child)
+			child.queue_free()
+
+	for node_data in data.get("nodes", []):
+		var type: String = node_data["type"]
+		if not NODE_CLASSES.has(type):
+			push_warning("Nyx: unknown node type '%s', skipping" % type)
+			continue
+		var node = NODE_CLASSES[type].new()
+		var pos: Array = node_data["position"]
+		_add_node(node, Vector2(pos[0], pos[1]), node_data["name"])
+		var state: Dictionary = node_data.get("state", {})
+		if not state.is_empty():
+			node.set_state(state)
+
+	for conn in data.get("connections", []):
+		_graph.connect_node(conn["from_node"], conn["from_port"], conn["to_node"], conn["to_port"])
+
+	_request_compile()
+
+
+func _on_save_file_selected(path: String) -> void:
+	if not path.ends_with(".nyx"):
+		path += ".nyx"
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if not f:
+		push_error("Nyx: could not write graph to %s" % path)
+		return
+	f.store_string(JSON.stringify(_serialize_graph(), "\t"))
+	f.close()
+	print("Nyx: saved graph → %s" % path)
+
+
+func _on_load_file_selected(path: String) -> void:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if not f:
+		push_error("Nyx: could not read graph from %s" % path)
+		return
+	var result := JSON.parse_string(f.get_as_text())
+	f.close()
+	if not result is Dictionary:
+		push_error("Nyx: invalid graph file %s" % path)
+		return
+	_deserialize_graph(result)
+	print("Nyx: loaded graph ← %s" % path)

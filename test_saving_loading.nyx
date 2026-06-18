@@ -1,0 +1,39 @@
+{
+	"connections": [
+		{
+			"from_node": "_GraphNode_20201",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 0
+		}
+	],
+	"nodes": [
+		{
+			"name": "OutputNode",
+			"position": [
+				400.0,
+				200.0
+			],
+			"state": {
+
+			},
+			"type": "OutputNode"
+		},
+		{
+			"name": "_GraphNode_20201",
+			"position": [
+				150.0,
+				200.0
+			],
+			"state": {
+				"color": [
+					0.233941003680229,
+					0.583333373069763,
+					0.0243055690079927,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		}
+	]
+}

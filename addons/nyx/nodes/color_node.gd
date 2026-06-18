@@ -51,6 +51,7 @@ func _apply_node_color() -> void:
 	titlebar.bg_color = _color
 	add_theme_stylebox_override("titlebar", titlebar)
 
+	_apply_selection_style(body, titlebar)
 	call_deferred("_update_title_color")
 
 
@@ -65,3 +66,14 @@ func _update_title_color() -> void:
 
 func get_shader_snippet(inputs: Array = []) -> String:
 	return "vec3(%.4f, %.4f, %.4f)" % [_color.r, _color.g, _color.b]
+
+
+func get_state() -> Dictionary:
+	return {"color": [_color.r, _color.g, _color.b, _color.a]}
+
+
+func set_state(state: Dictionary) -> void:
+	var c: Array = state["color"]
+	_color = Color(c[0], c[1], c[2], c[3])
+	_picker.color = _color
+	_apply_node_color()

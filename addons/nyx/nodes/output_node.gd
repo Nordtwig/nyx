@@ -44,5 +44,6 @@ func _apply_style() -> void:
 	titlebar.border_color = Color(0.28, 0.28, 0.35)
 	add_theme_stylebox_override("titlebar", titlebar)
 
+	_apply_selection_style(body, titlebar)
 	add_theme_icon_override("port", _create_port_texture(10, 1))
 	call_deferred("_center_title")

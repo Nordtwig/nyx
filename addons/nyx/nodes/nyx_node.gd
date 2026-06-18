@@ -29,8 +29,33 @@ func _apply_style() -> void:
 	titlebar.content_margin_bottom = -1
 	add_theme_stylebox_override("titlebar", titlebar)
 
+	_apply_selection_style(body, titlebar)
 	add_theme_icon_override("port", _create_port_texture(10, 1))
 	call_deferred("_center_title")
+
+
+func _apply_selection_style(body: StyleBoxFlat, titlebar: StyleBoxFlat) -> void:
+	var sel := Color(1, 1, 1, 0.4)
+
+	var body_sel := body.duplicate() as StyleBoxFlat
+	body_sel.border_width_left = 2
+	body_sel.border_width_right = 2
+	body_sel.border_width_bottom = 2
+	body_sel.border_color = sel
+	body_sel.expand_margin_left = 5
+	body_sel.expand_margin_right = 5
+	body_sel.expand_margin_bottom = 5
+	add_theme_stylebox_override("panel_selected", body_sel)
+
+	var title_sel := titlebar.duplicate() as StyleBoxFlat
+	title_sel.border_width_top = 2
+	title_sel.border_width_left = 2
+	title_sel.border_width_right = 2
+	title_sel.border_color = sel
+	title_sel.expand_margin_top = 5
+	title_sel.expand_margin_left = 5
+	title_sel.expand_margin_right = 5
+	add_theme_stylebox_override("titlebar_selected", title_sel)
 
 
 func _center_title() -> void:
@@ -78,3 +103,11 @@ func get_shader_snippet(inputs: Array = []) -> String:
 
 func get_default_inputs() -> Array:
 	return []
+
+
+func get_state() -> Dictionary:
+	return {}
+
+
+func set_state(_state: Dictionary) -> void:
+	pass
