@@ -4,11 +4,13 @@ extends "res://addons/nyx/nodes/nyx_node.gd"
 func _ready() -> void:
 	super._ready()
 	title = "Output"
-	set_slot(0, true, 0, Color.WHITE, false, -1, Color.WHITE)
-	set_slot(1, true, 1, Color.GRAY, false, -1, Color.WHITE)
-	set_slot(2, true, 1, Color.GRAY, false, -1, Color.WHITE)
-	set_slot(3, true, 1, Color.GRAY, false, -1, Color.WHITE)
-	set_slot(4, true, 0, Color.WHITE, false, -1, Color.WHITE)
+	var vec3_color := Color.WHITE
+	var float_color := Color(0.35, 0.9, 0.85)
+	set_slot(0, true, 0, vec3_color, false, -1, vec3_color)
+	set_slot(1, true, 1, float_color, false, -1, float_color)
+	set_slot(2, true, 1, float_color, false, -1, float_color)
+	set_slot(3, true, 1, float_color, false, -1, float_color)
+	set_slot(4, true, 0, vec3_color, false, -1, vec3_color)
 
 	for label_text in ["Albedo", "Alpha", "Roughness", "Metallic", "Emission"]:
 		var label := Label.new()

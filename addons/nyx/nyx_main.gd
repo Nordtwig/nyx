@@ -57,6 +57,8 @@ func _ready() -> void:
 	_graph.disconnection_request.connect(_on_disconnection_request)
 	_graph.delete_nodes_request.connect(_on_delete_nodes_request)
 	_graph.gui_input.connect(_on_graph_gui_input)
+	_graph.add_valid_connection_type(0, 0)
+	_graph.add_valid_connection_type(1, 1)
 
 	_graph_container = VBoxContainer.new()
 	_graph_container.add_child(_build_graph_toolbar())
@@ -343,6 +345,12 @@ func _on_delete_nodes_request(nodes: Array[StringName]) -> void:
 
 
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
+	var from := _graph.get_node_or_null(str(from_node))
+	var to := _graph.get_node_or_null(str(to_node))
+	if not from or not to:
+		return
+	if from.get_output_port_type(from_port) != to.get_input_port_type(to_port):
+		return
 	_push_undo_state()
 	_graph.connect_node(from_node, from_port, to_node, to_port)
 	_request_compile()

@@ -18,7 +18,7 @@ func _ready() -> void:
 	_spinbox.value_changed.connect(_on_value_changed)
 	add_child(_spinbox)
 
-	set_slot(0, false, -1, Color.WHITE, true, 1, Color.GRAY)
+	set_slot(0, false, -1, Color.WHITE, true, 1, Color(0.35, 0.9, 0.85))
 
 
 func _on_value_changed(val: float) -> void:
