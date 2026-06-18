@@ -16,6 +16,7 @@ var _sphere: MeshInstance3D
 var _shader_material: ShaderMaterial
 var _compile_timer: Timer
 var _context_menu: PopupMenu
+var _export_dialog: EditorFileDialog
 var _spawn_position: Vector2
 
 
@@ -52,6 +53,13 @@ func _ready() -> void:
 	_context_menu.id_pressed.connect(_on_context_menu_selected)
 	add_child(_context_menu)
 
+	_export_dialog = EditorFileDialog.new()
+	_export_dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
+	_export_dialog.access = EditorFileDialog.ACCESS_RESOURCES
+	_export_dialog.add_filter("*.gdshader", "GDShader File")
+	_export_dialog.file_selected.connect(_on_export_file_selected)
+	add_child(_export_dialog)
+
 	_preview_panel = _build_preview_panel()
 	_split.add_child(_preview_panel)
 
@@ -70,6 +78,11 @@ func _build_preview_panel() -> VBoxContainer:
 	title.text = "Preview"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
+
+	var export_btn := Button.new()
+	export_btn.text = "Export"
+	export_btn.pressed.connect(func(): _export_dialog.popup_centered_ratio(0.5))
+	header.add_child(export_btn)
 
 	var toggle := Button.new()
 	toggle.text = "×"
@@ -124,19 +137,42 @@ func _request_compile() -> void:
 	_compile_timer.start()
 
 
-func _compile_shader() -> void:
-	var output_node = _graph.get_node_or_null("OutputNode")
-	if not output_node:
-		return
-
+func _build_shader_code() -> String:
 	var connections = _graph.get_connection_list()
 	var albedo = _get_snippet_for("OutputNode", 0, connections, "vec3(0.5, 0.5, 0.5)")
 	var alpha = _get_snippet_for("OutputNode", 1, connections, "1.0")
+	return "shader_type spatial;\nvoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n}\n" % [albedo, alpha]
 
-	_shader_material.shader.code = (
-		"shader_type spatial;\nvoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n}\n"
-		% [albedo, alpha]
-	)
+
+func _compile_shader() -> void:
+	if not _graph.get_node_or_null("OutputNode"):
+		return
+	_shader_material.shader.code = _build_shader_code()
+
+
+func _on_export_file_selected(path: String) -> void:
+	if not path.ends_with(".gdshader"):
+		path += ".gdshader"
+
+	var shader_code := _build_shader_code()
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if not f:
+		push_error("Nyx: could not write shader to %s" % path)
+		return
+	f.store_string(shader_code)
+	f.close()
+
+	var tres_path := path.get_basename() + ".tres"
+	var tres_content := "[gd_resource type=\"ShaderMaterial\" load_steps=2 format=3]\n\n[ext_resource type=\"Shader\" path=\"%s\" id=\"1\"]\n\n[resource]\nshader = ExtResource(\"1\")\n" % path
+	var tf := FileAccess.open(tres_path, FileAccess.WRITE)
+	if not tf:
+		push_error("Nyx: could not write material to %s" % tres_path)
+		return
+	tf.store_string(tres_content)
+	tf.close()
+
+	EditorInterface.get_resource_filesystem().scan()
+	print("Nyx: exported\n  shader  → %s\n  material → %s" % [path, tres_path])
 
 
 func _get_snippet_for(to_node: String, to_port: int, connections: Array, default_val: String) -> String:
