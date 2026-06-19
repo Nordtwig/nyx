@@ -14,6 +14,9 @@ const PowerNode = preload("res://addons/nyx/nodes/power_node.gd")
 const SinNode = preload("res://addons/nyx/nodes/sin_node.gd")
 const CosNode = preload("res://addons/nyx/nodes/cos_node.gd")
 const TimeNode = preload("res://addons/nyx/nodes/time_node.gd")
+const SplitNode = preload("res://addons/nyx/nodes/split_node.gd")
+const CombineNode = preload("res://addons/nyx/nodes/combine_node.gd")
+const TextureSampleNode = preload("res://addons/nyx/nodes/texture_sample_node.gd")
 
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
@@ -29,6 +32,9 @@ const NODE_CLASSES := {
 	"SinNode": SinNode,
 	"CosNode": CosNode,
 	"TimeNode": TimeNode,
+	"SplitNode": SplitNode,
+	"CombineNode": CombineNode,
+	"TextureSampleNode": TextureSampleNode,
 }
 
 var _graph_container: VBoxContainer
@@ -45,6 +51,8 @@ var _context_menu: PopupMenu
 var _export_dialog: EditorFileDialog
 var _save_dialog: EditorFileDialog
 var _load_dialog: EditorFileDialog
+var _texture_dialog: EditorFileDialog
+var _texture_target: Node = null
 var _spawn_position: Vector2
 var _last_shader_code: String
 var _undo_stack: Array = []
@@ -90,8 +98,12 @@ func _ready() -> void:
 	_context_menu.add_item("Sin", 9)
 	_context_menu.add_item("Cos", 10)
 	_context_menu.add_separator()
+	_context_menu.add_item("Split", 12)
+	_context_menu.add_item("Combine", 13)
+	_context_menu.add_separator()
 	_context_menu.add_item("UV", 4)
 	_context_menu.add_item("Time", 11)
+	_context_menu.add_item("Texture Sample", 14)
 	_context_menu.id_pressed.connect(_on_context_menu_selected)
 	add_child(_context_menu)
 
@@ -115,6 +127,13 @@ func _ready() -> void:
 	_load_dialog.add_filter("*.nyx", "Nyx Graph")
 	_load_dialog.file_selected.connect(_on_load_file_selected)
 	add_child(_load_dialog)
+
+	_texture_dialog = EditorFileDialog.new()
+	_texture_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
+	_texture_dialog.access = EditorFileDialog.ACCESS_RESOURCES
+	_texture_dialog.add_filter("*.png,*.jpg,*.jpeg,*.bmp,*.webp,*.tga,*.exr,*.hdr", "Image Files")
+	_texture_dialog.file_selected.connect(_on_texture_file_selected)
+	add_child(_texture_dialog)
 
 	_preview_panel = _build_preview_panel()
 	add_child(_preview_panel)
@@ -210,6 +229,8 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 		node.value_changed.connect(_request_compile)
 	if node.has_signal("edit_started"):
 		node.edit_started.connect(_push_undo_state)
+	if node.has_signal("texture_pick_requested"):
+		node.texture_pick_requested.connect(_on_texture_pick_requested)
 	node.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			_pre_drag_snapshot = _serialize_graph()
@@ -235,23 +256,49 @@ func _request_compile() -> void:
 
 
 func _build_shader_code() -> String:
+	var uniform_lines := ""
+	for child in _graph.get_children():
+		if child.get_script() == TextureSampleNode:
+			uniform_lines += "uniform sampler2D %s : source_color, hint_default_white;\n" % child.get_uniform_name()
+
 	var c = _graph.get_connection_list()
 	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
 	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
 	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
 	var metallic  = _get_snippet_for("OutputNode", 3, c, "0.0")
 	var emission  = _get_snippet_for("OutputNode", 4, c, "vec3(0.0, 0.0, 0.0)")
-	return "shader_type spatial;\nvoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n}\n" % [albedo, alpha, roughness, metallic, emission]
+	return "shader_type spatial;\n%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n}\n" % [uniform_lines, albedo, alpha, roughness, metallic, emission]
+
+
+func _apply_texture_uniforms() -> void:
+	for child in _graph.get_children():
+		if child.get_script() == TextureSampleNode:
+			_shader_material.set_shader_parameter(child.get_uniform_name(), child.get_texture())
 
 
 func _compile_shader() -> void:
 	if not _graph.get_node_or_null("OutputNode"):
 		return
 	var code := _build_shader_code()
-	if code == _last_shader_code:
+	if code != _last_shader_code:
+		_last_shader_code = code
+		_shader_material.shader.code = code
+	_apply_texture_uniforms()
+
+
+func _on_texture_pick_requested(node: Node) -> void:
+	_texture_target = node
+	_texture_dialog.popup_centered_ratio(0.5)
+
+
+func _on_texture_file_selected(path: String) -> void:
+	if not _texture_target:
 		return
-	_last_shader_code = code
-	_shader_material.shader.code = code
+	var tex = load(path)
+	if tex is Texture2D:
+		_push_undo_state()
+		_texture_target.set_texture(tex)
+	_texture_target = null
 
 
 func _on_export_file_selected(path: String) -> void:
@@ -404,6 +451,9 @@ func _on_context_menu_selected(id: int) -> void:
 		9: _add_node(SinNode.new(), _spawn_position)
 		10: _add_node(CosNode.new(), _spawn_position)
 		11: _add_node(TimeNode.new(), _spawn_position)
+		12: _add_node(SplitNode.new(), _spawn_position)
+		13: _add_node(CombineNode.new(), _spawn_position)
+		14: _add_node(TextureSampleNode.new(), _spawn_position, "TextureSample")
 
 
 func _build_graph_toolbar() -> HBoxContainer:
