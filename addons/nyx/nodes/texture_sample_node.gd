@@ -39,6 +39,10 @@ func get_uniform_name() -> String:
 	return "tex_" + str(name).to_lower()
 
 
+func get_uniform_declaration() -> String:
+	return "uniform sampler2D %s : source_color, hint_default_white;" % get_uniform_name()
+
+
 func get_texture() -> Texture2D:
 	return _texture
 

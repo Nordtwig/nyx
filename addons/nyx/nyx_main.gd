@@ -23,6 +23,7 @@ const StepNode = preload("res://addons/nyx/nodes/step_node.gd")
 const SmoothstepNode = preload("res://addons/nyx/nodes/smoothstep_node.gd")
 const NoiseNode = preload("res://addons/nyx/nodes/noise_node.gd")
 const VertexNode = preload("res://addons/nyx/nodes/vertex_node.gd")
+const NormalMapNode = preload("res://addons/nyx/nodes/normal_map_node.gd")
 
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
@@ -47,6 +48,7 @@ const NODE_CLASSES := {
 	"SmoothstepNode": SmoothstepNode,
 	"NoiseNode": NoiseNode,
 	"VertexNode": VertexNode,
+	"NormalMapNode": NormalMapNode,
 }
 
 var _graph_container: VBoxContainer
@@ -117,6 +119,7 @@ func _ready() -> void:
 	_context_menu.add_item("Vertex", 20)
 	_context_menu.add_item("Time", 11)
 	_context_menu.add_item("Texture Sample", 14)
+	_context_menu.add_item("Normal Map", 21)
 	_context_menu.add_item("Fresnel", 15)
 	_context_menu.add_item("Scale", 16)
 	_context_menu.add_item("Step", 17)
@@ -277,8 +280,8 @@ func _request_compile() -> void:
 func _build_shader_code() -> String:
 	var uniform_lines := ""
 	for child in _graph.get_children():
-		if child.get_script() == TextureSampleNode:
-			uniform_lines += "uniform sampler2D %s : source_color, hint_default_white;\n" % child.get_uniform_name()
+		if child.has_method("get_uniform_declaration"):
+			uniform_lines += child.get_uniform_declaration() + "\n"
 
 	var shader_functions := {}
 	for child in _graph.get_children():
@@ -288,18 +291,24 @@ func _build_shader_code() -> String:
 	for fn in shader_functions:
 		function_block += shader_functions[fn]
 
+	var output_node = _graph.get_node_or_null("OutputNode")
+	var render_mode: String = output_node.get_render_mode() if output_node else ""
+	var render_mode_line: String = ("render_mode %s;\n" % render_mode) if render_mode != "" else ""
+
 	var c = _graph.get_connection_list()
 	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
 	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
 	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
 	var metallic  = _get_snippet_for("OutputNode", 3, c, "0.0")
 	var emission  = _get_snippet_for("OutputNode", 4, c, "vec3(0.0, 0.0, 0.0)")
-	return "shader_type spatial;\nrender_mode blend_mix;\n%s\n%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n}\n" % [uniform_lines, function_block, albedo, alpha, roughness, metallic, emission]
+	var normal    = _get_snippet_for("OutputNode", 5, c, "")
+	var normal_line := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
+	return "shader_type spatial;\n%s%s\n%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n%s}\n" % [render_mode_line, uniform_lines, function_block, albedo, alpha, roughness, metallic, emission, normal_line]
 
 
 func _apply_texture_uniforms() -> void:
 	for child in _graph.get_children():
-		if child.get_script() == TextureSampleNode:
+		if child.has_method("get_uniform_declaration"):
 			_shader_material.set_shader_parameter(child.get_uniform_name(), child.get_texture())
 
 
@@ -498,6 +507,7 @@ func _on_context_menu_selected(id: int) -> void:
 		18: _add_node(SmoothstepNode.new(), _spawn_position)
 		19: _add_node(NoiseNode.new(), _spawn_position)
 		20: _add_node(VertexNode.new(), _spawn_position)
+		21: _add_node(NormalMapNode.new(), _spawn_position, "NormalMap")
 
 
 func _build_graph_toolbar() -> HBoxContainer:
