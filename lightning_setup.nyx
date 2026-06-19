@@ -1,0 +1,148 @@
+{
+	"connections": [
+		{
+			"from_node": "@GraphNode@29568",
+			"from_port": 0,
+			"to_node": "@GraphNode@29548",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@29548",
+			"from_port": 0,
+			"to_node": "@GraphNode@29624",
+			"to_port": 2
+		},
+		{
+			"from_node": "@GraphNode@29639",
+			"from_port": 0,
+			"to_node": "@GraphNode@29624",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@29744",
+			"from_port": 0,
+			"to_node": "@GraphNode@29624",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@29624",
+			"from_port": 0,
+			"to_node": "@GraphNode@29759",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@29769",
+			"from_port": 0,
+			"to_node": "@GraphNode@29759",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@29759",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 4
+		},
+		{
+			"from_node": "@GraphNode@29624",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 1
+		}
+	],
+	"nodes": [
+		{
+			"name": "OutputNode",
+			"position": [
+				600.0,
+				200.0
+			],
+			"state": {
+
+			},
+			"type": "OutputNode"
+		},
+		{
+			"name": "@GraphNode@29568",
+			"position": [
+				100.0,
+				260.0
+			],
+			"state": {
+
+			},
+			"type": "VertexNode"
+		},
+		{
+			"name": "@GraphNode@29548",
+			"position": [
+				220.0,
+				260.0
+			],
+			"state": {
+				"scale": 8.0,
+				"type": 2
+			},
+			"type": "NoiseNode"
+		},
+		{
+			"name": "@GraphNode@29624",
+			"position": [
+				400.0,
+				260.0
+			],
+			"state": {
+
+			},
+			"type": "SmoothstepNode"
+		},
+		{
+			"name": "@GraphNode@29639",
+			"position": [
+				200.0,
+				140.0
+			],
+			"state": {
+				"value": 0.2
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@29744",
+			"position": [
+				200.0,
+				200.0
+			],
+			"state": {
+				"value": 0.9
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@29759",
+			"position": [
+				500.0,
+				240.0
+			],
+			"state": {
+
+			},
+			"type": "ScaleNode"
+		},
+		{
+			"name": "@GraphNode@29769",
+			"position": [
+				200.0,
+				60.0
+			],
+			"state": {
+				"color": [
+					1.0,
+					1.0,
+					1.0,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		}
+	]
+}

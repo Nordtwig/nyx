@@ -2,21 +2,22 @@
 extends "res://addons/nyx/nodes/nyx_node.gd"
 
 var _value: float = 0.5
-var _spinbox: SpinBox
+var _slider: EditorSpinSlider
 
 
 func _ready() -> void:
 	super._ready()
 	title = "Float"
 
-	_spinbox = SpinBox.new()
-	_spinbox.min_value = 0.0
-	_spinbox.max_value = 1.0
-	_spinbox.step = 0.01
-	_spinbox.value = _value
-	_spinbox.custom_minimum_size = Vector2(120, 0)
-	_spinbox.value_changed.connect(_on_value_changed)
-	add_child(_spinbox)
+	_slider = EditorSpinSlider.new()
+	_slider.min_value = 0.0
+	_slider.max_value = 1.0
+	_slider.step = 0.01
+	_slider.value = _value
+	_slider.custom_minimum_size = Vector2(80, 0)
+	_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_slider.value_changed.connect(_on_value_changed)
+	add_child(_slider)
 
 	set_slot(0, false, -1, Color.WHITE, true, 1, Color(0.35, 0.9, 0.85))
 
@@ -40,4 +41,4 @@ func get_state() -> Dictionary:
 
 func set_state(state: Dictionary) -> void:
 	_value = state["value"]
-	_spinbox.value = _value
+	_slider.value = _value

@@ -2,7 +2,7 @@
 extends "res://addons/nyx/nodes/nyx_node.gd"
 
 var _power: float = 3.0
-var _spinbox: SpinBox
+var _slider: EditorSpinSlider
 
 
 func _ready() -> void:
@@ -11,14 +11,16 @@ func _ready() -> void:
 
 	var float_color := Color(0.35, 0.9, 0.85)
 
-	_spinbox = SpinBox.new()
-	_spinbox.min_value = 0.1
-	_spinbox.max_value = 20.0
-	_spinbox.step = 0.1
-	_spinbox.value = _power
-	_spinbox.custom_minimum_size = Vector2(120, 0)
-	_spinbox.value_changed.connect(_on_value_changed)
-	add_child(_spinbox)
+	_slider = EditorSpinSlider.new()
+	_slider.label = "Power"
+	_slider.min_value = 0.1
+	_slider.max_value = 20.0
+	_slider.step = 0.1
+	_slider.value = _power
+	_slider.custom_minimum_size = Vector2(80, 0)
+	_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_slider.value_changed.connect(_on_value_changed)
+	add_child(_slider)
 
 	set_slot(0, true, 1, float_color, true, 1, float_color)
 
@@ -42,4 +44,4 @@ func get_state() -> Dictionary:
 
 func set_state(state: Dictionary) -> void:
 	_power = state["power"]
-	_spinbox.value = _power
+	_slider.value = _power

@@ -19,6 +19,10 @@ const CombineNode = preload("res://addons/nyx/nodes/combine_node.gd")
 const TextureSampleNode = preload("res://addons/nyx/nodes/texture_sample_node.gd")
 const FresnelNode = preload("res://addons/nyx/nodes/fresnel_node.gd")
 const ScaleNode = preload("res://addons/nyx/nodes/scale_node.gd")
+const StepNode = preload("res://addons/nyx/nodes/step_node.gd")
+const SmoothstepNode = preload("res://addons/nyx/nodes/smoothstep_node.gd")
+const NoiseNode = preload("res://addons/nyx/nodes/noise_node.gd")
+const VertexNode = preload("res://addons/nyx/nodes/vertex_node.gd")
 
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
@@ -39,6 +43,10 @@ const NODE_CLASSES := {
 	"TextureSampleNode": TextureSampleNode,
 	"FresnelNode": FresnelNode,
 	"ScaleNode": ScaleNode,
+	"StepNode": StepNode,
+	"SmoothstepNode": SmoothstepNode,
+	"NoiseNode": NoiseNode,
+	"VertexNode": VertexNode,
 }
 
 var _graph_container: VBoxContainer
@@ -106,10 +114,15 @@ func _ready() -> void:
 	_context_menu.add_item("Combine", 13)
 	_context_menu.add_separator()
 	_context_menu.add_item("UV", 4)
+	_context_menu.add_item("Vertex", 20)
 	_context_menu.add_item("Time", 11)
 	_context_menu.add_item("Texture Sample", 14)
 	_context_menu.add_item("Fresnel", 15)
 	_context_menu.add_item("Scale", 16)
+	_context_menu.add_item("Step", 17)
+	_context_menu.add_item("Smoothstep", 18)
+	_context_menu.add_separator()
+	_context_menu.add_item("Noise", 19)
 	_context_menu.id_pressed.connect(_on_context_menu_selected)
 	add_child(_context_menu)
 
@@ -267,13 +280,21 @@ func _build_shader_code() -> String:
 		if child.get_script() == TextureSampleNode:
 			uniform_lines += "uniform sampler2D %s : source_color, hint_default_white;\n" % child.get_uniform_name()
 
+	var shader_functions := {}
+	for child in _graph.get_children():
+		if child.has_method("get_shader_functions"):
+			shader_functions.merge(child.get_shader_functions())
+	var function_block := ""
+	for fn in shader_functions:
+		function_block += shader_functions[fn]
+
 	var c = _graph.get_connection_list()
 	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
 	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
 	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
 	var metallic  = _get_snippet_for("OutputNode", 3, c, "0.0")
 	var emission  = _get_snippet_for("OutputNode", 4, c, "vec3(0.0, 0.0, 0.0)")
-	return "shader_type spatial;\n%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n}\n" % [uniform_lines, albedo, alpha, roughness, metallic, emission]
+	return "shader_type spatial;\nrender_mode blend_mix;\n%s\n%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n}\n" % [uniform_lines, function_block, albedo, alpha, roughness, metallic, emission]
 
 
 func _apply_texture_uniforms() -> void:
@@ -440,6 +461,17 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			_spawn_position = event.position / _graph.zoom + _graph.scroll_offset
 			_context_menu.popup(Rect2(get_global_mouse_position(), Vector2.ZERO))
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_X:
+			var selected: Array[StringName] = []
+			for child in _graph.get_children():
+				if child is GraphNode and child.selected:
+					selected.append(child.name)
+			if not selected.is_empty():
+				_on_delete_nodes_request(selected)
+		elif event.keycode == KEY_A:
+			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
+			_context_menu.popup(Rect2(get_global_mouse_position(), Vector2.ZERO))
 
 
 func _on_context_menu_selected(id: int) -> void:
@@ -462,6 +494,10 @@ func _on_context_menu_selected(id: int) -> void:
 		14: _add_node(TextureSampleNode.new(), _spawn_position, "TextureSample")
 		15: _add_node(FresnelNode.new(), _spawn_position)
 		16: _add_node(ScaleNode.new(), _spawn_position)
+		17: _add_node(StepNode.new(), _spawn_position)
+		18: _add_node(SmoothstepNode.new(), _spawn_position)
+		19: _add_node(NoiseNode.new(), _spawn_position)
+		20: _add_node(VertexNode.new(), _spawn_position)
 
 
 func _build_graph_toolbar() -> HBoxContainer:
