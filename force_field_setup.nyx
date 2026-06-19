@@ -1,0 +1,151 @@
+{
+	"connections": [
+		{
+			"from_node": "@GraphNode@22363",
+			"from_port": 0,
+			"to_node": "@GraphNode@22480",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@22490",
+			"from_port": 0,
+			"to_node": "@GraphNode@22480",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@22448",
+			"from_port": 0,
+			"to_node": "@GraphNode@22480",
+			"to_port": 2
+		},
+		{
+			"from_node": "@GraphNode@22601",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@22480",
+			"from_port": 0,
+			"to_node": "@GraphNode@22711",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@22711",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 4
+		},
+		{
+			"from_node": "@GraphNode@22716",
+			"from_port": 1,
+			"to_node": "@GraphNode@22711",
+			"to_port": 1
+		}
+	],
+	"nodes": [
+		{
+			"name": "OutputNode",
+			"position": [
+				400.0,
+				200.0
+			],
+			"state": {
+
+			},
+			"type": "OutputNode"
+		},
+		{
+			"name": "@GraphNode@22480",
+			"position": [
+				300.0,
+				220.0
+			],
+			"state": {
+
+			},
+			"type": "MixNode"
+		},
+		{
+			"name": "@GraphNode@22363",
+			"position": [
+				100.0,
+				120.0
+			],
+			"state": {
+				"color": [
+					0.0,
+					0.265625,
+					0.5,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		},
+		{
+			"name": "@GraphNode@22490",
+			"position": [
+				100.0,
+				220.0
+			],
+			"state": {
+				"color": [
+					0.296875,
+					0.93408203125,
+					1.0,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		},
+		{
+			"name": "@GraphNode@22601",
+			"position": [
+				100.0,
+				20.0
+			],
+			"state": {
+				"color": [
+					0.880208313465118,
+					0.0137532548978925,
+					0.0137532548978925,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		},
+		{
+			"name": "@GraphNode@22448",
+			"position": [
+				140.0,
+				320.0
+			],
+			"state": {
+
+			},
+			"type": "FresnelNode"
+		},
+		{
+			"name": "@GraphNode@22716",
+			"position": [
+				140.0,
+				380.0
+			],
+			"state": {
+
+			},
+			"type": "TimeNode"
+		},
+		{
+			"name": "@GraphNode@22711",
+			"position": [
+				360.0,
+				340.0
+			],
+			"state": {
+
+			},
+			"type": "ScaleNode"
+		}
+	]
+}

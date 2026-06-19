@@ -17,6 +17,8 @@ const TimeNode = preload("res://addons/nyx/nodes/time_node.gd")
 const SplitNode = preload("res://addons/nyx/nodes/split_node.gd")
 const CombineNode = preload("res://addons/nyx/nodes/combine_node.gd")
 const TextureSampleNode = preload("res://addons/nyx/nodes/texture_sample_node.gd")
+const FresnelNode = preload("res://addons/nyx/nodes/fresnel_node.gd")
+const ScaleNode = preload("res://addons/nyx/nodes/scale_node.gd")
 
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
@@ -35,6 +37,8 @@ const NODE_CLASSES := {
 	"SplitNode": SplitNode,
 	"CombineNode": CombineNode,
 	"TextureSampleNode": TextureSampleNode,
+	"FresnelNode": FresnelNode,
+	"ScaleNode": ScaleNode,
 }
 
 var _graph_container: VBoxContainer
@@ -104,6 +108,8 @@ func _ready() -> void:
 	_context_menu.add_item("UV", 4)
 	_context_menu.add_item("Time", 11)
 	_context_menu.add_item("Texture Sample", 14)
+	_context_menu.add_item("Fresnel", 15)
+	_context_menu.add_item("Scale", 16)
 	_context_menu.id_pressed.connect(_on_context_menu_selected)
 	add_child(_context_menu)
 
@@ -454,6 +460,8 @@ func _on_context_menu_selected(id: int) -> void:
 		12: _add_node(SplitNode.new(), _spawn_position)
 		13: _add_node(CombineNode.new(), _spawn_position)
 		14: _add_node(TextureSampleNode.new(), _spawn_position, "TextureSample")
+		15: _add_node(FresnelNode.new(), _spawn_position)
+		16: _add_node(ScaleNode.new(), _spawn_position)
 
 
 func _build_graph_toolbar() -> HBoxContainer:
