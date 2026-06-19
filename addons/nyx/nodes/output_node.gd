@@ -31,11 +31,14 @@ func _ready() -> void:
 	_option_btn.add_item("Premult Alpha")
 	_option_btn.selected = _mode
 	_option_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_option_btn.item_selected.connect(func(idx: int):
-		_mode = idx
-		value_changed.emit()
-	)
+	_option_btn.item_selected.connect(_on_mode_selected)
 	add_child(_option_btn)
+
+
+func _on_mode_selected(idx: int) -> void:
+	emit_signal("edit_started")
+	_mode = idx
+	emit_signal("value_changed")
 
 
 func get_render_mode() -> String:

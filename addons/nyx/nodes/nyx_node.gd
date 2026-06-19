@@ -2,6 +2,7 @@
 extends GraphNode
 
 signal value_changed
+signal edit_started
 
 
 func _ready() -> void:
