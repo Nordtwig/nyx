@@ -1,0 +1,129 @@
+{
+	"connections": [
+		{
+			"from_node": "@GraphNode@45475",
+			"from_port": 0,
+			"to_node": "@GraphNode@45483",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@45483",
+			"from_port": 0,
+			"to_node": "@GraphNode@45505",
+			"to_port": 2
+		},
+		{
+			"from_node": "@GraphNode@45521",
+			"from_port": 0,
+			"to_node": "@GraphNode@45505",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@45550",
+			"from_port": 0,
+			"to_node": "@GraphNode@45505",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@45505",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@45576",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 0
+		}
+	],
+	"nodes": [
+		{
+			"name": "OutputNode",
+			"position": [
+				400.0,
+				200.0
+			],
+			"state": {
+				"mode": 1
+			},
+			"type": "OutputNode"
+		},
+		{
+			"name": "@GraphNode@45475",
+			"position": [
+				-180.0,
+				280.0
+			],
+			"state": {
+
+			},
+			"type": "VertexNode"
+		},
+		{
+			"name": "@GraphNode@45505",
+			"position": [
+				180.0,
+				240.0
+			],
+			"state": {
+
+			},
+			"type": "SmoothstepNode"
+		},
+		{
+			"name": "@GraphNode@45483",
+			"position": [
+				-40.0,
+				280.0
+			],
+			"state": {
+				"scale": 6.0,
+				"type": 2
+			},
+			"type": "NoiseNode"
+		},
+		{
+			"name": "@GraphNode@45521",
+			"position": [
+				-80.0,
+				120.0
+			],
+			"state": {
+				"param_mode": true,
+				"param_name": "dissolve",
+				"value": 0.5
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@45550",
+			"position": [
+				-80.0,
+				200.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@45550",
+				"value": 0.6
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@45576",
+			"position": [
+				-100.0,
+				20.0
+			],
+			"state": {
+				"color": [
+					1.0,
+					1.0,
+					1.0,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		}
+	]
+}

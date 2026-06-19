@@ -281,7 +281,9 @@ func _build_shader_code() -> String:
 	var uniform_lines := ""
 	for child in _graph.get_children():
 		if child.has_method("get_uniform_declaration"):
-			uniform_lines += child.get_uniform_declaration() + "\n"
+			var decl: String = child.get_uniform_declaration()
+			if decl != "":
+				uniform_lines += decl + "\n"
 
 	var shader_functions := {}
 	for child in _graph.get_children():
@@ -349,13 +351,56 @@ func _on_export_file_selected(path: String) -> void:
 	f.store_string(shader_code)
 	f.close()
 
+	# Collect texture nodes (have a texture assigned) and float param nodes
+	var tex_nodes := []
+	var float_param_nodes := []
+	for child in _graph.get_children():
+		if not child.has_method("get_uniform_declaration"):
+			continue
+		var decl: String = child.get_uniform_declaration()
+		if decl == "":
+			continue
+		if child.has_method("get_texture"):
+			if child.get_texture() != null:
+				tex_nodes.append(child)
+		elif "float" in decl:
+			float_param_nodes.append(child)
+
+	var load_steps := 1 + tex_nodes.size() + 1
+	var lines := PackedStringArray()
+	lines.append("[gd_resource type=\"ShaderMaterial\" load_steps=%d format=3]" % load_steps)
+	lines.append("")
+	lines.append("[ext_resource type=\"Shader\" path=\"%s\" id=\"1\"]" % path)
+
+	var tex_id := 2
+	var tex_id_map := {}
+	for node in tex_nodes:
+		var tex_path: String = node.get_texture().resource_path
+		lines.append("[ext_resource type=\"Texture2D\" path=\"%s\" id=\"%d\"]" % [tex_path, tex_id])
+		tex_id_map[node.get_uniform_name()] = tex_id
+		tex_id += 1
+
+	lines.append("")
+	lines.append("[resource]")
+	lines.append("shader = ExtResource(\"1\")")
+
+	for uname in tex_id_map:
+		lines.append("shader_parameter/%s = ExtResource(\"%d\")" % [uname, tex_id_map[uname]])
+
+	for node in float_param_nodes:
+		var decl: String = node.get_uniform_declaration()
+		var param_name: String = decl.split(" ")[2]
+		var value: float = node.get_state().get("value", 0.0)
+		lines.append("shader_parameter/%s = %.4f" % [param_name, value])
+
+	lines.append("")
+
 	var tres_path := path.get_basename() + ".tres"
-	var tres_content := "[gd_resource type=\"ShaderMaterial\" load_steps=2 format=3]\n\n[ext_resource type=\"Shader\" path=\"%s\" id=\"1\"]\n\n[resource]\nshader = ExtResource(\"1\")\n" % path
 	var tf := FileAccess.open(tres_path, FileAccess.WRITE)
 	if not tf:
 		push_error("Nyx: could not write material to %s" % tres_path)
 		return
-	tf.store_string(tres_content)
+	tf.store_string("\n".join(lines))
 	tf.close()
 
 	EditorInterface.get_resource_filesystem().scan()
