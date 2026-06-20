@@ -58,7 +58,9 @@ var _preview_dragging: bool = false
 var _preview_resizing: bool = false
 var _preview_positioned: bool = false
 var _viewport: SubViewport
-var _sphere: MeshInstance3D
+var _preview_mesh: MeshInstance3D
+var _preview_camera: Camera3D
+var _preview_mesh_buttons: Array[Button] = []
 var _shader_material: ShaderMaterial
 var _compile_timer: Timer
 var _context_menu: PopupMenu
@@ -200,6 +202,20 @@ func _build_preview_panel() -> Panel:
 	toggle.pressed.connect(_toggle_preview)
 	header.add_child(toggle)
 
+	var mesh_row := HBoxContainer.new()
+	mesh_row.add_theme_constant_override("separation", 2)
+	vbox.add_child(mesh_row)
+
+	for pair in [["Sphere", SphereMesh.new(), Vector3.ZERO, 1.2], ["Plane", QuadMesh.new(), Vector3.ZERO, 1.2], ["Cube", BoxMesh.new(), Vector3(20, 40, 20), 1.8]]:
+		var btn := Button.new()
+		btn.text = pair[0]
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.toggle_mode = true
+		btn.button_pressed = pair[0] == "Sphere"
+		btn.pressed.connect(_on_mesh_btn_pressed.bind(btn, pair[1], pair[2], pair[3]))
+		mesh_row.add_child(btn)
+		_preview_mesh_buttons.append(btn)
+
 	var vpc := SubViewportContainer.new()
 	vpc.stretch = true
 	vpc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -211,17 +227,17 @@ func _build_preview_panel() -> Panel:
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	vpc.add_child(_viewport)
 
-	var camera := Camera3D.new()
-	camera.position = Vector3(0, 0, 1.2)
-	_viewport.add_child(camera)
+	_preview_camera = Camera3D.new()
+	_preview_camera.position = Vector3(0, 0, 1.2)
+	_viewport.add_child(_preview_camera)
 
-	_sphere = MeshInstance3D.new()
-	_sphere.mesh = SphereMesh.new()
+	_preview_mesh = MeshInstance3D.new()
+	_preview_mesh.mesh = SphereMesh.new()
 	_shader_material = ShaderMaterial.new()
 	_shader_material.shader = Shader.new()
 	_shader_material.shader.code = "shader_type spatial;\nvoid fragment() {\n\tALBEDO = vec3(0.5, 0.5, 0.5);\n}\n"
-	_sphere.material_override = _shader_material
-	_viewport.add_child(_sphere)
+	_preview_mesh.material_override = _shader_material
+	_viewport.add_child(_preview_mesh)
 
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-45, 45, 0)
@@ -270,6 +286,14 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 
 func _toggle_preview() -> void:
 	_preview_panel.visible = not _preview_panel.visible
+
+
+func _on_mesh_btn_pressed(btn: Button, mesh: Mesh, rotation: Vector3, cam_z: float) -> void:
+	_preview_mesh.mesh = mesh
+	_preview_mesh.rotation_degrees = rotation
+	_preview_camera.position.z = cam_z
+	for b in _preview_mesh_buttons:
+		b.button_pressed = b == btn
 
 
 func _request_compile() -> void:
