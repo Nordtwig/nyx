@@ -25,6 +25,10 @@ func _ready() -> void:
 	set_slot(2, false, -1, Color.WHITE, true, 1, float_color)
 
 
+func _add_preview_controls() -> void:
+	pass
+
+
 func get_output_snippet(port: int, _inputs: Array = []) -> String:
 	match port:
 		1: return "sin(TIME)"

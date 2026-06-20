@@ -58,6 +58,10 @@ func _on_param_name_changed(new_name: String) -> void:
 	value_changed.emit()
 
 
+func _add_preview_controls() -> void:
+	pass
+
+
 func get_uniform_declaration() -> String:
 	if not _param_mode:
 		return ""

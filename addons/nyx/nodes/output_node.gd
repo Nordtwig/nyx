@@ -7,6 +7,10 @@ var _mode: int = 0
 var _option_btn: OptionButton
 
 
+func _add_preview_controls() -> void:
+	pass
+
+
 func _ready() -> void:
 	super._ready()
 	title = "Output"

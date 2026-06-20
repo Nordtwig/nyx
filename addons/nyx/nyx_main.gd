@@ -269,6 +269,13 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 		node.edit_started.connect(_push_undo_state)
 	if node.has_signal("texture_pick_requested"):
 		node.texture_pick_requested.connect(_on_texture_pick_requested)
+	if node.has_signal("preview_toggled"):
+		node.preview_toggled.connect(func():
+			if node.has_meta("_preview_material"):
+				_close_node_preview(node)
+			else:
+				_open_node_preview(node)
+		)
 	node.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			_pre_drag_snapshot = _serialize_graph()
@@ -294,6 +301,105 @@ func _on_mesh_btn_pressed(btn: Button, mesh: Mesh, rotation: Vector3, cam_z: flo
 	_preview_camera.position.z = cam_z
 	for b in _preview_mesh_buttons:
 		b.button_pressed = b == btn
+
+
+
+func _open_node_preview(node: Node) -> void:
+	var tex_rect: TextureRect = node.get_preview_slot()
+	if not tex_rect:
+		return
+
+	var vp := SubViewport.new()
+	vp.size = Vector2i(100, 100)
+	vp.own_world_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+
+	var cam := Camera3D.new()
+	cam.position = Vector3(0, 0, 1.2)
+	vp.add_child(cam)
+	cam.make_current()
+
+	var mesh_inst := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(1.84, 1.84)
+	mesh_inst.mesh = qm
+	var shader := Shader.new()
+	shader.code = "shader_type spatial;\nrender_mode unshaded;\nvoid fragment() { ALBEDO = vec3(0.5); }"
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mesh_inst.material_override = mat
+	vp.add_child(mesh_inst)
+
+	var light := DirectionalLight3D.new()
+	light.rotation_degrees = Vector3(-45, 45, 0)
+	vp.add_child(light)
+
+	tex_rect.texture = vp.get_texture()
+	node.set_meta("_preview_material", mat)
+	node.set_meta("_preview_viewport", vp)
+	_refresh_node_preview(node)
+
+
+func _close_node_preview(node: Node) -> void:
+	if node.has_meta("_preview_material"):
+		node.remove_meta("_preview_material")
+	if node.has_meta("_preview_viewport"):
+		(node.get_meta("_preview_viewport") as Node).queue_free()
+		node.remove_meta("_preview_viewport")
+	var tex_rect: TextureRect = node.get_preview_slot()
+	if tex_rect:
+		tex_rect.texture = null
+
+
+func _refresh_node_preview(node: Node) -> void:
+	if not node.has_meta("_preview_material"):
+		return
+	var mat: ShaderMaterial = node.get_meta("_preview_material")
+	mat.shader.code = _build_node_preview_shader(node)
+	for child in _graph.get_children():
+		if child.has_method("get_uniform_name") and child.has_method("get_texture"):
+			var tex = child.get_texture()
+			if tex:
+				mat.set_shader_parameter(child.get_uniform_name(), tex)
+
+
+func _refresh_all_node_previews() -> void:
+	for child in _graph.get_children():
+		if child.has_meta("_preview_material"):
+			_refresh_node_preview(child)
+
+
+func _build_node_preview_shader(node: Node) -> String:
+	var c = _graph.get_connection_list()
+
+	var uniform_lines := ""
+	for child in _graph.get_children():
+		if child.has_method("get_uniform_declaration"):
+			var decl: String = child.get_uniform_declaration()
+			if decl != "":
+				uniform_lines += decl + "\n"
+
+	var shader_functions := {}
+	for child in _graph.get_children():
+		if child.has_method("get_shader_functions"):
+			shader_functions.merge(child.get_shader_functions())
+	var function_block := ""
+	for fn in shader_functions:
+		function_block += shader_functions[fn]
+
+	var result: String
+	var albedo_expr: String
+	if node.get_output_port_count() == 0:
+		# Sink node (e.g. OutputNode) — show what feeds into its first input slot
+		result = _get_snippet_for(node.name, 0, c, "vec3(0.5, 0.5, 0.5)")
+		albedo_expr = result
+	else:
+		result = _get_node_snippet(node, 0, c)
+		var output_type: int = node.get_output_port_type(0)
+		albedo_expr = "vec3(%s)" % result if output_type == 1 else result
+
+	return "shader_type spatial;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tALBEDO = %s;\n}\n" % [uniform_lines, function_block, albedo_expr]
 
 
 func _request_compile() -> void:
@@ -339,13 +445,13 @@ func _apply_texture_uniforms() -> void:
 
 
 func _compile_shader() -> void:
-	if not _graph.get_node_or_null("OutputNode"):
-		return
-	var code := _build_shader_code()
-	if code != _last_shader_code:
-		_last_shader_code = code
-		_shader_material.shader.code = code
-	_apply_texture_uniforms()
+	if _graph.get_node_or_null("OutputNode"):
+		var code := _build_shader_code()
+		if code != _last_shader_code:
+			_last_shader_code = code
+			_shader_material.shader.code = code
+		_apply_texture_uniforms()
+	_refresh_all_node_previews()
 
 
 func _on_texture_pick_requested(node: Node) -> void:
