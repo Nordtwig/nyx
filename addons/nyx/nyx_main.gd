@@ -24,6 +24,20 @@ const SmoothstepNode = preload("res://addons/nyx/nodes/smoothstep_node.gd")
 const NoiseNode = preload("res://addons/nyx/nodes/noise_node.gd")
 const VertexNode = preload("res://addons/nyx/nodes/vertex_node.gd")
 const NormalMapNode = preload("res://addons/nyx/nodes/normal_map_node.gd")
+const AbsNode = preload("res://addons/nyx/nodes/abs_node.gd")
+const CeilNode = preload("res://addons/nyx/nodes/ceil_node.gd")
+const FloorNode = preload("res://addons/nyx/nodes/floor_node.gd")
+const FractNode = preload("res://addons/nyx/nodes/fract_node.gd")
+const NegateNode = preload("res://addons/nyx/nodes/negate_node.gd")
+const OneMinusNode = preload("res://addons/nyx/nodes/one_minus_node.gd")
+const RoundNode = preload("res://addons/nyx/nodes/round_node.gd")
+const SqrtNode = preload("res://addons/nyx/nodes/sqrt_node.gd")
+const MinMaxNode = preload("res://addons/nyx/nodes/min_max_node.gd")
+const DivideNode = preload("res://addons/nyx/nodes/divide_node.gd")
+const ModNode = preload("res://addons/nyx/nodes/mod_node.gd")
+const NormalizeNode = preload("res://addons/nyx/nodes/normalize_node.gd")
+const LengthNode = preload("res://addons/nyx/nodes/length_node.gd")
+const DotNode = preload("res://addons/nyx/nodes/dot_node.gd")
 
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
@@ -49,6 +63,20 @@ const NODE_CLASSES := {
 	"NoiseNode": NoiseNode,
 	"VertexNode": VertexNode,
 	"NormalMapNode": NormalMapNode,
+	"AbsNode": AbsNode,
+	"CeilNode": CeilNode,
+	"FloorNode": FloorNode,
+	"FractNode": FractNode,
+	"NegateNode": NegateNode,
+	"OneMinusNode": OneMinusNode,
+	"RoundNode": RoundNode,
+	"SqrtNode": SqrtNode,
+	"MinMaxNode": MinMaxNode,
+	"DivideNode": DivideNode,
+	"ModNode": ModNode,
+	"NormalizeNode": NormalizeNode,
+	"LengthNode": LengthNode,
+	"DotNode": DotNode,
 }
 
 var _graph_container: VBoxContainer
@@ -108,11 +136,26 @@ func _ready() -> void:
 	_context_menu.add_item("Add", 1)
 	_context_menu.add_item("Subtract", 6)
 	_context_menu.add_item("Multiply", 2)
+	_context_menu.add_item("Divide", 24)
 	_context_menu.add_item("Mix", 3)
 	_context_menu.add_item("Clamp", 7)
 	_context_menu.add_item("Power", 8)
+	_context_menu.add_item("Min / Max", 23)
+	_context_menu.add_item("Modulo", 25)
+	_context_menu.add_item("Abs", 22)
+	_context_menu.add_item("Ceil", 29)
+	_context_menu.add_item("Floor", 30)
+	_context_menu.add_item("Fract", 31)
+	_context_menu.add_item("Negate", 32)
+	_context_menu.add_item("One Minus", 33)
+	_context_menu.add_item("Round", 34)
+	_context_menu.add_item("Sqrt", 35)
 	_context_menu.add_item("Sin", 9)
 	_context_menu.add_item("Cos", 10)
+	_context_menu.add_separator()
+	_context_menu.add_item("Normalize", 26)
+	_context_menu.add_item("Length", 27)
+	_context_menu.add_item("Dot", 28)
 	_context_menu.add_separator()
 	_context_menu.add_item("Split", 12)
 	_context_menu.add_item("Combine", 13)
@@ -683,6 +726,20 @@ func _on_context_menu_selected(id: int) -> void:
 		19: _add_node(NoiseNode.new(), _spawn_position)
 		20: _add_node(VertexNode.new(), _spawn_position)
 		21: _add_node(NormalMapNode.new(), _spawn_position, "NormalMap")
+		22: _add_node(AbsNode.new(), _spawn_position)
+		29: _add_node(CeilNode.new(), _spawn_position)
+		30: _add_node(FloorNode.new(), _spawn_position)
+		31: _add_node(FractNode.new(), _spawn_position)
+		32: _add_node(NegateNode.new(), _spawn_position)
+		33: _add_node(OneMinusNode.new(), _spawn_position)
+		34: _add_node(RoundNode.new(), _spawn_position)
+		35: _add_node(SqrtNode.new(), _spawn_position)
+		23: _add_node(MinMaxNode.new(), _spawn_position)
+		24: _add_node(DivideNode.new(), _spawn_position)
+		25: _add_node(ModNode.new(), _spawn_position)
+		26: _add_node(NormalizeNode.new(), _spawn_position)
+		27: _add_node(LengthNode.new(), _spawn_position)
+		28: _add_node(DotNode.new(), _spawn_position)
 
 
 func _build_graph_toolbar() -> HBoxContainer:
