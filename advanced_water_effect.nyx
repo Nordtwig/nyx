@@ -1,12 +1,6 @@
 {
 	"connections": [
 		{
-			"from_node": "UV",
-			"from_port": 0,
-			"to_node": "TilingOffset",
-			"to_port": 0
-		},
-		{
 			"from_node": "Time",
 			"from_port": 1,
 			"to_node": "TilingOffset",
@@ -22,12 +16,6 @@
 			"from_node": "FBM",
 			"from_port": 0,
 			"to_node": "NormalFromHeight",
-			"to_port": 0
-		},
-		{
-			"from_node": "UV",
-			"from_port": 0,
-			"to_node": "@GraphNode@28386",
 			"to_port": 0
 		},
 		{
@@ -167,18 +155,21 @@
 			"from_port": 0,
 			"to_node": "OutputNode",
 			"to_port": 5
+		},
+		{
+			"from_node": "Vertex",
+			"from_port": 0,
+			"to_node": "TilingOffset",
+			"to_port": 0
+		},
+		{
+			"from_node": "Vertex",
+			"from_port": 0,
+			"to_node": "@GraphNode@28386",
+			"to_port": 0
 		}
 	],
 	"nodes": [
-		{
-			"name": "UV",
-			"position": [
-				-120.0,
-				120.0
-			],
-			"state": {},
-			"type": "UVNode"
-		},
 		{
 			"name": "TilingOffset",
 			"position": [
@@ -478,6 +469,24 @@
 				"edge1": 1.0
 			},
 			"type": "SmoothstepNode"
+		},
+		{
+			"name": "Vertex",
+			"position": [
+				-140.0,
+				40.0
+			],
+			"state": {},
+			"type": "VertexNode"
+		},
+		{
+			"name": "UV",
+			"position": [
+				-120.0,
+				120.0
+			],
+			"state": {},
+			"type": "UVNode"
 		}
 	]
 }

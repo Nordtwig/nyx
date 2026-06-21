@@ -452,6 +452,7 @@ func _build_preview_panel() -> Panel:
 
 	_viewport = SubViewport.new()
 	_viewport.own_world_3d = true
+	_viewport.transparent_bg = true
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	vpc.add_child(_viewport)
 
@@ -540,6 +541,7 @@ func _open_node_preview(node: Node) -> void:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(100, 100)
 	vp.own_world_3d = true
+	vp.transparent_bg = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(vp)
 
