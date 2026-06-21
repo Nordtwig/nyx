@@ -40,6 +40,150 @@ const NormalizeNode = preload("res://addons/nyx/nodes/normalize_node.gd")
 const LengthNode = preload("res://addons/nyx/nodes/length_node.gd")
 const DotNode = preload("res://addons/nyx/nodes/dot_node.gd")
 
+const _NODE_REGISTRY := [
+	{"category": "Inputs", "nodes": [
+		{"label": "Color", "id": 0,
+			"summary": "A constant colour value.",
+			"description": "Click the node body to open a colour picker. The entire node face shows your chosen colour. Outputs RGB as a vec3.",
+			"ports": ["Out (vec3) — the selected colour as RGB"],
+			"uses": ["Base albedo colour", "Tint multiplied over a texture", "Constant emission colour"]},
+		{"label": "Float", "id": 5,
+			"summary": "A single number, optionally exposed for runtime animation.",
+			"description": "Drag the slider to set a value between 0 and 1. Enable Param mode to expose this as a named uniform — animate it at runtime via set_shader_parameter() from GDScript.",
+			"ports": ["Out (float) — the current value"],
+			"uses": ["Dissolve threshold", "Blend weight", "Any value you want to animate from code"]},
+		{"label": "UV", "id": 4,
+			"summary": "The mesh's texture coordinates.",
+			"description": "Outputs the UV coordinates of the current fragment as a vec3 (Z is always 0). UV runs from (0,0) at one corner to (1,1) at the opposite corner.",
+			"ports": ["Out (vec3) — UV.x, UV.y, 0.0"],
+			"uses": ["Input for textures and noise", "Coordinate-based effects", "Tiling operations"]},
+		{"label": "Vertex", "id": 20,
+			"summary": "The local 3D position of the current surface point.",
+			"description": "Unlike UV, vertex position is continuous across the mesh with no seams where UV islands meet. Particularly valuable as noise input on spheres and organic shapes.",
+			"ports": ["Out (vec3) — local position XYZ"],
+			"uses": ["Seamless noise on spheres", "Position-based patterns", "Effects that shouldn't depend on UV unwrapping"]},
+		{"label": "Time", "id": 11,
+			"summary": "The current time in seconds, with pre-computed oscillating variants.",
+			"description": "Three outputs driven by the engine clock. Sin and Cos save you adding extra nodes for the most common time-based animation patterns.",
+			"ports": ["Time (float) — elapsed seconds", "Sin (float) — sin(TIME), oscillates -1 to 1", "Cos (float) — cos(TIME), oscillates -1 to 1"],
+			"uses": ["Pulsing emission", "Animated dissolve", "Scrolling textures", "Wave effects"]},
+	]},
+	{"category": "Texture", "nodes": [
+		{"label": "Texture Sample", "id": 14,
+			"summary": "Samples a colour from a 2D texture at UV coordinates.",
+			"description": "The texture is exported as a shader uniform, so it's baked into the material. Connect a UV or Tiling & Offset node to control mapping.",
+			"ports": ["UV (vec3) — texture coordinates", "Out (vec3) — sampled RGB colour"],
+			"uses": ["Painted textures", "Photo albedo", "Using a texture as a mask or detail layer"]},
+		{"label": "Normal Map", "id": 21,
+			"summary": "Samples a normal map texture and applies it to the surface.",
+			"description": "Like Texture Sample but configured for normal maps — uses the hint_normal sampler and writes to NORMAL_MAP. Connect the output to the Output node's Normal slot.",
+			"ports": ["UV (vec3) — texture coordinates", "Out (vec3) — normal map value"],
+			"uses": ["Adding surface detail without extra geometry", "Bricks, fabric, skin, scratches"]},
+	]},
+	{"category": "Math", "nodes": [
+		{"label": "Add", "id": 1, "summary": "Adds A and B. (A + B)"},
+		{"label": "Subtract", "id": 6, "summary": "Subtracts B from A. (A - B)"},
+		{"label": "Multiply", "id": 2, "summary": "Multiplies A by B. (A * B)"},
+		{"label": "Divide", "id": 24, "summary": "Divides A by B. (A / B)"},
+		{"label": "Mix", "id": 3,
+			"summary": "Blends between two values by a weight.",
+			"description": "When T is 0 the output is A; when T is 1 the output is B. Values between give a proportional blend. The fundamental blending operation in shader programming.",
+			"ports": ["A (vec3) — first value", "B (vec3) — second value", "T (float) — blend weight 0-1", "Out (vec3)"],
+			"uses": ["Blending two colours", "Fading between textures", "Dissolve transitions"]},
+		{"label": "Clamp", "id": 7,
+			"summary": "Constrains a value to stay within a range.",
+			"description": "Ensures output never goes below Min or above Max. Essential for keeping values in the 0-1 range expected by most shader outputs.",
+			"ports": ["V (vec3) — value to clamp", "Min (float) — lower bound", "Max (float) — upper bound", "Out (vec3)"],
+			"uses": ["Preventing oversaturation", "Keeping alpha values valid", "Clamping noise before using as a mask"]},
+		{"label": "Power", "id": 8,
+			"summary": "Raises a value to an exponent.",
+			"description": "Low exponents (0.5-1) spread and lighten a value; high exponents (2-8) concentrate and darken it. This non-linear curve shapes most falloff effects.",
+			"ports": ["Base (vec3) — input value", "Exp (float) — exponent", "Out (vec3)"],
+			"uses": ["Shaping Fresnel falloff", "Sharpening noise edges", "Gamma-style adjustment"]},
+		{"label": "Min / Max", "id": 23, "summary": "Returns the smaller (Min) or larger (Max) of two values."},
+		{"label": "Modulo", "id": 25, "summary": "Returns the remainder after dividing A by B."},
+		{"label": "Abs", "id": 22, "summary": "Returns the absolute (positive) value. Negative inputs become positive."},
+		{"label": "Ceil", "id": 29, "summary": "Rounds up to the nearest integer."},
+		{"label": "Floor", "id": 30, "summary": "Rounds down to the nearest integer."},
+		{"label": "Fract", "id": 31, "summary": "Returns the fractional part. fract(2.7) = 0.7"},
+		{"label": "Negate", "id": 32, "summary": "Flips the sign. Positive becomes negative and vice versa."},
+		{"label": "One Minus", "id": 33, "summary": "Returns 1 - V. Inverts a 0-1 value."},
+		{"label": "Round", "id": 34, "summary": "Rounds to the nearest integer."},
+		{"label": "Sqrt", "id": 35, "summary": "Returns the square root."},
+		{"label": "Sin", "id": 9,
+			"summary": "Sine of the input — oscillates smoothly between -1 and 1.",
+			"description": "In shader work, most useful for turning a time value into smooth repeating oscillation, or for building wave patterns.",
+			"ports": ["V (float) — angle in radians", "Out (float)"],
+			"uses": ["Values that pulse or breathe", "Wave and ripple patterns", "Combining with Time for looping animation"]},
+		{"label": "Cos", "id": 10,
+			"summary": "Cosine of the input — oscillates smoothly between -1 and 1.",
+			"description": "Like Sin but offset by a quarter cycle. Useful when you need two oscillating values that don't peak at the same moment.",
+			"ports": ["V (float) — angle in radians", "Out (float)"],
+			"uses": ["Phase-offset oscillation alongside Sin", "Circular motion combined with Sin", "Wave patterns"]},
+	]},
+	{"category": "Vector", "nodes": [
+		{"label": "Normalize", "id": 26,
+			"summary": "Scales a vector to length 1.",
+			"description": "Returns a vector pointing the same direction as V but with magnitude exactly 1. Required when a direction vector is used in lighting calculations.",
+			"ports": ["V (vec3) — input", "Out (vec3)"],
+			"uses": ["Cleaning up normals before lighting", "Ensuring direction vectors are valid for dot product operations"]},
+		{"label": "Length", "id": 27,
+			"summary": "Returns the length (magnitude) of a vector.",
+			"description": "Calculates how long a vec3 is — the distance from the origin to that point.",
+			"ports": ["V (vec3) — input", "Out (float)"],
+			"uses": ["Radial gradients from a point", "Distance-based effects", "Circular and spherical masks"]},
+		{"label": "Dot", "id": 28,
+			"summary": "How aligned two vectors are. 1 = same direction, 0 = perpendicular, -1 = opposite.",
+			"description": "The dot product is the fundamental operation behind most lighting and angle-based effects in shaders. Nearly every lighting model is built on it.",
+			"ports": ["A (vec3) — first vector", "B (vec3) — second vector", "Out (float)"],
+			"uses": ["Angle-based masking", "Measuring how directly a surface faces a light or camera", "Rim lighting", "Custom Fresnel calculations"]},
+		{"label": "Split", "id": 12,
+			"summary": "Breaks a vec3 into its R, G, B float components.",
+			"description": "Separates a colour or vector into three individual channels for independent processing.",
+			"ports": ["In (vec3) — input", "R (float)", "G (float)", "B (float)"],
+			"uses": ["Extracting a single texture channel", "Separating world position axes", "Channel-specific operations before recombining"]},
+		{"label": "Combine", "id": 13,
+			"summary": "Builds a vec3 from three floats. The counterpart to Split.",
+			"description": "Takes three separate float values and packs them into a single vec3.",
+			"ports": ["R (float)", "G (float)", "B (float)", "Out (vec3)"],
+			"uses": ["Assembling colour from independently-calculated channels", "Building direction vectors from scalar results"]},
+		{"label": "Scale", "id": 16,
+			"summary": "Multiplies a vec3 by a float. Bridges float values into colour pipelines.",
+			"description": "Multiplies every channel of V by scalar T. The primary way to apply a float-output node (Fresnel, Noise, FBM) to a colour or direction.",
+			"ports": ["V (vec3) — colour or vector input", "T (float) — scalar multiplier", "Out (vec3)"],
+			"uses": ["Tinting a colour by noise intensity", "Applying Fresnel as emission strength", "Weighting a normal map contribution"]},
+	]},
+	{"category": "Shape", "nodes": [
+		{"label": "Fresnel", "id": 15,
+			"summary": "Brighter at glancing angles, darker head-on. The classic edge-glow effect.",
+			"description": "Computes how much the surface faces away from the camera. High power = tight rim; low power = spreads across the whole surface. Connect a Float to the Power port to drive it dynamically.",
+			"ports": ["Power (float) — falloff sharpness, default 3.0", "Out (float)"],
+			"uses": ["Rim lighting", "Force fields and hologram edges", "Atmospheric haze on planets", "X-ray effects", "Iridescence"]},
+		{"label": "Step", "id": 17,
+			"summary": "Returns 0 or 1 based on a hard threshold. No blending.",
+			"description": "A binary cut: 0 if X is below Edge, 1 if at or above. Useful wherever you need an instantaneous on/off boundary.",
+			"ports": ["Edge (float) — threshold", "X (float) — value to test", "Out (float)"],
+			"uses": ["Hard dissolve edges", "Binary masks", "Cutout alpha effects"]},
+		{"label": "Smoothstep", "id": 18,
+			"summary": "Smooth 0-to-1 transition between two edges.",
+			"description": "Like Step but with an ease-in/ease-out curve. Below Edge0 returns 0, above Edge1 returns 1, between them is a smooth S-curve blend. One of the most-used nodes in shader work.",
+			"ports": ["Edge0 (float) — lower edge", "Edge1 (float) — upper edge", "X (float) — value to test", "Out (float)"],
+			"uses": ["Soft dissolve edges", "Smooth masks", "Anti-aliased procedural shapes", "Gradient falloffs"]},
+	]},
+	{"category": "Noise", "nodes": [
+		{"label": "Noise", "id": 19,
+			"summary": "Procedural noise — organic, hash-based variation across a surface.",
+			"description": "Three types via dropdown: Value (smooth, slightly blocky), Gradient (classic Perlin-style, most organic), Voronoi (cell-based, crystalline or cracked). Scale controls feature size — higher values mean smaller, denser features.",
+			"ports": ["UV (vec3) — coordinate input (use Vertex for seamless noise on spheres)", "Scale (float) — feature size", "Out (float)"],
+			"uses": ["Organic textures", "Dissolve masks", "Cloud-like patterns", "Randomising roughness or emission"]},
+		{"label": "FBM", "id": 36,
+			"summary": "Fractal Brownian Motion — noise layered at multiple scales for natural, rich detail.",
+			"description": "Stacks multiple octaves of gradient noise, each at higher frequency and lower amplitude. The result looks like natural phenomena — clouds, terrain, smoke, fire. Octaves adds detail layers. Lacunarity controls frequency growth per octave (default 2.0). Gain controls how fast amplitude fades (default 0.5).",
+			"ports": ["UV (vec3) — coordinate input (use Vertex for seamless results on spheres)", "Scale (float) — base feature size", "Out (float)"],
+			"uses": ["Clouds and smoke", "Fire and lava", "Organic terrain", "Any effect needing natural multi-scale variation"]},
+	]},
+]
+
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
 	"ColorNode": ColorNode,
@@ -93,7 +237,14 @@ var _preview_camera: Camera3D
 var _preview_mesh_buttons: Array[Button] = []
 var _shader_material: ShaderMaterial
 var _compile_timer: Timer
-var _context_menu: PopupMenu
+var _search_popup: PopupPanel
+var _search_input: LineEdit
+var _search_list: ItemList
+var _search_item_ids: Array = []
+var _doc_popup: PopupPanel
+var _doc_label: RichTextLabel
+var _doc_hover_timer: Timer
+var _doc_pending_id: int = -1
 var _export_dialog: EditorFileDialog
 var _save_dialog: EditorFileDialog
 var _load_dialog: EditorFileDialog
@@ -131,51 +282,7 @@ func _ready() -> void:
 	_graph_container.add_child(_graph)
 	add_child(_graph_container)
 
-	_context_menu = PopupMenu.new()
-	_context_menu.add_item("Color", 0)
-	_context_menu.add_item("Float", 5)
-	_context_menu.add_separator()
-	_context_menu.add_item("Add", 1)
-	_context_menu.add_item("Subtract", 6)
-	_context_menu.add_item("Multiply", 2)
-	_context_menu.add_item("Divide", 24)
-	_context_menu.add_item("Mix", 3)
-	_context_menu.add_item("Clamp", 7)
-	_context_menu.add_item("Power", 8)
-	_context_menu.add_item("Min / Max", 23)
-	_context_menu.add_item("Modulo", 25)
-	_context_menu.add_item("Abs", 22)
-	_context_menu.add_item("Ceil", 29)
-	_context_menu.add_item("Floor", 30)
-	_context_menu.add_item("Fract", 31)
-	_context_menu.add_item("Negate", 32)
-	_context_menu.add_item("One Minus", 33)
-	_context_menu.add_item("Round", 34)
-	_context_menu.add_item("Sqrt", 35)
-	_context_menu.add_item("Sin", 9)
-	_context_menu.add_item("Cos", 10)
-	_context_menu.add_separator()
-	_context_menu.add_item("Normalize", 26)
-	_context_menu.add_item("Length", 27)
-	_context_menu.add_item("Dot", 28)
-	_context_menu.add_separator()
-	_context_menu.add_item("Split", 12)
-	_context_menu.add_item("Combine", 13)
-	_context_menu.add_separator()
-	_context_menu.add_item("UV", 4)
-	_context_menu.add_item("Vertex", 20)
-	_context_menu.add_item("Time", 11)
-	_context_menu.add_item("Texture Sample", 14)
-	_context_menu.add_item("Normal Map", 21)
-	_context_menu.add_item("Fresnel", 15)
-	_context_menu.add_item("Scale", 16)
-	_context_menu.add_item("Step", 17)
-	_context_menu.add_item("Smoothstep", 18)
-	_context_menu.add_separator()
-	_context_menu.add_item("Noise", 19)
-	_context_menu.add_item("FBM", 36)
-	_context_menu.id_pressed.connect(_on_context_menu_selected)
-	add_child(_context_menu)
+	_build_search_popup()
 
 	_export_dialog = EditorFileDialog.new()
 	_export_dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
@@ -690,7 +797,7 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			_spawn_position = event.position / _graph.zoom + _graph.scroll_offset
-			_context_menu.popup(Rect2(get_global_mouse_position(), Vector2.ZERO))
+			_open_search_popup()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_X:
 			var selected: Array[StringName] = []
@@ -701,7 +808,7 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 				_on_delete_nodes_request(selected)
 		elif event.keycode == KEY_A:
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
-			_context_menu.popup(Rect2(get_global_mouse_position(), Vector2.ZERO))
+			_open_search_popup()
 
 
 func _on_context_menu_selected(id: int) -> void:
@@ -858,3 +965,323 @@ func _on_load_file_selected(path: String) -> void:
 		return
 	_deserialize_graph(result)
 	print("Nyx: loaded graph ← %s" % path)
+
+
+# --- Node search popup ---
+
+func _build_search_popup() -> void:
+	# --- Search popup (compact) ---
+	_search_popup = PopupPanel.new()
+	_search_popup.min_size = Vector2i(260, 360)
+	_search_popup.transparent = true
+
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.14, 0.14, 0.18)
+	panel_style.border_color = Color(0.28, 0.28, 0.38)
+	panel_style.set_border_width_all(1)
+	panel_style.set_corner_radius_all(8)
+	_search_popup.add_theme_stylebox_override("panel", panel_style)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+
+	_search_input = LineEdit.new()
+	_search_input.placeholder_text = "Search nodes..."
+
+	var input_normal := StyleBoxFlat.new()
+	input_normal.bg_color = Color(0.20, 0.20, 0.26)
+	input_normal.border_color = Color(0.35, 0.35, 0.45)
+	input_normal.set_border_width_all(1)
+	input_normal.set_corner_radius_all(4)
+	input_normal.content_margin_left = 8
+	input_normal.content_margin_right = 8
+	input_normal.content_margin_top = 5
+	input_normal.content_margin_bottom = 5
+
+	var input_focus := StyleBoxFlat.new()
+	input_focus.bg_color = Color(0.20, 0.20, 0.26)
+	input_focus.border_color = Color(0.15, 0.61, 0.36)
+	input_focus.set_border_width_all(1)
+	input_focus.set_corner_radius_all(4)
+	input_focus.content_margin_left = 8
+	input_focus.content_margin_right = 8
+	input_focus.content_margin_top = 5
+	input_focus.content_margin_bottom = 5
+
+	_search_input.add_theme_stylebox_override("normal", input_normal)
+	_search_input.add_theme_stylebox_override("focus", input_focus)
+	_search_input.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
+	_search_input.add_theme_color_override("font_placeholder_color", Color(0.45, 0.45, 0.52))
+	_search_input.text_changed.connect(_on_search_changed)
+	_search_input.gui_input.connect(_on_search_input_key)
+	vbox.add_child(_search_input)
+
+	_search_list = ItemList.new()
+	_search_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var list_bg := StyleBoxFlat.new()
+	list_bg.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	list_bg.set_border_width_all(0)
+	_search_list.add_theme_stylebox_override("panel", list_bg)
+
+	var selected_style := StyleBoxFlat.new()
+	selected_style.bg_color = Color(0.15, 0.61, 0.36)
+	selected_style.set_corner_radius_all(3)
+	selected_style.content_margin_left = 4
+	selected_style.content_margin_right = 4
+	_search_list.add_theme_stylebox_override("selected", selected_style)
+	_search_list.add_theme_stylebox_override("selected_focus", selected_style)
+
+	var hover_style := StyleBoxFlat.new()
+	hover_style.bg_color = Color(0.15, 0.61, 0.36, 0.25)
+	hover_style.set_corner_radius_all(3)
+	hover_style.content_margin_left = 4
+	hover_style.content_margin_right = 4
+	_search_list.add_theme_stylebox_override("hovered", hover_style)
+
+	_search_list.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
+	_search_list.add_theme_color_override("font_selected_color", Color.WHITE)
+	_search_list.add_theme_color_override("font_disabled_color", Color(0.45, 0.45, 0.55))
+
+	_search_list.item_selected.connect(_on_search_item_selected_by_mouse)
+	_search_list.gui_input.connect(_on_search_list_hover)
+	vbox.add_child(_search_list)
+
+	margin.add_child(vbox)
+	_search_popup.add_child(margin)
+	_search_popup.popup_hide.connect(func():
+		_doc_popup.hide()
+		_doc_hover_timer.stop()
+	)
+	add_child(_search_popup)
+
+	_doc_hover_timer = Timer.new()
+	_doc_hover_timer.one_shot = true
+	_doc_hover_timer.wait_time = 0.4
+	_doc_hover_timer.timeout.connect(_on_doc_hover_timeout)
+	add_child(_doc_hover_timer)
+
+	# --- Doc popup (floats alongside, child of search popup so it doesn't close it) ---
+	_doc_popup = PopupPanel.new()
+	_doc_popup.min_size = Vector2i(260, 0)
+	_doc_popup.transparent = true
+	_doc_popup.visible = false
+
+	var doc_panel_style := StyleBoxFlat.new()
+	doc_panel_style.bg_color = Color(0.14, 0.14, 0.18)
+	doc_panel_style.border_color = Color(0.28, 0.28, 0.38)
+	doc_panel_style.set_border_width_all(1)
+	doc_panel_style.set_corner_radius_all(8)
+	_doc_popup.add_theme_stylebox_override("panel", doc_panel_style)
+
+	var doc_margin := MarginContainer.new()
+	doc_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	doc_margin.add_theme_constant_override("margin_left", 12)
+	doc_margin.add_theme_constant_override("margin_right", 10)
+	doc_margin.add_theme_constant_override("margin_top", 10)
+	doc_margin.add_theme_constant_override("margin_bottom", 10)
+
+	_doc_label = RichTextLabel.new()
+	_doc_label.bbcode_enabled = true
+	_doc_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_doc_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_doc_label.scroll_active = true
+	_doc_label.add_theme_color_override("default_color", Color(0.88, 0.88, 0.92))
+
+	var doc_bg := StyleBoxFlat.new()
+	doc_bg.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	doc_bg.set_border_width_all(0)
+	_doc_label.add_theme_stylebox_override("normal", doc_bg)
+
+	doc_margin.add_child(_doc_label)
+	_doc_popup.add_child(doc_margin)
+	_search_popup.add_child(_doc_popup)
+
+
+func _open_search_popup() -> void:
+	_search_input.text = ""
+	_populate_search_grouped()
+	_doc_label.clear()
+	_doc_popup.hide()
+	_search_popup.popup(Rect2(get_global_mouse_position(), Vector2(260, 360)))
+	_search_input.call_deferred("grab_focus")
+
+
+func _populate_search_grouped() -> void:
+	_search_list.clear()
+	_search_item_ids.clear()
+	for category in _NODE_REGISTRY:
+		var header_idx: int = _search_list.add_item(category["category"])
+		_search_list.set_item_disabled(header_idx, true)
+		_search_item_ids.append(-1)
+		for entry in category["nodes"]:
+			_search_list.add_item("  " + entry["label"])
+			_search_item_ids.append(entry["id"])
+
+
+func _populate_search_filtered(query: String) -> void:
+	_search_list.clear()
+	_search_item_ids.clear()
+	for category in _NODE_REGISTRY:
+		var category_matches := _fuzzy_match(query, category["category"])
+		for entry in category["nodes"]:
+			if category_matches or _fuzzy_match(query, entry["label"]):
+				_search_list.add_item(entry["label"])
+				_search_item_ids.append(entry["id"])
+	if _search_list.item_count > 0:
+		_search_list.select(0)
+
+
+func _fuzzy_match(query: String, candidate: String) -> bool:
+	query = query.to_lower()
+	candidate = candidate.to_lower()
+	var qi := 0
+	for c in candidate:
+		if qi < query.length() and c == query[qi]:
+			qi += 1
+	return qi == query.length()
+
+
+func _move_search_selection(delta: int) -> void:
+	var count := _search_list.item_count
+	if count == 0:
+		return
+	var sel := _search_list.get_selected_items()
+	var idx: int = sel[0] + delta if not sel.is_empty() else (0 if delta > 0 else count - 1)
+	while idx >= 0 and idx < count and _search_list.is_item_disabled(idx):
+		idx += delta
+	if idx < 0 or idx >= count:
+		return
+	_search_list.select(idx)
+	_search_list.ensure_current_is_visible()
+	_show_doc_for(_search_item_ids[idx])
+
+
+func _confirm_search_selection() -> void:
+	var sel := _search_list.get_selected_items()
+	if sel.is_empty():
+		return
+	var id: int = _search_item_ids[sel[0]]
+	if id < 0:
+		return
+	_search_popup.hide()
+	_push_undo_state()
+	_on_context_menu_selected(id)
+
+
+func _on_search_changed(text: String) -> void:
+	if text.is_empty():
+		_populate_search_grouped()
+	else:
+		_populate_search_filtered(text)
+
+
+func _on_search_input_key(event: InputEvent) -> void:
+	if not event is InputEventKey or not event.pressed:
+		return
+	match event.keycode:
+		KEY_DOWN:
+			_move_search_selection(1)
+			_search_input.accept_event()
+		KEY_UP:
+			_move_search_selection(-1)
+			_search_input.accept_event()
+		KEY_ENTER, KEY_KP_ENTER, KEY_RIGHT:
+			_confirm_search_selection()
+			_search_input.accept_event()
+		KEY_ESCAPE:
+			_search_popup.hide()
+			_search_input.accept_event()
+
+
+func _on_search_item_selected_by_mouse(index: int) -> void:
+	_show_doc_for(_search_item_ids[index])
+
+
+func _on_search_list_hover(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var idx := _search_list.get_item_at_position(event.position, true)
+		if idx >= 0 and not _search_list.is_item_disabled(idx):
+			_search_list.select(idx)
+			_show_doc_for(_search_item_ids[idx])
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var idx := _search_list.get_item_at_position(event.position, true)
+		if idx >= 0 and not _search_list.is_item_disabled(idx):
+			var id: int = _search_item_ids[idx]
+			if id >= 0:
+				_search_popup.hide()
+				_push_undo_state()
+				_on_context_menu_selected(id)
+				get_viewport().set_input_as_handled()
+
+
+func _show_doc_for(id: int) -> void:
+	if _doc_popup.visible:
+		_update_doc_panel(id)
+	else:
+		_doc_pending_id = id
+		_doc_hover_timer.start()
+
+
+func _on_doc_hover_timeout() -> void:
+	_update_doc_panel(_doc_pending_id)
+
+
+func _estimate_doc_height(entry: Dictionary) -> int:
+	var h := 38
+	if entry.has("description"):
+		h += maxi(44, int((entry["description"] as String).length() / 38.0) * 18)
+	if entry.has("ports"):
+		h += 20 + (entry["ports"] as Array).size() * 18
+	if entry.has("uses"):
+		h += 20 + (entry["uses"] as Array).size() * 18
+	return clampi(h + 10, 50, 480)
+
+
+func _get_node_entry(id: int) -> Dictionary:
+	for category in _NODE_REGISTRY:
+		for entry in category["nodes"]:
+			if entry["id"] == id:
+				return entry
+	return {}
+
+
+func _update_doc_panel(id: int) -> void:
+	_doc_label.clear()
+	if id < 0:
+		_doc_popup.hide()
+		return
+	var entry := _get_node_entry(id)
+	if entry.is_empty():
+		_doc_popup.hide()
+		return
+
+	_doc_label.append_text("[b]" + entry["label"] + "[/b]\n")
+	if entry.has("summary"):
+		_doc_label.append_text("[color=#8888bb]" + entry["summary"] + "[/color]\n")
+	if entry.has("description"):
+		_doc_label.append_text("\n" + entry["description"] + "\n")
+	if entry.has("ports") and not (entry["ports"] as Array).is_empty():
+		_doc_label.append_text("\n[b]Ports[/b]\n")
+		for port in entry["ports"]:
+			_doc_label.append_text("  • " + port + "\n")
+	if entry.has("uses") and not (entry["uses"] as Array).is_empty():
+		_doc_label.append_text("\n[b]Good for[/b]\n")
+		for use in entry["uses"]:
+			_doc_label.append_text("  • " + use + "\n")
+
+	var h := _estimate_doc_height(entry)
+	var x := _search_popup.position.x + _search_popup.size.x + 10
+	var y := _search_popup.position.y
+	_doc_popup.position = Vector2i(x, y)
+	_doc_popup.size = Vector2i(260, h)
+	if not _doc_popup.visible:
+		_doc_popup.show()
+	_search_input.grab_focus()
