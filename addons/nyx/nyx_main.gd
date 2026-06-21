@@ -28,6 +28,9 @@ const CurveNode = preload("res://addons/nyx/nodes/curve_node.gd")
 const TilingOffsetNode = preload("res://addons/nyx/nodes/tiling_offset_node.gd")
 const NormalFromHeightNode = preload("res://addons/nyx/nodes/normal_from_height_node.gd")
 const BlendNormalsNode = preload("res://addons/nyx/nodes/blend_normals_node.gd")
+const ScreenUVNode = preload("res://addons/nyx/nodes/screen_uv_node.gd")
+const ScreenTextureNode = preload("res://addons/nyx/nodes/screen_texture_node.gd")
+const DepthFadeNode = preload("res://addons/nyx/nodes/depth_fade_node.gd")
 const RotateUVNode = preload("res://addons/nyx/nodes/rotate_uv_node.gd")
 const WarpNode = preload("res://addons/nyx/nodes/warp_node.gd")
 const VertexNode = preload("res://addons/nyx/nodes/vertex_node.gd")
@@ -197,6 +200,23 @@ const _NODE_REGISTRY := [
 			"ports": ["Edge0 (float) — lower edge", "Edge1 (float) — upper edge", "X (float) — value to test", "Out (float)"],
 			"uses": ["Soft dissolve edges", "Smooth masks", "Anti-aliased procedural shapes", "Gradient falloffs"]},
 	]},
+	{"category": "Screen", "nodes": [
+		{"label": "Screen UV", "id": 44,
+			"summary": "The current fragment's position in screen space (0-1).",
+			"description": "Outputs the UV coordinates of the current pixel on screen. Use as input to Screen Texture for basic sampling, or offset it with a normal map for refraction effects.",
+			"ports": ["Screen UV (vec3) — screen-space UV, XY in 0-1 range"],
+			"uses": ["Input to Screen Texture for refraction", "Warping with a normal for underwater distortion"]},
+		{"label": "Screen Texture", "id": 45,
+			"summary": "Samples the rendered scene behind the current surface.",
+			"description": "Reads the colour of what's been rendered behind this transparent surface. Offset the UV input with a water normal to create convincing refraction. Requires the material's render mode to be Mix, Add, or Premult Alpha.",
+			"ports": ["UV (vec3) — screen UV to sample (offset for refraction)", "Color (vec3) — the scene colour at that UV"],
+			"uses": ["Water refraction", "Glass distortion", "Heat haze", "Any transparent surface that should show a distorted view of what's behind it"]},
+		{"label": "Depth Fade", "id": 46,
+			"summary": "Returns 0 at surface intersections and 1 in deep water.",
+			"description": "Compares the depth buffer against the current surface depth. Where scene geometry is close to the surface (shallow water, shorelines), the output is near 0. Where the water is deep, it approaches 1. Requires a transparent render mode.",
+			"ports": ["Distance (float) — the depth range over which the fade occurs", "Out (float) — 0 at edges/intersections, 1 in deep areas"],
+			"uses": ["Shoreline foam (1 - DepthFade drives foam mask)", "Soft transparency at water edges", "Depth-based colour (shallow vs deep)", "Soft particles that don't clip geometry"]},
+	]},
 	{"category": "UV", "nodes": [
 		{"label": "Tiling & Offset", "id": 39,
 			"summary": "Tiles and scrolls UV coordinates.",
@@ -258,6 +278,9 @@ const NODE_CLASSES := {
 	"WarpNode": WarpNode,
 	"NormalFromHeightNode": NormalFromHeightNode,
 	"BlendNormalsNode": BlendNormalsNode,
+	"ScreenUVNode": ScreenUVNode,
+	"ScreenTextureNode": ScreenTextureNode,
+	"DepthFadeNode": DepthFadeNode,
 	"VertexNode": VertexNode,
 	"NormalMapNode": NormalMapNode,
 	"AbsNode": AbsNode,
@@ -579,11 +602,13 @@ func _build_node_preview_shader(node: Node) -> String:
 	var c = _graph.get_connection_list()
 
 	var uniform_lines := ""
+	var seen_decls := {}
 	for child in _graph.get_children():
 		if child.has_method("get_uniform_declaration"):
 			var decl: String = child.get_uniform_declaration()
-			if decl != "":
+			if decl != "" and not seen_decls.has(decl):
 				uniform_lines += decl + "\n"
+				seen_decls[decl] = true
 
 	var shader_functions := {}
 	for child in _graph.get_children():
@@ -614,11 +639,13 @@ func _request_compile() -> void:
 
 func _build_shader_code() -> String:
 	var uniform_lines := ""
+	var seen_decls := {}
 	for child in _graph.get_children():
 		if child.has_method("get_uniform_declaration"):
 			var decl: String = child.get_uniform_declaration()
-			if decl != "":
+			if decl != "" and not seen_decls.has(decl):
 				uniform_lines += decl + "\n"
+				seen_decls[decl] = true
 
 	var shader_functions := {}
 	for child in _graph.get_children():
@@ -921,6 +948,9 @@ func _on_context_menu_selected(id: int) -> void:
 		41: _add_node(WarpNode.new(), _spawn_position, "Warp")
 		42: _add_node(NormalFromHeightNode.new(), _spawn_position, "NormalFromHeight")
 		43: _add_node(BlendNormalsNode.new(), _spawn_position, "BlendNormals")
+		44: _add_node(ScreenUVNode.new(), _spawn_position, "ScreenUV")
+		45: _add_node(ScreenTextureNode.new(), _spawn_position, "ScreenTexture")
+		46: _add_node(DepthFadeNode.new(), _spawn_position, "DepthFade")
 		20: _add_node(VertexNode.new(), _spawn_position, "Vertex")
 		21: _add_node(NormalMapNode.new(), _spawn_position, "NormalMap")
 		22: _add_node(AbsNode.new(), _spawn_position, "Abs")
