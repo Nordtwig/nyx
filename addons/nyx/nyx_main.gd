@@ -22,6 +22,7 @@ const ScaleNode = preload("res://addons/nyx/nodes/scale_node.gd")
 const StepNode = preload("res://addons/nyx/nodes/step_node.gd")
 const SmoothstepNode = preload("res://addons/nyx/nodes/smoothstep_node.gd")
 const NoiseNode = preload("res://addons/nyx/nodes/noise_node.gd")
+const FBMNode = preload("res://addons/nyx/nodes/fbm_node.gd")
 const VertexNode = preload("res://addons/nyx/nodes/vertex_node.gd")
 const NormalMapNode = preload("res://addons/nyx/nodes/normal_map_node.gd")
 const AbsNode = preload("res://addons/nyx/nodes/abs_node.gd")
@@ -61,6 +62,7 @@ const NODE_CLASSES := {
 	"StepNode": StepNode,
 	"SmoothstepNode": SmoothstepNode,
 	"NoiseNode": NoiseNode,
+	"FBMNode": FBMNode,
 	"VertexNode": VertexNode,
 	"NormalMapNode": NormalMapNode,
 	"AbsNode": AbsNode,
@@ -171,6 +173,7 @@ func _ready() -> void:
 	_context_menu.add_item("Smoothstep", 18)
 	_context_menu.add_separator()
 	_context_menu.add_item("Noise", 19)
+	_context_menu.add_item("FBM", 36)
 	_context_menu.id_pressed.connect(_on_context_menu_selected)
 	add_child(_context_menu)
 
@@ -724,6 +727,7 @@ func _on_context_menu_selected(id: int) -> void:
 		17: _add_node(StepNode.new(), _spawn_position)
 		18: _add_node(SmoothstepNode.new(), _spawn_position)
 		19: _add_node(NoiseNode.new(), _spawn_position)
+		36: _add_node(FBMNode.new(), _spawn_position)
 		20: _add_node(VertexNode.new(), _spawn_position)
 		21: _add_node(NormalMapNode.new(), _spawn_position, "NormalMap")
 		22: _add_node(AbsNode.new(), _spawn_position)

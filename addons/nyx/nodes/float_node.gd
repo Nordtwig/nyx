@@ -50,12 +50,21 @@ func _on_value_changed(val: float) -> void:
 func _on_param_toggled(enabled: bool) -> void:
 	_param_mode = enabled
 	_param_name_edit.editable = enabled
+	_update_param_tooltip()
 	value_changed.emit()
 
 
 func _on_param_name_changed(new_name: String) -> void:
 	_param_name = new_name
+	_update_param_tooltip()
 	value_changed.emit()
+
+
+func _update_param_tooltip() -> void:
+	if _param_mode:
+		_param_name_edit.tooltip_text = 'material.set_shader_parameter("%s", value)' % _param_name
+	else:
+		_param_name_edit.tooltip_text = ""
 
 
 func _add_preview_controls() -> void:
@@ -90,3 +99,4 @@ func set_state(state: Dictionary) -> void:
 	_param_mode = state.get("param_mode", false)
 	_param_check.button_pressed = _param_mode
 	_param_name_edit.editable = _param_mode
+	_update_param_tooltip()
