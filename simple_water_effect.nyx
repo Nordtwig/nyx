@@ -1,0 +1,388 @@
+{
+	"connections": [
+		{
+			"from_node": "UV",
+			"from_port": 0,
+			"to_node": "TilingOffset",
+			"to_port": 0
+		},
+		{
+			"from_node": "Time",
+			"from_port": 1,
+			"to_node": "TilingOffset",
+			"to_port": 3
+		},
+		{
+			"from_node": "TilingOffset",
+			"from_port": 0,
+			"to_node": "FBM",
+			"to_port": 0
+		},
+		{
+			"from_node": "FBM",
+			"from_port": 0,
+			"to_node": "NormalFromHeight",
+			"to_port": 0
+		},
+		{
+			"from_node": "UV",
+			"from_port": 0,
+			"to_node": "@GraphNode@22215",
+			"to_port": 0
+		},
+		{
+			"from_node": "Time",
+			"from_port": 2,
+			"to_node": "@GraphNode@22215",
+			"to_port": 4
+		},
+		{
+			"from_node": "@GraphNode@22215",
+			"from_port": 0,
+			"to_node": "@GraphNode@22231",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@22231",
+			"from_port": 0,
+			"to_node": "@GraphNode@22245",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@22245",
+			"from_port": 0,
+			"to_node": "BlendNormals",
+			"to_port": 1
+		},
+		{
+			"from_node": "NormalFromHeight",
+			"from_port": 0,
+			"to_node": "BlendNormals",
+			"to_port": 0
+		},
+		{
+			"from_node": "BlendNormals",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 5
+		},
+		{
+			"from_node": "Float",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 2
+		},
+		{
+			"from_node": "FBM",
+			"from_port": 0,
+			"to_node": "Smoothstep",
+			"to_port": 2
+		},
+		{
+			"from_node": "@GraphNode@22383",
+			"from_port": 0,
+			"to_node": "Smoothstep",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@22391",
+			"from_port": 0,
+			"to_node": "Smoothstep",
+			"to_port": 1
+		},
+		{
+			"from_node": "Color",
+			"from_port": 0,
+			"to_node": "Mix",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@22404",
+			"from_port": 0,
+			"to_node": "Mix",
+			"to_port": 1
+		},
+		{
+			"from_node": "Mix",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 0
+		},
+		{
+			"from_node": "Smoothstep",
+			"from_port": 0,
+			"to_node": "Mix",
+			"to_port": 2
+		},
+		{
+			"from_node": "Curve",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 1
+		},
+		{
+			"from_node": "Fresnel",
+			"from_port": 0,
+			"to_node": "Curve",
+			"to_port": 0
+		}
+	],
+	"nodes": [
+		{
+			"name": "UV",
+			"position": [
+				-120.0,
+				120.0
+			],
+			"state": {},
+			"type": "UVNode"
+		},
+		{
+			"name": "TilingOffset",
+			"position": [
+				-20.0,
+				240.0
+			],
+			"state": {
+				"ox": 0.0,
+				"oy": 0.0,
+				"tx": 8.0,
+				"ty": 8.0
+			},
+			"type": "TilingOffsetNode"
+		},
+		{
+			"name": "FBM",
+			"position": [
+				120.0,
+				240.0
+			],
+			"state": {
+				"gain": 0.5,
+				"lacunarity": 2.0,
+				"octaves": 4,
+				"scale": 1.0
+			},
+			"type": "FBMNode"
+		},
+		{
+			"name": "NormalFromHeight",
+			"position": [
+				260.0,
+				240.0
+			],
+			"state": {
+				"strength": 15.0
+			},
+			"type": "NormalFromHeightNode"
+		},
+		{
+			"name": "Time",
+			"position": [
+				-140.0,
+				220.0
+			],
+			"state": {},
+			"type": "TimeNode"
+		},
+		{
+			"name": "@GraphNode@22215",
+			"position": [
+				-20.0,
+				40.0
+			],
+			"state": {
+				"ox": 0.0,
+				"oy": 0.0,
+				"tx": 11.0,
+				"ty": 11.0
+			},
+			"type": "TilingOffsetNode"
+		},
+		{
+			"name": "@GraphNode@22231",
+			"position": [
+				120.0,
+				40.0
+			],
+			"state": {
+				"gain": 0.5,
+				"lacunarity": 2.0,
+				"octaves": 5,
+				"scale": 1.5
+			},
+			"type": "FBMNode"
+		},
+		{
+			"name": "@GraphNode@22245",
+			"position": [
+				260.0,
+				40.0
+			],
+			"state": {
+				"strength": 10.0
+			},
+			"type": "NormalFromHeightNode"
+		},
+		{
+			"name": "BlendNormals",
+			"position": [
+				400.0,
+				140.0
+			],
+			"state": {},
+			"type": "BlendNormalsNode"
+		},
+		{
+			"name": "OutputNode",
+			"position": [
+				600.0,
+				-40.0
+			],
+			"state": {
+				"mode": 1
+			},
+			"type": "OutputNode"
+		},
+		{
+			"name": "Color",
+			"position": [
+				220.0,
+				-180.0
+			],
+			"state": {
+				"color": [
+					0.0,
+					0.302734404802322,
+					0.645833373069763,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		},
+		{
+			"name": "Float",
+			"position": [
+				220.0,
+				-80.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@29633",
+				"value": 0.05
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "Smoothstep",
+			"position": [
+				280.0,
+				440.0
+			],
+			"state": {
+				"edge0": 0.0,
+				"edge1": 1.0
+			},
+			"type": "SmoothstepNode"
+		},
+		{
+			"name": "@GraphNode@22383",
+			"position": [
+				60.0,
+				440.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@31822",
+				"value": 0.6
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@22391",
+			"position": [
+				60.0,
+				520.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@31836",
+				"value": 0.85
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "Mix",
+			"position": [
+				540.0,
+				200.0
+			],
+			"state": {},
+			"type": "MixNode"
+		},
+		{
+			"name": "@GraphNode@22404",
+			"position": [
+				200.0,
+				640.0
+			],
+			"state": {
+				"color": [
+					1.0,
+					1.0,
+					0.925490200519562,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		},
+		{
+			"name": "Fresnel",
+			"position": [
+				240.0,
+				360.0
+			],
+			"state": {
+				"power": 2.5
+			},
+			"type": "FresnelNode"
+		},
+		{
+			"name": "Curve",
+			"position": [
+				460.0,
+				320.0
+			],
+			"state": {
+				"points": [
+					{
+						"lm": 0,
+						"lt": 0.0,
+						"rm": 0,
+						"rt": 0.0,
+						"x": 0.0,
+						"y": 1.0
+					},
+					{
+						"lm": 0,
+						"lt": 0.0,
+						"rm": 0,
+						"rt": 0.0,
+						"x": 1.0,
+						"y": 0.169230818748474
+					}
+				]
+			},
+			"type": "CurveNode"
+		},
+		{
+			"name": "OneMinus",
+			"position": [
+				380.0,
+				360.0
+			],
+			"state": {},
+			"type": "OneMinusNode"
+		}
+	]
+}

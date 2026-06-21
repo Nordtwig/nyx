@@ -1,0 +1,24 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://cwuhd4tj66jas"]
+
+[ext_resource type="Shader" uid="uid://bva534e6b1t4q" path="res://flames.gdshader" id="1"]
+
+[sub_resource type="Curve" id="Curve_1"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.25903612, 1), 0.0, 0.0, 0, 0, Vector2(0.6927711, 0), 0.0, 0.0, 0, 0, Vector2(1, 1), 5.8373623, 0.0, 0, 0]
+point_count = 4
+
+[sub_resource type="CurveTexture" id="CurveTexture_2"]
+texture_mode = 1
+curve = SubResource("Curve_1")
+
+[sub_resource type="Gradient" id="Gradient_3"]
+offsets = PackedFloat32Array(0, 0.46644294, 1)
+colors = PackedColorArray(0.3764706, 0.19215687, 0.043137256, 1, 1, 0.29411766, 0, 1, 0.96862745, 0.9254902, 0.8509804, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_4"]
+gradient = SubResource("Gradient_3")
+
+[resource]
+render_priority = 0
+shader = ExtResource("1")
+shader_parameter/curve_curve = SubResource("CurveTexture_2")
+shader_parameter/grad_gradient = SubResource("GradientTexture1D_4")

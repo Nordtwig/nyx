@@ -1,0 +1,137 @@
+{
+	"connections": [
+		{
+			"from_node": "@GraphNode@22200",
+			"from_port": 0,
+			"to_node": "@GraphNode@22208",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@22208",
+			"from_port": 0,
+			"to_node": "Curve",
+			"to_port": 0
+		},
+		{
+			"from_node": "Curve",
+			"from_port": 0,
+			"to_node": "Gradient",
+			"to_port": 0
+		},
+		{
+			"from_node": "Gradient",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 0
+		}
+	],
+	"nodes": [
+		{
+			"name": "@GraphNode@22200",
+			"position": [
+				-160.0,
+				280.0
+			],
+			"state": {},
+			"type": "VertexNode"
+		},
+		{
+			"name": "@GraphNode@22208",
+			"position": [
+				-60.0,
+				280.0
+			],
+			"state": {
+				"gain": 0.5,
+				"lacunarity": 2.0,
+				"octaves": 4,
+				"scale": 5.0
+			},
+			"type": "FBMNode"
+		},
+		{
+			"name": "Curve",
+			"position": [
+				100.0,
+				280.0
+			],
+			"state": {
+				"points": [
+					{
+						"lm": 0,
+						"lt": 0.0,
+						"rm": 0,
+						"rt": 0.0,
+						"x": 0.0,
+						"y": 0.0
+					},
+					{
+						"lm": 0,
+						"lt": 0.0,
+						"rm": 0,
+						"rt": 0.0,
+						"x": 0.259036123752594,
+						"y": 1.0
+					},
+					{
+						"lm": 0,
+						"lt": 0.0,
+						"rm": 0,
+						"rt": 0.0,
+						"x": 0.692771077156067,
+						"y": 0.0
+					},
+					{
+						"lm": 0,
+						"lt": 5.83736228942871,
+						"rm": 0,
+						"rt": 0.0,
+						"x": 1.0,
+						"y": 1.0
+					}
+				]
+			},
+			"type": "CurveNode"
+		},
+		{
+			"name": "Gradient",
+			"position": [
+				220.0,
+				280.0
+			],
+			"state": {
+				"colors": [
+					"60310bff",
+					"ff4b00ff",
+					"f7ecd9ff"
+				],
+				"offsets": [
+					0.0,
+					0.466442942619324,
+					1.0
+				]
+			},
+			"type": "GradientNode"
+		},
+		{
+			"name": "OutputNode",
+			"position": [
+				400.0,
+				200.0
+			],
+			"state": {
+				"mode": 0
+			},
+			"type": "OutputNode"
+		},
+		{
+			"name": "@GraphNode@23257",
+			"position": [
+				160.0,
+				160.0
+			],
+			"state": {},
+			"type": "SubtractNode"
+		}
+	]
+}

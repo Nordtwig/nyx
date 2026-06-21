@@ -1,8 +1,9 @@
 [gd_scene format=3 uid="uid://dhaoueeenwrfx"]
 
-[ext_resource type="Material" path="res://smoke_dissolve.tres" id="1_sasra"]
+[ext_resource type="Material" uid="uid://cwuhd4tj66jas" path="res://flames.tres" id="1_sasra"]
 [ext_resource type="Material" path="res://ground_texture.tres" id="1_uhqqe"]
 [ext_resource type="Script" uid="uid://b4trhrm3nv6qg" path="res://dissolve_test.gd" id="2_coq8p"]
+[ext_resource type="Material" path="res://water_w_foam.tres" id="4_coq8p"]
 
 [sub_resource type="Environment" id="Environment_1"]
 ambient_light_source = 2
@@ -33,7 +34,12 @@ mesh = SubResource("SphereMesh_1")
 surface_material_override/0 = ExtResource("1_sasra")
 script = ExtResource("2_coq8p")
 
-[node name="Plane" type="MeshInstance3D" parent="." unique_id=1054336464]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+[node name="Ground" type="MeshInstance3D" parent="." unique_id=1054336464]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, -0.82664454, 0)
 mesh = SubResource("PlaneMesh_1")
 surface_material_override/0 = ExtResource("1_uhqqe")
+
+[node name="Water" type="MeshInstance3D" parent="." unique_id=678585375]
+transform = Transform3D(1, 0, 0, 0, 0.4319895, -0.90187865, 0, 0.90187865, 0.4319895, -0.09165883, -0.081594706, 0)
+material_override = ExtResource("4_coq8p")
+mesh = SubResource("PlaneMesh_1")

@@ -1,6 +1,11 @@
 @tool
 extends "res://addons/nyx/nodes/nyx_node.gd"
 
+var _edge0: float = 0.0
+var _edge1: float = 1.0
+var _edge0_slider: EditorSpinSlider
+var _edge1_slider: EditorSpinSlider
+
 
 func _ready() -> void:
 	super._ready()
@@ -8,13 +13,27 @@ func _ready() -> void:
 
 	var float_color := Color(0.35, 0.9, 0.85)
 
-	var label_edge0 := Label.new()
-	label_edge0.text = "Edge0"
-	add_child(label_edge0)
+	_edge0_slider = EditorSpinSlider.new()
+	_edge0_slider.label = "Edge0"
+	_edge0_slider.min_value = -10.0
+	_edge0_slider.max_value = 10.0
+	_edge0_slider.step = 0.01
+	_edge0_slider.value = _edge0
+	_edge0_slider.custom_minimum_size = Vector2(80, 0)
+	_edge0_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_edge0_slider.value_changed.connect(func(v: float): _edge0 = v; emit_signal("value_changed"))
+	add_child(_edge0_slider)
 
-	var label_edge1 := Label.new()
-	label_edge1.text = "Edge1"
-	add_child(label_edge1)
+	_edge1_slider = EditorSpinSlider.new()
+	_edge1_slider.label = "Edge1"
+	_edge1_slider.min_value = -10.0
+	_edge1_slider.max_value = 10.0
+	_edge1_slider.step = 0.01
+	_edge1_slider.value = _edge1
+	_edge1_slider.custom_minimum_size = Vector2(80, 0)
+	_edge1_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_edge1_slider.value_changed.connect(func(v: float): _edge1 = v; emit_signal("value_changed"))
+	add_child(_edge1_slider)
 
 	var label_x := Label.new()
 	label_x.text = "X"
@@ -30,4 +49,19 @@ func get_shader_snippet(inputs: Array = []) -> String:
 
 
 func get_default_inputs() -> Array:
-	return ["0.0", "1.0", "0.5"]
+	return ["%.4f" % _edge0, "%.4f" % _edge1, "0.5"]
+
+
+func get_state() -> Dictionary:
+	return {"edge0": _edge0, "edge1": _edge1}
+
+
+func set_state(state: Dictionary) -> void:
+	var e0 = state.get("edge0")
+	var e1 = state.get("edge1")
+	if e0 is float:
+		_edge0 = e0
+	if e1 is float:
+		_edge1 = e1
+	_edge0_slider.value = _edge0
+	_edge1_slider.value = _edge1

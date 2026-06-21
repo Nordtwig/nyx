@@ -23,6 +23,13 @@ const StepNode = preload("res://addons/nyx/nodes/step_node.gd")
 const SmoothstepNode = preload("res://addons/nyx/nodes/smoothstep_node.gd")
 const NoiseNode = preload("res://addons/nyx/nodes/noise_node.gd")
 const FBMNode = preload("res://addons/nyx/nodes/fbm_node.gd")
+const GradientNode = preload("res://addons/nyx/nodes/gradient_node.gd")
+const CurveNode = preload("res://addons/nyx/nodes/curve_node.gd")
+const TilingOffsetNode = preload("res://addons/nyx/nodes/tiling_offset_node.gd")
+const NormalFromHeightNode = preload("res://addons/nyx/nodes/normal_from_height_node.gd")
+const BlendNormalsNode = preload("res://addons/nyx/nodes/blend_normals_node.gd")
+const RotateUVNode = preload("res://addons/nyx/nodes/rotate_uv_node.gd")
+const WarpNode = preload("res://addons/nyx/nodes/warp_node.gd")
 const VertexNode = preload("res://addons/nyx/nodes/vertex_node.gd")
 const NormalMapNode = preload("res://addons/nyx/nodes/normal_map_node.gd")
 const AbsNode = preload("res://addons/nyx/nodes/abs_node.gd")
@@ -79,6 +86,16 @@ const _NODE_REGISTRY := [
 			"description": "Like Texture Sample but configured for normal maps — uses the hint_normal sampler and writes to NORMAL_MAP. Connect the output to the Output node's Normal slot.",
 			"ports": ["UV (vec3) — texture coordinates", "Out (vec3) — normal map value"],
 			"uses": ["Adding surface detail without extra geometry", "Bricks, fabric, skin, scratches"]},
+		{"label": "Gradient", "id": 37,
+			"summary": "Maps a float to a colour using a visual gradient you design.",
+			"description": "Click the colour bar to open the gradient editor in the inspector. Define any number of colour stops. Float in, vec3 colour out — no math nodes needed to get a custom colour ramp.",
+			"ports": ["T (float) — position along the gradient, 0-1", "Color (vec3) — sampled colour"],
+			"uses": ["Heat maps", "Sky gradients", "Colour-coding noise or distance", "Any effect that maps a value to a colour"]},
+		{"label": "Curve", "id": 38,
+			"summary": "Remaps a float through an editable bezier curve.",
+			"description": "Click the curve preview to open the curve editor in the inspector. Draw any shape — S-curves, exponentials, custom falloffs. Far more expressive than chaining Power and Smoothstep nodes.",
+			"ports": ["T (float) — input value 0-1", "Out (float) — remapped value"],
+			"uses": ["Custom falloff shapes", "Non-linear remapping", "Artistic control over noise or Fresnel", "Shaping dissolve edges"]},
 	]},
 	{"category": "Math", "nodes": [
 		{"label": "Add", "id": 1, "summary": "Adds A and B. (A + B)"},
@@ -147,6 +164,16 @@ const _NODE_REGISTRY := [
 			"description": "Takes three separate float values and packs them into a single vec3.",
 			"ports": ["R (float)", "G (float)", "B (float)", "Out (vec3)"],
 			"uses": ["Assembling colour from independently-calculated channels", "Building direction vectors from scalar results"]},
+		{"label": "Normal from Height", "id": 42,
+			"summary": "Converts a greyscale height field into a normal map using screen-space derivatives.",
+			"description": "Uses dFdx/dFdy to compute the surface gradient of the height input and outputs a tangent-space normal. Connects directly to the Output node's Normal slot. Strength controls how pronounced the bumps appear.",
+			"ports": ["Height (float) — the height field (e.g. FBM output)", "Strength (float) — bump intensity", "Normal (vec3) — tangent-space normal for Output Normal slot"],
+			"uses": ["Procedural water normals from FBM", "Bump mapping without a texture", "Converting any noise to surface detail"]},
+		{"label": "Blend Normals", "id": 43,
+			"summary": "Combines two normal maps correctly.",
+			"description": "Unpacks both normals from the 0–1 NORMAL_MAP encoding, adds their XY deflections, and repacks. More accurate than simply adding or mixing, especially at steep angles. Both inputs should come from Normal from Height or Normal Map nodes.",
+			"ports": ["A (vec3) — first normal (NORMAL_MAP encoded)", "B (vec3) — second normal (NORMAL_MAP encoded)", "Normal (vec3) — blended normal for Output Normal slot"],
+			"uses": ["Combining two scrolling water normal layers", "Layering detail normals on top of a base normal map", "Blending procedural and texture-based normals"]},
 		{"label": "Scale", "id": 16,
 			"summary": "Multiplies a vec3 by a float. Bridges float values into colour pipelines.",
 			"description": "Multiplies every channel of V by scalar T. The primary way to apply a float-output node (Fresnel, Noise, FBM) to a colour or direction.",
@@ -169,6 +196,23 @@ const _NODE_REGISTRY := [
 			"description": "Like Step but with an ease-in/ease-out curve. Below Edge0 returns 0, above Edge1 returns 1, between them is a smooth S-curve blend. One of the most-used nodes in shader work.",
 			"ports": ["Edge0 (float) — lower edge", "Edge1 (float) — upper edge", "X (float) — value to test", "Out (float)"],
 			"uses": ["Soft dissolve edges", "Smooth masks", "Anti-aliased procedural shapes", "Gradient falloffs"]},
+	]},
+	{"category": "UV", "nodes": [
+		{"label": "Tiling & Offset", "id": 39,
+			"summary": "Tiles and scrolls UV coordinates.",
+			"description": "Multiplies UV by a tiling factor (zoom) and adds an offset (scroll). Connect Time to Offset X or Y to animate scrolling. Use two of these at different speeds for layered water or cloud effects.",
+			"ports": ["UV (vec3) — coordinate input", "Tiling X (float) — horizontal tile count", "Tiling Y (float) — vertical tile count", "Offset X (float) — horizontal scroll", "Offset Y (float) — vertical scroll", "Out (vec3) — transformed UV"],
+			"uses": ["Scrolling normal maps for water", "Tiling a texture at a different scale", "Animated UV for fire or clouds", "Offsetting two layers at different speeds"]},
+		{"label": "Rotate UV", "id": 40,
+			"summary": "Rotates UV coordinates around the centre.",
+			"description": "Rotates the UV around the point (0.5, 0.5). Angle is in radians. Connect Time to Angle for a continuously spinning effect, or use a small fixed angle to make two texture layers feel independent.",
+			"ports": ["UV (vec3) — coordinate input", "Angle (float) — rotation in radians", "Out (vec3) — rotated UV"],
+			"uses": ["Spinning effects", "Making two water normal layers feel independent", "Slow UV rotation for lava or energy fields"]},
+		{"label": "Warp", "id": 41,
+			"summary": "Distorts UV coordinates using an offset input.",
+			"description": "Shifts UV by the XY of an Offset vector, scaled by Strength. Feed noise or FBM into Offset to get organic, fluid-looking distortion. The key node for making water feel alive rather than just sliding.",
+			"ports": ["UV (vec3) — coordinate input", "Offset (vec3) — distortion direction, uses XY", "Strength (float) — distortion amount", "Out (vec3) — distorted UV"],
+			"uses": ["Water surface distortion", "Heat haze", "Warping a texture with noise", "Organic UV deformation"]},
 	]},
 	{"category": "Noise", "nodes": [
 		{"label": "Noise", "id": 19,
@@ -207,6 +251,13 @@ const NODE_CLASSES := {
 	"SmoothstepNode": SmoothstepNode,
 	"NoiseNode": NoiseNode,
 	"FBMNode": FBMNode,
+	"GradientNode": GradientNode,
+	"CurveNode": CurveNode,
+	"TilingOffsetNode": TilingOffsetNode,
+	"RotateUVNode": RotateUVNode,
+	"WarpNode": WarpNode,
+	"NormalFromHeightNode": NormalFromHeightNode,
+	"BlendNormalsNode": BlendNormalsNode,
 	"VertexNode": VertexNode,
 	"NormalMapNode": NormalMapNode,
 	"AbsNode": AbsNode,
@@ -276,6 +327,7 @@ func _ready() -> void:
 	_graph.gui_input.connect(_on_graph_gui_input)
 	_graph.add_valid_connection_type(0, 0)
 	_graph.add_valid_connection_type(1, 1)
+	_graph.add_valid_connection_type(1, 0)
 
 	_graph_container = VBoxContainer.new()
 	_graph_container.add_child(_build_graph_toolbar())
@@ -593,8 +645,10 @@ func _build_shader_code() -> String:
 
 func _apply_texture_uniforms() -> void:
 	for child in _graph.get_children():
-		if child.has_method("get_uniform_declaration"):
-			_shader_material.set_shader_parameter(child.get_uniform_name(), child.get_texture())
+		if child.has_method("get_uniform_name") and child.has_method("get_texture"):
+			var tex = child.get_texture()
+			if tex:
+				_shader_material.set_shader_parameter(child.get_uniform_name(), tex)
 
 
 func _compile_shader() -> void:
@@ -634,8 +688,9 @@ func _on_export_file_selected(path: String) -> void:
 	f.store_string(shader_code)
 	f.close()
 
-	# Collect texture nodes (have a texture assigned) and float param nodes
-	var tex_nodes := []
+	# Collect nodes by export type
+	var file_tex_nodes := []
+	var sub_nodes := []
 	var float_param_nodes := []
 	for child in _graph.get_children():
 		if not child.has_method("get_uniform_declaration"):
@@ -643,13 +698,17 @@ func _on_export_file_selected(path: String) -> void:
 		var decl: String = child.get_uniform_declaration()
 		if decl == "":
 			continue
-		if child.has_method("get_texture"):
-			if child.get_texture() != null:
-				tex_nodes.append(child)
+		if child.has_method("export_as_sub_resource"):
+			sub_nodes.append(child)
+		elif child.has_method("get_texture"):
+			var tex = child.get_texture()
+			if tex != null and not tex.resource_path.is_empty():
+				file_tex_nodes.append(child)
 		elif "float" in decl:
 			float_param_nodes.append(child)
 
-	var load_steps := 1 + tex_nodes.size() + 1
+	var total_sub_count := sub_nodes.size() * 2
+	var load_steps := 1 + file_tex_nodes.size() + total_sub_count + 1
 	var lines := PackedStringArray()
 	lines.append("[gd_resource type=\"ShaderMaterial\" load_steps=%d format=3]" % load_steps)
 	lines.append("")
@@ -657,18 +716,31 @@ func _on_export_file_selected(path: String) -> void:
 
 	var tex_id := 2
 	var tex_id_map := {}
-	for node in tex_nodes:
-		var tex_path: String = node.get_texture().resource_path
-		lines.append("[ext_resource type=\"Texture2D\" path=\"%s\" id=\"%d\"]" % [tex_path, tex_id])
-		tex_id_map[node.get_uniform_name()] = tex_id
+	for node in file_tex_nodes:
+		var uname: String = node.get_uniform_name()
+		lines.append("[ext_resource type=\"Texture2D\" path=\"%s\" id=\"%d\"]" % [node.get_texture().resource_path, tex_id])
+		tex_id_map[uname] = tex_id
 		tex_id += 1
 
 	lines.append("")
+
+	var sub_id_start := 1
+	var sub_param_lines := PackedStringArray()
+	for node in sub_nodes:
+		var result: Dictionary = node.export_as_sub_resource(sub_id_start)
+		for line in (result["lines"] as PackedStringArray):
+			lines.append(line)
+		sub_param_lines.append(result["param_line"])
+		sub_id_start += result["count"] as int
+
 	lines.append("[resource]")
 	lines.append("shader = ExtResource(\"1\")")
 
 	for uname in tex_id_map:
 		lines.append("shader_parameter/%s = ExtResource(\"%d\")" % [uname, tex_id_map[uname]])
+
+	for line in sub_param_lines:
+		lines.append(line)
 
 	for node in float_param_nodes:
 		var decl: String = node.get_uniform_declaration()
@@ -690,12 +762,17 @@ func _on_export_file_selected(path: String) -> void:
 	print("Nyx: exported\n  shader  → %s\n  material → %s" % [path, tres_path])
 
 
+
 func _get_snippet_for(to_node: String, to_port: int, connections: Array, default_val: String) -> String:
 	for conn in connections:
 		if str(conn["to_node"]) == to_node and conn["to_port"] == to_port:
 			var from := _graph.get_node_or_null(str(conn["from_node"]))
 			if from:
-				return _get_node_snippet(from, conn["from_port"], connections)
+				var snippet := _get_node_snippet(from, conn["from_port"], connections)
+				var to_node_ref := _graph.get_node_or_null(to_node)
+				if to_node_ref and from.get_output_port_type(conn["from_port"]) == 1 and to_node_ref.get_input_port_type(to_port) == 0:
+					return "vec3(%s)" % snippet
+				return snippet
 	return default_val
 
 
@@ -780,7 +857,9 @@ func _on_connection_request(from_node: StringName, from_port: int, to_node: Stri
 	var to := _graph.get_node_or_null(str(to_node))
 	if not from or not to:
 		return
-	if from.get_output_port_type(from_port) != to.get_input_port_type(to_port):
+	var from_type: int = from.get_output_port_type(from_port)
+	var to_type: int = to.get_input_port_type(to_port)
+	if from_type != to_type and not (from_type == 1 and to_type == 0):
 		return
 	_push_undo_state()
 	_graph.connect_node(from_node, from_port, to_node, to_port)
@@ -814,43 +893,50 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 func _on_context_menu_selected(id: int) -> void:
 	_push_undo_state()
 	match id:
-		0: _add_node(ColorNode.new(), _spawn_position)
-		1: _add_node(AddNode.new(), _spawn_position)
-		2: _add_node(MultiplyNode.new(), _spawn_position)
-		3: _add_node(MixNode.new(), _spawn_position)
-		4: _add_node(UVNode.new(), _spawn_position)
-		5: _add_node(FloatNode.new(), _spawn_position)
-		6: _add_node(SubtractNode.new(), _spawn_position)
-		7: _add_node(ClampNode.new(), _spawn_position)
-		8: _add_node(PowerNode.new(), _spawn_position)
-		9: _add_node(SinNode.new(), _spawn_position)
-		10: _add_node(CosNode.new(), _spawn_position)
-		11: _add_node(TimeNode.new(), _spawn_position)
-		12: _add_node(SplitNode.new(), _spawn_position)
-		13: _add_node(CombineNode.new(), _spawn_position)
+		0: _add_node(ColorNode.new(), _spawn_position, "Color")
+		1: _add_node(AddNode.new(), _spawn_position, "Add")
+		2: _add_node(MultiplyNode.new(), _spawn_position, "Multiply")
+		3: _add_node(MixNode.new(), _spawn_position, "Mix")
+		4: _add_node(UVNode.new(), _spawn_position, "UV")
+		5: _add_node(FloatNode.new(), _spawn_position, "Float")
+		6: _add_node(SubtractNode.new(), _spawn_position, "Subtract")
+		7: _add_node(ClampNode.new(), _spawn_position, "Clamp")
+		8: _add_node(PowerNode.new(), _spawn_position, "Power")
+		9: _add_node(SinNode.new(), _spawn_position, "Sin")
+		10: _add_node(CosNode.new(), _spawn_position, "Cos")
+		11: _add_node(TimeNode.new(), _spawn_position, "Time")
+		12: _add_node(SplitNode.new(), _spawn_position, "Split")
+		13: _add_node(CombineNode.new(), _spawn_position, "Combine")
 		14: _add_node(TextureSampleNode.new(), _spawn_position, "TextureSample")
-		15: _add_node(FresnelNode.new(), _spawn_position)
-		16: _add_node(ScaleNode.new(), _spawn_position)
-		17: _add_node(StepNode.new(), _spawn_position)
-		18: _add_node(SmoothstepNode.new(), _spawn_position)
-		19: _add_node(NoiseNode.new(), _spawn_position)
-		36: _add_node(FBMNode.new(), _spawn_position)
-		20: _add_node(VertexNode.new(), _spawn_position)
+		15: _add_node(FresnelNode.new(), _spawn_position, "Fresnel")
+		16: _add_node(ScaleNode.new(), _spawn_position, "Scale")
+		17: _add_node(StepNode.new(), _spawn_position, "Step")
+		18: _add_node(SmoothstepNode.new(), _spawn_position, "Smoothstep")
+		19: _add_node(NoiseNode.new(), _spawn_position, "Noise")
+		36: _add_node(FBMNode.new(), _spawn_position, "FBM")
+		37: _add_node(GradientNode.new(), _spawn_position, "Gradient")
+		38: _add_node(CurveNode.new(), _spawn_position, "Curve")
+		39: _add_node(TilingOffsetNode.new(), _spawn_position, "TilingOffset")
+		40: _add_node(RotateUVNode.new(), _spawn_position, "RotateUV")
+		41: _add_node(WarpNode.new(), _spawn_position, "Warp")
+		42: _add_node(NormalFromHeightNode.new(), _spawn_position, "NormalFromHeight")
+		43: _add_node(BlendNormalsNode.new(), _spawn_position, "BlendNormals")
+		20: _add_node(VertexNode.new(), _spawn_position, "Vertex")
 		21: _add_node(NormalMapNode.new(), _spawn_position, "NormalMap")
-		22: _add_node(AbsNode.new(), _spawn_position)
-		29: _add_node(CeilNode.new(), _spawn_position)
-		30: _add_node(FloorNode.new(), _spawn_position)
-		31: _add_node(FractNode.new(), _spawn_position)
-		32: _add_node(NegateNode.new(), _spawn_position)
-		33: _add_node(OneMinusNode.new(), _spawn_position)
-		34: _add_node(RoundNode.new(), _spawn_position)
-		35: _add_node(SqrtNode.new(), _spawn_position)
-		23: _add_node(MinMaxNode.new(), _spawn_position)
-		24: _add_node(DivideNode.new(), _spawn_position)
-		25: _add_node(ModNode.new(), _spawn_position)
-		26: _add_node(NormalizeNode.new(), _spawn_position)
-		27: _add_node(LengthNode.new(), _spawn_position)
-		28: _add_node(DotNode.new(), _spawn_position)
+		22: _add_node(AbsNode.new(), _spawn_position, "Abs")
+		29: _add_node(CeilNode.new(), _spawn_position, "Ceil")
+		30: _add_node(FloorNode.new(), _spawn_position, "Floor")
+		31: _add_node(FractNode.new(), _spawn_position, "Fract")
+		32: _add_node(NegateNode.new(), _spawn_position, "Negate")
+		33: _add_node(OneMinusNode.new(), _spawn_position, "OneMinus")
+		34: _add_node(RoundNode.new(), _spawn_position, "Round")
+		35: _add_node(SqrtNode.new(), _spawn_position, "Sqrt")
+		23: _add_node(MinMaxNode.new(), _spawn_position, "MinMax")
+		24: _add_node(DivideNode.new(), _spawn_position, "Divide")
+		25: _add_node(ModNode.new(), _spawn_position, "Mod")
+		26: _add_node(NormalizeNode.new(), _spawn_position, "Normalize")
+		27: _add_node(LengthNode.new(), _spawn_position, "Length")
+		28: _add_node(DotNode.new(), _spawn_position, "Dot")
 
 
 func _build_graph_toolbar() -> HBoxContainer:
@@ -918,11 +1004,15 @@ func _serialize_graph() -> Dictionary:
 
 func _deserialize_graph(data: Dictionary) -> void:
 	_graph.clear_connections()
+	var to_remove: Array[Node] = []
 	for child in _graph.get_children():
 		if child is GraphNode:
-			_graph.remove_child(child)
-			child.queue_free()
+			to_remove.append(child)
+	for child in to_remove:
+		_graph.remove_child(child)
+		child.free()
 
+	var name_map := {}
 	for node_data in data.get("nodes", []):
 		var type: String = node_data["type"]
 		if not NODE_CLASSES.has(type):
@@ -930,13 +1020,18 @@ func _deserialize_graph(data: Dictionary) -> void:
 			continue
 		var node = NODE_CLASSES[type].new()
 		var pos: Array = node_data["position"]
-		_add_node(node, Vector2(pos[0], pos[1]), node_data["name"])
+		var saved_name: String = node_data["name"]
+		var target_name := saved_name if not saved_name.begins_with("@") else type.trim_suffix("Node")
+		_add_node(node, Vector2(pos[0], pos[1]), target_name)
+		name_map[saved_name] = str(node.name)
 		var state: Dictionary = node_data.get("state", {})
 		if not state.is_empty():
 			node.set_state(state)
 
 	for conn in data.get("connections", []):
-		_graph.connect_node(conn["from_node"], conn["from_port"], conn["to_node"], conn["to_port"])
+		var from: String = name_map.get(conn["from_node"], conn["from_node"])
+		var to: String = name_map.get(conn["to_node"], conn["to_node"])
+		_graph.connect_node(from, conn["from_port"], to, conn["to_port"])
 
 	_request_compile()
 
@@ -1072,6 +1167,7 @@ func _build_search_popup() -> void:
 	_doc_popup = PopupPanel.new()
 	_doc_popup.min_size = Vector2i(260, 0)
 	_doc_popup.transparent = true
+	_doc_popup.unfocusable = true
 	_doc_popup.visible = false
 
 	var doc_panel_style := StyleBoxFlat.new()
