@@ -1,10 +1,16 @@
 @tool
 extends "res://addons/nyx/nodes/nyx_node.gd"
 
-const _MODES = ["", "blend_mix", "blend_add", "blend_premul_alpha"]
+const _SPATIAL_MODES := ["", "blend_mix", "blend_add", "blend_premul_alpha"]
+const _CANVAS_MODES := ["", "unshaded", "light_only", "blend_add", "blend_premul_alpha"]
+
+const _SPATIAL_LABELS := ["Albedo", "Alpha", "Roughness", "Metallic", "Emission", "Normal", "Vertex Offset"]
+const _CANVAS_LABELS := ["Color", "Alpha", "Normal Map", "", "", "", ""]
 
 var _mode: int = 0
+var _shader_type: int = 0
 var _option_btn: OptionButton
+var _slot_labels: Array = []
 
 
 func _add_preview_controls() -> void:
@@ -16,29 +22,27 @@ func _ready() -> void:
 	title = "Output"
 	var vec3_color := Color.WHITE
 	var float_color := Color(0.35, 0.9, 0.85)
+
 	set_slot(0, true, 0, vec3_color, false, -1, vec3_color)
 	set_slot(1, true, 1, float_color, false, -1, float_color)
 	set_slot(2, true, 1, float_color, false, -1, float_color)
 	set_slot(3, true, 1, float_color, false, -1, float_color)
 	set_slot(4, true, 0, vec3_color, false, -1, vec3_color)
 	set_slot(5, true, 0, vec3_color, false, -1, vec3_color)
-
 	set_slot(6, true, 0, vec3_color, false, -1, vec3_color)
 
-	for label_text in ["Albedo", "Alpha", "Roughness", "Metallic", "Emission", "Normal", "Vertex Offset"]:
+	for label_text in _SPATIAL_LABELS:
 		var label := Label.new()
 		label.text = label_text
 		add_child(label)
+		_slot_labels.append(label)
 
 	_option_btn = OptionButton.new()
-	_option_btn.add_item("Opaque")
-	_option_btn.add_item("Mix")
-	_option_btn.add_item("Add")
-	_option_btn.add_item("Premult Alpha")
-	_option_btn.selected = _mode
 	_option_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_option_btn.item_selected.connect(_on_mode_selected)
 	add_child(_option_btn)
+
+	_rebuild_mode_options()
 
 
 func _on_mode_selected(idx: int) -> void:
@@ -47,12 +51,60 @@ func _on_mode_selected(idx: int) -> void:
 	emit_signal("value_changed")
 
 
+func set_shader_type(type: int) -> void:
+	_shader_type = type
+	_mode = 0
+	var vec3_color := Color.WHITE
+	var float_color := Color(0.35, 0.9, 0.85)
+
+	if type == 0:
+		# Spatial
+		set_slot(0, true, 0, vec3_color, false, -1, vec3_color)
+		set_slot(1, true, 1, float_color, false, -1, float_color)
+		set_slot(2, true, 1, float_color, false, -1, float_color)
+		set_slot(3, true, 1, float_color, false, -1, float_color)
+		set_slot(4, true, 0, vec3_color, false, -1, vec3_color)
+		set_slot(5, true, 0, vec3_color, false, -1, vec3_color)
+		set_slot(6, true, 0, vec3_color, false, -1, vec3_color)
+		for i in range(_slot_labels.size()):
+			_slot_labels[i].text = _SPATIAL_LABELS[i]
+			_slot_labels[i].visible = true
+	else:
+		# CanvasItem
+		set_slot(0, true, 0, vec3_color, false, -1, vec3_color)
+		set_slot(1, true, 1, float_color, false, -1, float_color)
+		set_slot(2, true, 0, vec3_color, false, -1, vec3_color)
+		set_slot(3, false, -1, vec3_color, false, -1, vec3_color)
+		set_slot(4, false, -1, vec3_color, false, -1, vec3_color)
+		set_slot(5, false, -1, vec3_color, false, -1, vec3_color)
+		set_slot(6, false, -1, vec3_color, false, -1, vec3_color)
+		for i in range(_slot_labels.size()):
+			_slot_labels[i].text = _CANVAS_LABELS[i]
+			_slot_labels[i].visible = _CANVAS_LABELS[i] != ""
+
+	_rebuild_mode_options()
+	call_deferred("reset_size")
+	emit_signal("value_changed")
+
+
+func _rebuild_mode_options() -> void:
+	_option_btn.clear()
+	if _shader_type == 0:
+		for label in ["Opaque", "Mix", "Add", "Premult Alpha"]:
+			_option_btn.add_item(label)
+	else:
+		for label in ["Default", "Unshaded", "Light Only", "Blend Add", "Blend Premult"]:
+			_option_btn.add_item(label)
+	_option_btn.selected = _mode
+
+
 func get_render_mode() -> String:
-	return _MODES[_mode]
+	var modes := _SPATIAL_MODES if _shader_type == 0 else _CANVAS_MODES
+	return modes[_mode] if _mode < modes.size() else ""
 
 
 func get_state() -> Dictionary:
-	return {"mode": _mode}
+	return {"mode": _mode, "shader_type": _shader_type}
 
 
 func set_state(state: Dictionary) -> void:

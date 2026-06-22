@@ -49,6 +49,9 @@ const ModNode = preload("res://addons/nyx/nodes/mod_node.gd")
 const NormalizeNode = preload("res://addons/nyx/nodes/normalize_node.gd")
 const CustomGLSLNode = preload("res://addons/nyx/nodes/custom_glsl_node.gd")
 const Vector3Node = preload("res://addons/nyx/nodes/vector3_node.gd")
+const SpriteTextureNode = preload("res://addons/nyx/nodes/sprite_texture_node.gd")
+const VertexColorNode = preload("res://addons/nyx/nodes/vertex_color_node.gd")
+const TexturePixelSizeNode = preload("res://addons/nyx/nodes/texture_pixel_size_node.gd")
 const LengthNode = preload("res://addons/nyx/nodes/length_node.gd")
 const DotNode = preload("res://addons/nyx/nodes/dot_node.gd")
 
@@ -74,7 +77,7 @@ const _NODE_REGISTRY := [
 			"description": "Outputs the UV coordinates of the current fragment as a vec3 (Z is always 0). UV runs from (0,0) at one corner to (1,1) at the opposite corner.",
 			"ports": ["Out (vec3) — UV.x, UV.y, 0.0"],
 			"uses": ["Input for textures and noise", "Coordinate-based effects", "Tiling operations"]},
-		{"label": "Vertex", "id": 20,
+		{"label": "Vertex", "id": 20, "spatial_only": true,
 			"summary": "The local 3D position of the current surface point.",
 			"description": "Unlike UV, vertex position is continuous across the mesh with no seams where UV islands meet. Particularly valuable as noise input on spheres and organic shapes.",
 			"ports": ["Out (vec3) — local position XYZ"],
@@ -191,7 +194,7 @@ const _NODE_REGISTRY := [
 			"uses": ["Tinting a colour by noise intensity", "Applying Fresnel as emission strength", "Weighting a normal map contribution"]},
 	]},
 	{"category": "Shape", "nodes": [
-		{"label": "Fresnel", "id": 15,
+		{"label": "Fresnel", "id": 15, "spatial_only": true,
 			"summary": "Brighter at glancing angles, darker head-on. The classic edge-glow effect.",
 			"description": "Computes how much the surface faces away from the camera. High power = tight rim; low power = spreads across the whole surface. Connect a Float to the Power port to drive it dynamically.",
 			"ports": ["Power (float) — falloff sharpness, default 3.0", "Out (float)"],
@@ -218,7 +221,7 @@ const _NODE_REGISTRY := [
 			"description": "Reads the colour of what's been rendered behind this transparent surface. Offset the UV input with a water normal to create convincing refraction. Requires the material's render mode to be Mix, Add, or Premult Alpha.",
 			"ports": ["UV (vec3) — screen UV to sample (offset for refraction)", "Color (vec3) — the scene colour at that UV"],
 			"uses": ["Water refraction", "Glass distortion", "Heat haze", "Any transparent surface that should show a distorted view of what's behind it"]},
-		{"label": "Depth Fade", "id": 46,
+		{"label": "Depth Fade", "id": 46, "spatial_only": true,
 			"summary": "Returns 0 at surface intersections and 1 in deep water.",
 			"description": "Compares the depth buffer against the current surface depth. Where scene geometry is close to the surface (shallow water, shorelines), the output is near 0. Where the water is deep, it approaches 1. Requires a transparent render mode.",
 			"ports": ["Distance (float) — the depth range over which the fade occurs", "Out (float) — 0 at edges/intersections, 1 in deep areas"],
@@ -252,6 +255,23 @@ const _NODE_REGISTRY := [
 			"description": "Stacks multiple octaves of gradient noise, each at higher frequency and lower amplitude. The result looks like natural phenomena — clouds, terrain, smoke, fire. Octaves adds detail layers. Lacunarity controls frequency growth per octave (default 2.0). Gain controls how fast amplitude fades (default 0.5).",
 			"ports": ["UV (vec3) — coordinate input (use Vertex for seamless results on spheres)", "Scale (float) — base feature size", "Out (float)"],
 			"uses": ["Clouds and smoke", "Fire and lava", "Organic terrain", "Any effect needing natural multi-scale variation"]},
+	]},
+	{"category": "Canvas", "nodes": [
+		{"label": "Sprite Texture", "id": 49, "canvas_only": true,
+			"summary": "Samples the sprite's own texture at UV coordinates.",
+			"description": "Reads from TEXTURE — the built-in texture of the current CanvasItem (Sprite2D, TextureRect, etc.). Unlike Texture Sample, this doesn't require assigning an external texture; it uses whatever the node already has.",
+			"ports": ["UV (vec3) — texture coordinates", "Color (vec3) — sampled RGBA colour"],
+			"uses": ["Tinting a sprite", "Masking by the sprite's own alpha", "Layering effects on top of the base sprite"]},
+		{"label": "Vertex Color", "id": 50, "canvas_only": true,
+			"summary": "The sprite's modulate color set in the scene.",
+			"description": "Outputs COLOR.rgb — the per-vertex tint inherited from the CanvasItem's Modulate property. Multiply it against your output to respect the scene-level tint.",
+			"ports": ["Color (vec3) — the modulate colour"],
+			"uses": ["Respecting the sprite's scene-level tint", "Blending shader output with the sprite's colour", "Reactive colour effects driven from GDScript"]},
+		{"label": "Pixel Size", "id": 51, "canvas_only": true,
+			"summary": "The size of one texel in the sprite's texture.",
+			"description": "Outputs TEXTURE_PIXEL_SIZE as a vec3 (XY = pixel size, Z = 0). Use this to offset UVs by exactly one pixel — essential for outlines, blur, and pixel-perfect effects that need to stay sharp at any scale.",
+			"ports": ["Size (vec3) — texel dimensions in UV space, XY only"],
+			"uses": ["Pixel-art outline shaders", "Nearest-neighbour blur", "Edge detection"]},
 	]},
 	{"category": "Advanced", "nodes": [
 		{"label": "Custom Function", "id": 47,
@@ -320,6 +340,10 @@ const _TYPE_COLORS := {
 	# Noise/Procedural — yellow
 	"NoiseNode": Color("#E79D13"),
 	"FBMNode":   Color("#E79D13"),
+	# Canvas — coral (scene-provided inputs, like UV/Time/ScreenUV)
+	"SpriteTextureNode":    Color("#CC5B4F"),
+	"VertexColorNode":      Color("#CC5B4F"),
+	"TexturePixelSizeNode": Color("#CC5B4F"),
 }
 
 const NODE_CLASSES := {
@@ -373,10 +397,20 @@ const NODE_CLASSES := {
 	"DotNode": DotNode,
 	"CustomGLSLNode": CustomGLSLNode,
 	"Vector3Node": Vector3Node,
+	"SpriteTextureNode": SpriteTextureNode,
+	"VertexColorNode": VertexColorNode,
+	"TexturePixelSizeNode": TexturePixelSizeNode,
 }
 
 var _graph_container: VBoxContainer
 var _graph: GraphEdit
+var _shader_type: int = 0
+var _type_btn: OptionButton
+var _mesh_row: HBoxContainer
+var _vpc_3d: SubViewportContainer
+var _vpc_2d: SubViewportContainer
+var _viewport_2d: SubViewport
+var _shader_material_2d: ShaderMaterial
 var _preview_panel: Panel
 var _preview_dragging: bool = false
 var _preview_resizing: bool = false
@@ -515,6 +549,7 @@ func _build_preview_panel() -> Panel:
 	var mesh_row := HBoxContainer.new()
 	mesh_row.add_theme_constant_override("separation", 2)
 	vbox.add_child(mesh_row)
+	_mesh_row = mesh_row
 
 	for pair in [["Sphere", SphereMesh.new(), Vector3.ZERO, 1.2], ["Plane", QuadMesh.new(), Vector3.ZERO, 1.2], ["Cube", BoxMesh.new(), Vector3(20, 40, 20), 1.8]]:
 		var btn := Button.new()
@@ -531,6 +566,7 @@ func _build_preview_panel() -> Panel:
 	vpc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vpc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(vpc)
+	_vpc_3d = vpc
 
 	_viewport = SubViewport.new()
 	_viewport.own_world_3d = true
@@ -553,6 +589,26 @@ func _build_preview_panel() -> Panel:
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-45, 45, 0)
 	_viewport.add_child(light)
+
+	_vpc_2d = SubViewportContainer.new()
+	_vpc_2d.stretch = true
+	_vpc_2d.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_vpc_2d.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_vpc_2d.visible = false
+	vbox.add_child(_vpc_2d)
+
+	_viewport_2d = SubViewport.new()
+	_viewport_2d.transparent_bg = true
+	_viewport_2d.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_vpc_2d.add_child(_viewport_2d)
+
+	var preview_rect := ColorRect.new()
+	preview_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_shader_material_2d = ShaderMaterial.new()
+	_shader_material_2d.shader = Shader.new()
+	_shader_material_2d.shader.code = "shader_type canvas_item;\nvoid fragment() { COLOR = vec4(0.5, 0.5, 0.5, 1.0); }\n"
+	preview_rect.material = _shader_material_2d
+	_viewport_2d.add_child(preview_rect)
 
 	var grip := Control.new()
 	grip.size = Vector2(16, 16)
@@ -625,30 +681,37 @@ func _open_node_preview(node: Node) -> void:
 
 	var vp := SubViewport.new()
 	vp.size = Vector2i(100, 100)
-	vp.own_world_3d = true
 	vp.transparent_bg = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(vp)
 
-	var cam := Camera3D.new()
-	cam.position = Vector3(0, 0, 1.2)
-	vp.add_child(cam)
-	cam.make_current()
-
-	var mesh_inst := MeshInstance3D.new()
-	var qm := QuadMesh.new()
-	qm.size = Vector2(1.84, 1.84)
-	mesh_inst.mesh = qm
-	var shader := Shader.new()
-	shader.code = "shader_type spatial;\nrender_mode unshaded;\nvoid fragment() { ALBEDO = vec3(0.5); }"
 	var mat := ShaderMaterial.new()
-	mat.shader = shader
-	mesh_inst.material_override = mat
-	vp.add_child(mesh_inst)
+	mat.shader = Shader.new()
 
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-45, 45, 0)
-	vp.add_child(light)
+	if _shader_type == 1:
+		# Canvas Item — use a ColorRect
+		mat.shader.code = "shader_type canvas_item;\nrender_mode unshaded;\nvoid fragment() { COLOR = vec4(0.5, 0.5, 0.5, 1.0); }"
+		var rect := ColorRect.new()
+		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		rect.material = mat
+		vp.add_child(rect)
+	else:
+		# Spatial — use a quad mesh with camera
+		vp.own_world_3d = true
+		var cam := Camera3D.new()
+		cam.position = Vector3(0, 0, 1.2)
+		vp.add_child(cam)
+		cam.make_current()
+		var mesh_inst := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(1.84, 1.84)
+		mesh_inst.mesh = qm
+		mat.shader.code = "shader_type spatial;\nrender_mode unshaded;\nvoid fragment() { ALBEDO = vec3(0.5); }"
+		mesh_inst.material_override = mat
+		vp.add_child(mesh_inst)
+		var light := DirectionalLight3D.new()
+		light.rotation_degrees = Vector3(-45, 45, 0)
+		vp.add_child(light)
 
 	tex_rect.texture = vp.get_texture()
 	node.set_meta("_preview_material", mat)
@@ -705,14 +768,17 @@ func _build_node_preview_shader(node: Node) -> String:
 	for fn in shader_functions:
 		function_block += shader_functions[fn]
 
-	var albedo_expr: String
+	var preview_expr: String
 	if node.get_output_port_count() == 0:
-		albedo_expr = _get_snippet_for(node.name, 0, c, "vec3(0.5, 0.5, 0.5)")
+		preview_expr = _get_snippet_for(node.name, 0, c, "vec3(0.5, 0.5, 0.5)")
 	else:
 		var node_result := _get_node_snippet(node, 0, c)
-		albedo_expr = "vec3(%s)" % node_result[0] if node_result[1] == 1 else node_result[0]
+		preview_expr = "vec3(%s)" % node_result[0] if node_result[1] == 1 else node_result[0]
 
-	return "shader_type spatial;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tALBEDO = %s;\n}\n" % [uniform_lines, function_block, albedo_expr]
+	if _shader_type == 1:
+		return "shader_type canvas_item;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tCOLOR = vec4(%s, 1.0);\n}\n" % [uniform_lines, function_block, preview_expr]
+
+	return "shader_type spatial;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tALBEDO = %s;\n}\n" % [uniform_lines, function_block, preview_expr]
 
 
 func _request_compile() -> void:
@@ -743,6 +809,16 @@ func _build_shader_code() -> String:
 	var render_mode_line: String = ("render_mode %s;\n" % render_mode) if render_mode != "" else ""
 
 	var c = _graph.get_connection_list()
+
+	if _shader_type == 1:
+		# Canvas Item
+		var color  = _get_snippet_for("OutputNode", 0, c, "vec3(1.0, 1.0, 1.0)")
+		var alpha  = _get_snippet_for("OutputNode", 1, c, "1.0")
+		var normal = _get_snippet_for("OutputNode", 2, c, "")
+		var normal_line := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
+		return "shader_type canvas_item;\n%s%s\n%svoid fragment() {\n\tCOLOR = vec4(%s, %s);\n%s}\n" % [render_mode_line, uniform_lines, function_block, color, alpha, normal_line]
+
+	# Spatial
 	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
 	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
 	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
@@ -755,14 +831,38 @@ func _build_shader_code() -> String:
 	return "shader_type spatial;\n%s%s\n%s%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n%s}\n" % [render_mode_line, uniform_lines, function_block, vertex_block, albedo, alpha, roughness, metallic, emission, normal_line]
 
 
+func _on_shader_type_changed(idx: int) -> void:
+	_shader_type = idx
+	var output_node = _graph.get_node_or_null("OutputNode")
+	if output_node:
+		output_node.set_shader_type(idx)
+	_mesh_row.visible = idx == 0
+	_vpc_3d.visible = idx == 0
+	_vpc_2d.visible = idx == 1
+	for child in _graph.get_children():
+		if child is GraphNode and child.has_meta("_preview_material"):
+			if child.has_meta("_preview_viewport"):
+				(child.get_meta("_preview_viewport") as Node).queue_free()
+				child.remove_meta("_preview_viewport")
+			child.remove_meta("_preview_material")
+			_open_node_preview(child)
+	_last_shader_code = ""
+	_request_compile()
+
+
+func _get_active_material() -> ShaderMaterial:
+	return _shader_material_2d if _shader_type == 1 else _shader_material
+
+
 func _apply_texture_uniforms() -> void:
+	var mat := _get_active_material()
 	for child in _graph.get_children():
 		if child.has_method("get_uniform_name") and child.has_method("get_texture"):
 			var tex = child.get_texture()
 			if tex:
-				_shader_material.set_shader_parameter(child.get_uniform_name(), tex)
+				mat.set_shader_parameter(child.get_uniform_name(), tex)
 		if child.has_method("apply_shader_params"):
-			child.apply_shader_params(_shader_material)
+			child.apply_shader_params(mat)
 
 
 func _compile_shader() -> void:
@@ -770,7 +870,7 @@ func _compile_shader() -> void:
 		var code := _build_shader_code()
 		if code != _last_shader_code:
 			_last_shader_code = code
-			_shader_material.shader.code = code
+			_get_active_material().shader.code = code
 		_apply_texture_uniforms()
 	_refresh_all_node_previews()
 
@@ -1132,6 +1232,9 @@ func _on_context_menu_selected(id: int) -> void:
 		28: _add_node(DotNode.new(), _spawn_position, "Dot")
 		47: _add_node(CustomGLSLNode.new(), _spawn_position, "CustomGLSL")
 		48: _add_node(Vector3Node.new(), _spawn_position, "Vector3")
+		49: _add_node(SpriteTextureNode.new(), _spawn_position, "SpriteTexture")
+		50: _add_node(VertexColorNode.new(), _spawn_position, "VertexColor")
+		51: _add_node(TexturePixelSizeNode.new(), _spawn_position, "PixelSize")
 
 
 func _build_graph_toolbar() -> HBoxContainer:
@@ -1159,6 +1262,15 @@ func _build_graph_toolbar() -> HBoxContainer:
 	redo_btn.text = "Redo"
 	redo_btn.pressed.connect(_redo)
 	toolbar.add_child(redo_btn)
+
+	var sep2 := VSeparator.new()
+	toolbar.add_child(sep2)
+
+	_type_btn = OptionButton.new()
+	_type_btn.add_item("Spatial")
+	_type_btn.add_item("Canvas Item")
+	_type_btn.item_selected.connect(_on_shader_type_changed)
+	toolbar.add_child(_type_btn)
 
 	return toolbar
 
@@ -1194,7 +1306,7 @@ func _serialize_graph() -> Dictionary:
 			"to_port": conn["to_port"],
 		})
 
-	return {"nodes": nodes, "connections": connections}
+	return {"nodes": nodes, "connections": connections, "shader_type": _shader_type}
 
 
 func _deserialize_graph(data: Dictionary) -> void:
@@ -1206,6 +1318,17 @@ func _deserialize_graph(data: Dictionary) -> void:
 	for child in to_remove:
 		_graph.remove_child(child)
 		child.free()
+
+	var saved_type: int = data.get("shader_type", 0)
+	if saved_type != _shader_type:
+		_shader_type = saved_type
+		_type_btn.selected = saved_type
+		var output_node = _graph.get_node_or_null("OutputNode")
+		if output_node:
+			output_node.set_shader_type(saved_type)
+		_mesh_row.visible = saved_type == 0
+		_vpc_3d.visible = saved_type == 0
+		_vpc_2d.visible = saved_type == 1
 
 	var name_map := {}
 	for node_data in data.get("nodes", []):
@@ -1405,6 +1528,11 @@ func _open_search_popup() -> void:
 	_search_input.call_deferred("grab_focus")
 
 
+func _is_node_unavailable(entry: Dictionary) -> bool:
+	return (entry.get("spatial_only", false) and _shader_type == 1) or \
+		   (entry.get("canvas_only", false) and _shader_type == 0)
+
+
 func _populate_search_grouped() -> void:
 	_search_list.clear()
 	_search_item_ids.clear()
@@ -1413,8 +1541,11 @@ func _populate_search_grouped() -> void:
 		_search_list.set_item_disabled(header_idx, true)
 		_search_item_ids.append(-1)
 		for entry in category["nodes"]:
-			_search_list.add_item("  " + entry["label"])
+			var item_idx := _search_list.add_item("  " + entry["label"])
 			_search_item_ids.append(entry["id"])
+			if _is_node_unavailable(entry):
+				_search_list.set_item_disabled(item_idx, true)
+				_search_list.set_item_custom_fg_color(item_idx, Color(1, 1, 1, 0.25))
 
 
 func _populate_search_filtered(query: String) -> void:
@@ -1424,8 +1555,11 @@ func _populate_search_filtered(query: String) -> void:
 		var category_matches := _fuzzy_match(query, category["category"])
 		for entry in category["nodes"]:
 			if category_matches or _fuzzy_match(query, entry["label"]):
-				_search_list.add_item(entry["label"])
+				var item_idx := _search_list.add_item(entry["label"])
 				_search_item_ids.append(entry["id"])
+				if _is_node_unavailable(entry):
+					_search_list.set_item_disabled(item_idx, true)
+					_search_list.set_item_custom_fg_color(item_idx, Color(1, 1, 1, 0.25))
 	if _search_list.item_count > 0:
 		_search_list.select(0)
 
