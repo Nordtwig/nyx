@@ -667,9 +667,11 @@ func _build_shader_code() -> String:
 	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
 	var metallic  = _get_snippet_for("OutputNode", 3, c, "0.0")
 	var emission  = _get_snippet_for("OutputNode", 4, c, "vec3(0.0, 0.0, 0.0)")
-	var normal    = _get_snippet_for("OutputNode", 5, c, "")
+	var normal         = _get_snippet_for("OutputNode", 5, c, "")
+	var vertex_offset  = _get_snippet_for("OutputNode", 6, c, "")
 	var normal_line := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
-	return "shader_type spatial;\n%s%s\n%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n%s}\n" % [render_mode_line, uniform_lines, function_block, albedo, alpha, roughness, metallic, emission, normal_line]
+	var vertex_block := "void vertex() {\n\tVERTEX += %s;\n}\n\n" % vertex_offset if vertex_offset != "" else ""
+	return "shader_type spatial;\n%s%s\n%s%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n%s}\n" % [render_mode_line, uniform_lines, function_block, vertex_block, albedo, alpha, roughness, metallic, emission, normal_line]
 
 
 func _apply_texture_uniforms() -> void:

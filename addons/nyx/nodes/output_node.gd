@@ -23,7 +23,9 @@ func _ready() -> void:
 	set_slot(4, true, 0, vec3_color, false, -1, vec3_color)
 	set_slot(5, true, 0, vec3_color, false, -1, vec3_color)
 
-	for label_text in ["Albedo", "Alpha", "Roughness", "Metallic", "Emission", "Normal"]:
+	set_slot(6, true, 0, vec3_color, false, -1, vec3_color)
+
+	for label_text in ["Albedo", "Alpha", "Roughness", "Metallic", "Emission", "Normal", "Vertex Offset"]:
 		var label := Label.new()
 		label.text = label_text
 		add_child(label)

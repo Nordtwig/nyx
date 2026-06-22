@@ -1,0 +1,728 @@
+{
+	"connections": [
+		{
+			"from_node": "Time",
+			"from_port": 1,
+			"to_node": "TilingOffset",
+			"to_port": 3
+		},
+		{
+			"from_node": "TilingOffset",
+			"from_port": 0,
+			"to_node": "FBM",
+			"to_port": 0
+		},
+		{
+			"from_node": "FBM",
+			"from_port": 0,
+			"to_node": "NormalFromHeight",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25077",
+			"from_port": 0,
+			"to_node": "@GraphNode@25093",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25093",
+			"from_port": 0,
+			"to_node": "@GraphNode@25107",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25107",
+			"from_port": 0,
+			"to_node": "BlendNormals",
+			"to_port": 1
+		},
+		{
+			"from_node": "NormalFromHeight",
+			"from_port": 0,
+			"to_node": "BlendNormals",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25262",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 2
+		},
+		{
+			"from_node": "FBM",
+			"from_port": 0,
+			"to_node": "Smoothstep",
+			"to_port": 2
+		},
+		{
+			"from_node": "Float",
+			"from_port": 0,
+			"to_node": "Smoothstep",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25148",
+			"from_port": 0,
+			"to_node": "Smoothstep",
+			"to_port": 1
+		},
+		{
+			"from_node": "Curve",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 1
+		},
+		{
+			"from_node": "Fresnel",
+			"from_port": 0,
+			"to_node": "Curve",
+			"to_port": 0
+		},
+		{
+			"from_node": "ScreenUV",
+			"from_port": 0,
+			"to_node": "Warp",
+			"to_port": 0
+		},
+		{
+			"from_node": "BlendNormals",
+			"from_port": 0,
+			"to_node": "Warp",
+			"to_port": 1
+		},
+		{
+			"from_node": "Warp",
+			"from_port": 0,
+			"to_node": "ScreenTexture",
+			"to_port": 0
+		},
+		{
+			"from_node": "Mix",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25292",
+			"from_port": 0,
+			"to_node": "@GraphNode@25286",
+			"to_port": 2
+		},
+		{
+			"from_node": "ScreenTexture",
+			"from_port": 0,
+			"to_node": "@GraphNode@25286",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@25300",
+			"from_port": 0,
+			"to_node": "@GraphNode@25286",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25286",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 0
+		},
+		{
+			"from_node": "DepthFade",
+			"from_port": 0,
+			"to_node": "Mix",
+			"to_port": 2
+		},
+		{
+			"from_node": "Color",
+			"from_port": 0,
+			"to_node": "Mix",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25286",
+			"from_port": 0,
+			"to_node": "Mix",
+			"to_port": 1
+		},
+		{
+			"from_node": "BlendNormals",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 5
+		},
+		{
+			"from_node": "@GraphNode@25425",
+			"from_port": 0,
+			"to_node": "Scale",
+			"to_port": 1
+		},
+		{
+			"from_node": "Scale",
+			"from_port": 0,
+			"to_node": "Add",
+			"to_port": 0
+		},
+		{
+			"from_node": "Add",
+			"from_port": 0,
+			"to_node": "Sin",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25605",
+			"from_port": 0,
+			"to_node": "@GraphNode@25622",
+			"to_port": 1
+		},
+		{
+			"from_node": "Sin",
+			"from_port": 0,
+			"to_node": "@GraphNode@25622",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25622",
+			"from_port": 0,
+			"to_node": "@GraphNode@25697",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25712",
+			"from_port": 0,
+			"to_node": "Combine",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25697",
+			"from_port": 1,
+			"to_node": "Combine",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@25753",
+			"from_port": 0,
+			"to_node": "Combine",
+			"to_port": 2
+		},
+		{
+			"from_node": "Combine",
+			"from_port": 0,
+			"to_node": "OutputNode",
+			"to_port": 6
+		},
+		{
+			"from_node": "UV",
+			"from_port": 0,
+			"to_node": "TilingOffset",
+			"to_port": 0
+		},
+		{
+			"from_node": "UV",
+			"from_port": 0,
+			"to_node": "@GraphNode@25077",
+			"to_port": 0
+		},
+		{
+			"from_node": "Vertex",
+			"from_port": 0,
+			"to_node": "Split",
+			"to_port": 0
+		},
+		{
+			"from_node": "Split",
+			"from_port": 0,
+			"to_node": "Scale",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@25545",
+			"from_port": 0,
+			"to_node": "Multiply",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@33879",
+			"from_port": 0,
+			"to_node": "Multiply",
+			"to_port": 1
+		},
+		{
+			"from_node": "Multiply",
+			"from_port": 0,
+			"to_node": "Add",
+			"to_port": 1
+		},
+		{
+			"from_node": "Time",
+			"from_port": 2,
+			"to_node": "@GraphNode@25077",
+			"to_port": 4
+		}
+	],
+	"nodes": [
+		{
+			"name": "TilingOffset",
+			"position": [
+				-20.0,
+				240.0
+			],
+			"state": {
+				"ox": 0.0,
+				"oy": 0.0,
+				"tx": 8.0,
+				"ty": 8.0
+			},
+			"type": "TilingOffsetNode"
+		},
+		{
+			"name": "FBM",
+			"position": [
+				120.0,
+				240.0
+			],
+			"state": {
+				"gain": 0.5,
+				"lacunarity": 2.0,
+				"octaves": 4,
+				"scale": 1.0
+			},
+			"type": "FBMNode"
+		},
+		{
+			"name": "NormalFromHeight",
+			"position": [
+				260.0,
+				240.0
+			],
+			"state": {
+				"strength": 15.0
+			},
+			"type": "NormalFromHeightNode"
+		},
+		{
+			"name": "@GraphNode@25077",
+			"position": [
+				-20.0,
+				40.0
+			],
+			"state": {
+				"ox": 0.0,
+				"oy": 0.0,
+				"tx": 11.0,
+				"ty": 11.0
+			},
+			"type": "TilingOffsetNode"
+		},
+		{
+			"name": "@GraphNode@25093",
+			"position": [
+				120.0,
+				40.0
+			],
+			"state": {
+				"gain": 0.5,
+				"lacunarity": 2.0,
+				"octaves": 5,
+				"scale": 1.5
+			},
+			"type": "FBMNode"
+		},
+		{
+			"name": "@GraphNode@25107",
+			"position": [
+				260.0,
+				40.0
+			],
+			"state": {
+				"strength": 10.0
+			},
+			"type": "NormalFromHeightNode"
+		},
+		{
+			"name": "BlendNormals",
+			"position": [
+				400.0,
+				140.0
+			],
+			"state": {},
+			"type": "BlendNormalsNode"
+		},
+		{
+			"name": "OutputNode",
+			"position": [
+				600.0,
+				-40.0
+			],
+			"state": {
+				"mode": 1
+			},
+			"type": "OutputNode"
+		},
+		{
+			"name": "Float",
+			"position": [
+				60.0,
+				440.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@31822",
+				"value": 0.6
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@25148",
+			"position": [
+				60.0,
+				520.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@31836",
+				"value": 0.85
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "Mix",
+			"position": [
+				540.0,
+				200.0
+			],
+			"state": {},
+			"type": "MixNode"
+		},
+		{
+			"name": "Fresnel",
+			"position": [
+				240.0,
+				360.0
+			],
+			"state": {
+				"power": 2.5
+			},
+			"type": "FresnelNode"
+		},
+		{
+			"name": "Curve",
+			"position": [
+				460.0,
+				320.0
+			],
+			"state": {
+				"points": [
+					{
+						"lm": 0,
+						"lt": 0.0,
+						"rm": 0,
+						"rt": 0.0,
+						"x": 0.0,
+						"y": 1.0
+					},
+					{
+						"lm": 0,
+						"lt": 0.0,
+						"rm": 0,
+						"rt": 0.0,
+						"x": 1.0,
+						"y": 0.169230818748474
+					}
+				]
+			},
+			"type": "CurveNode"
+		},
+		{
+			"name": "Color",
+			"position": [
+				220.0,
+				580.0
+			],
+			"state": {
+				"color": [
+					1.0,
+					1.0,
+					0.925490200519562,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		},
+		{
+			"name": "@GraphNode@25262",
+			"position": [
+				0.0,
+				-40.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@29633",
+				"value": 0.05
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "ScreenUV",
+			"position": [
+				40.0,
+				-100.0
+			],
+			"state": {},
+			"type": "ScreenUVNode"
+		},
+		{
+			"name": "Warp",
+			"position": [
+				200.0,
+				-140.0
+			],
+			"state": {
+				"strength": 0.05
+			},
+			"type": "WarpNode"
+		},
+		{
+			"name": "ScreenTexture",
+			"position": [
+				360.0,
+				-100.0
+			],
+			"state": {},
+			"type": "ScreenTextureNode"
+		},
+		{
+			"name": "@GraphNode@25286",
+			"position": [
+				520.0,
+				-100.0
+			],
+			"state": {},
+			"type": "MixNode"
+		},
+		{
+			"name": "@GraphNode@25292",
+			"position": [
+				340.0,
+				-40.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@27508",
+				"value": 0.3
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@25300",
+			"position": [
+				320.0,
+				-180.0
+			],
+			"state": {
+				"color": [
+					0.0,
+					0.229492172598839,
+					0.489583313465118,
+					1.0
+				]
+			},
+			"type": "ColorNode"
+		},
+		{
+			"name": "DepthFade",
+			"position": [
+				400.0,
+				620.0
+			],
+			"state": {
+				"distance": 2.0
+			},
+			"type": "DepthFadeNode"
+		},
+		{
+			"name": "Smoothstep",
+			"position": [
+				280.0,
+				440.0
+			],
+			"state": {
+				"edge0": 0.0,
+				"edge1": 1.0
+			},
+			"type": "SmoothstepNode"
+		},
+		{
+			"name": "UV",
+			"position": [
+				-120.0,
+				120.0
+			],
+			"state": {},
+			"type": "UVNode"
+		},
+		{
+			"name": "Scale",
+			"position": [
+				-440.0,
+				280.0
+			],
+			"state": {},
+			"type": "ScaleNode"
+		},
+		{
+			"name": "Add",
+			"position": [
+				-360.0,
+				320.0
+			],
+			"state": {},
+			"type": "AddNode"
+		},
+		{
+			"name": "@GraphNode@25425",
+			"position": [
+				-620.0,
+				200.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@24250",
+				"value": 4.0
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "Sin",
+			"position": [
+				-280.0,
+				320.0
+			],
+			"state": {},
+			"type": "SinNode"
+		},
+		{
+			"name": "@GraphNode@25622",
+			"position": [
+				-220.0,
+				320.0
+			],
+			"state": {},
+			"type": "ScaleNode"
+		},
+		{
+			"name": "@GraphNode@25605",
+			"position": [
+				-380.0,
+				440.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@25605",
+				"value": 0.05
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@25697",
+			"position": [
+				-160.0,
+				320.0
+			],
+			"state": {},
+			"type": "SplitNode"
+		},
+		{
+			"name": "@GraphNode@25712",
+			"position": [
+				-300.0,
+				520.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@25712",
+				"value": 0.0
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "Combine",
+			"position": [
+				-100.0,
+				440.0
+			],
+			"state": {},
+			"type": "CombineNode"
+		},
+		{
+			"name": "@GraphNode@25753",
+			"position": [
+				-300.0,
+				600.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@25753",
+				"value": 0.0
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "Vertex",
+			"position": [
+				-680.0,
+				300.0
+			],
+			"state": {},
+			"type": "VertexNode"
+		},
+		{
+			"name": "Split",
+			"position": [
+				-560.0,
+				300.0
+			],
+			"state": {},
+			"type": "SplitNode"
+		},
+		{
+			"name": "@GraphNode@25545",
+			"position": [
+				-520.0,
+				420.0
+			],
+			"state": {},
+			"type": "TimeNode"
+		},
+		{
+			"name": "Multiply",
+			"position": [
+				-440.0,
+				420.0
+			],
+			"state": {},
+			"type": "MultiplyNode"
+		},
+		{
+			"name": "@GraphNode@33879",
+			"position": [
+				-600.0,
+				520.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@33879",
+				"value": 0.3
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "Time",
+			"position": [
+				-200.0,
+				220.0
+			],
+			"state": {},
+			"type": "TimeNode"
+		}
+	]
+}

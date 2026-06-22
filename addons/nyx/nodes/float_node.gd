@@ -19,6 +19,8 @@ func _ready() -> void:
 	_slider.min_value = 0.0
 	_slider.max_value = 1.0
 	_slider.step = 0.01
+	_slider.allow_lesser = true
+	_slider.allow_greater = true
 	_slider.value = _value
 	_slider.custom_minimum_size = Vector2(80, 0)
 	_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
