@@ -48,21 +48,27 @@ const DivideNode = preload("res://addons/nyx/nodes/divide_node.gd")
 const ModNode = preload("res://addons/nyx/nodes/mod_node.gd")
 const NormalizeNode = preload("res://addons/nyx/nodes/normalize_node.gd")
 const CustomGLSLNode = preload("res://addons/nyx/nodes/custom_glsl_node.gd")
+const Vector3Node = preload("res://addons/nyx/nodes/vector3_node.gd")
 const LengthNode = preload("res://addons/nyx/nodes/length_node.gd")
 const DotNode = preload("res://addons/nyx/nodes/dot_node.gd")
 
 const _NODE_REGISTRY := [
 	{"category": "Inputs", "nodes": [
 		{"label": "Color", "id": 0,
-			"summary": "A constant colour value.",
-			"description": "Click the node body to open a colour picker. The entire node face shows your chosen colour. Outputs RGB as a vec3.",
+			"summary": "A constant colour, optionally exposed for runtime animation.",
+			"description": "Click the node body to open a colour picker. Enable Param mode to expose as a named uniform vec4 — animate from GDScript with set_shader_parameter(). Outputs RGB as a vec3.",
 			"ports": ["Out (vec3) — the selected colour as RGB"],
-			"uses": ["Base albedo colour", "Tint multiplied over a texture", "Constant emission colour"]},
+			"uses": ["Base albedo colour", "Tint multiplied over a texture", "Animatable colour parameter"]},
 		{"label": "Float", "id": 5,
 			"summary": "A single number, optionally exposed for runtime animation.",
-			"description": "Drag the slider to set a value between 0 and 1. Enable Param mode to expose this as a named uniform — animate it at runtime via set_shader_parameter() from GDScript.",
+			"description": "Enable Param mode to expose this as a named uniform — animate it at runtime via set_shader_parameter() from GDScript.",
 			"ports": ["Out (float) — the current value"],
 			"uses": ["Dissolve threshold", "Blend weight", "Any value you want to animate from code"]},
+		{"label": "Vector3", "id": 48,
+			"summary": "A constant XYZ vector, optionally exposed for runtime animation.",
+			"description": "Set X, Y, Z individually. Enable Param mode to expose as a named uniform vec3 — animate from GDScript with set_shader_parameter().",
+			"ports": ["Out (vec3) — the XYZ value"],
+			"uses": ["Direction vectors", "Positional offsets", "Any vec3 you want to control from code"]},
 		{"label": "UV", "id": 4,
 			"summary": "The mesh's texture coordinates.",
 			"description": "Outputs the UV coordinates of the current fragment as a vec3 (Z is always 0). UV runs from (0,0) at one corner to (1,1) at the opposite corner.",
@@ -685,6 +691,8 @@ func _apply_texture_uniforms() -> void:
 			var tex = child.get_texture()
 			if tex:
 				_shader_material.set_shader_parameter(child.get_uniform_name(), tex)
+		if child.has_method("apply_shader_params"):
+			child.apply_shader_params(_shader_material)
 
 
 func _compile_shader() -> void:
@@ -727,7 +735,7 @@ func _on_export_file_selected(path: String) -> void:
 	# Collect nodes by export type
 	var file_tex_nodes := []
 	var sub_nodes := []
-	var float_param_nodes := []
+	var value_param_nodes := []
 	for child in _graph.get_children():
 		if not child.has_method("get_uniform_declaration"):
 			continue
@@ -740,8 +748,10 @@ func _on_export_file_selected(path: String) -> void:
 			var tex = child.get_texture()
 			if tex != null and not tex.resource_path.is_empty():
 				file_tex_nodes.append(child)
-		elif "float" in decl:
-			float_param_nodes.append(child)
+		elif child.has_method("get_param_export_line"):
+			var export_line: String = child.get_param_export_line()
+			if export_line != "":
+				value_param_nodes.append(child)
 
 	var total_sub_count := sub_nodes.size() * 2
 	var load_steps := 1 + file_tex_nodes.size() + total_sub_count + 1
@@ -778,11 +788,8 @@ func _on_export_file_selected(path: String) -> void:
 	for line in sub_param_lines:
 		lines.append(line)
 
-	for node in float_param_nodes:
-		var decl: String = node.get_uniform_declaration()
-		var param_name: String = decl.split(" ")[2]
-		var value: float = node.get_state().get("value", 0.0)
-		lines.append("shader_parameter/%s = %.4f" % [param_name, value])
+	for node in value_param_nodes:
+		lines.append(node.get_param_export_line())
 
 	lines.append("")
 
@@ -1054,6 +1061,7 @@ func _on_context_menu_selected(id: int) -> void:
 		27: _add_node(LengthNode.new(), _spawn_position, "Length")
 		28: _add_node(DotNode.new(), _spawn_position, "Dot")
 		47: _add_node(CustomGLSLNode.new(), _spawn_position, "CustomGLSL")
+		48: _add_node(Vector3Node.new(), _spawn_position, "Vector3")
 
 
 func _build_graph_toolbar() -> HBoxContainer:

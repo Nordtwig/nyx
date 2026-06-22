@@ -105,6 +105,7 @@ func _apply_style() -> void:
 	titlebar.corner_radius_bottom_left = 0
 	titlebar.corner_radius_bottom_right = 0
 	titlebar.content_margin_bottom = -1
+	titlebar.content_margin_left = 6
 	add_theme_stylebox_override("titlebar", titlebar)
 
 	_apply_selection_style(_body_style, titlebar)
@@ -134,7 +135,7 @@ func _center_title() -> void:
 	var hbox := get_titlebar_hbox()
 	for child in hbox.get_children():
 		if child is Label:
-			child.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			child.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 			child.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			child.add_theme_color_override("font_color", Color.WHITE)
 			child.add_theme_constant_override("outline_size", 0)
@@ -202,4 +203,12 @@ func get_state() -> Dictionary:
 
 
 func set_state(_state: Dictionary) -> void:
+	pass
+
+
+func get_param_export_line() -> String:
+	return ""
+
+
+func apply_shader_params(_material: ShaderMaterial) -> void:
 	pass

@@ -2,8 +2,12 @@
 extends "res://addons/nyx/nodes/nyx_node.gd"
 
 var _color := Color.WHITE
+var _param_mode: bool = false
+var _param_name: String = ""
 var _popup: Popup
 var _picker: ColorPicker
+var _param_btn: Button
+var _param_name_edit: LineEdit
 
 
 func _ready() -> void:
@@ -18,6 +22,13 @@ func _ready() -> void:
 	click_area.gui_input.connect(_on_clicked)
 	add_child(click_area)
 
+	_param_name_edit = LineEdit.new()
+	_param_name_edit.placeholder_text = "param name"
+	_param_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_param_name_edit.visible = false
+	_param_name_edit.text_changed.connect(_on_param_name_changed)
+	add_child(_param_name_edit)
+
 	_popup = Popup.new()
 	_popup.size = Vector2(400, 300)
 	add_child(_popup)
@@ -30,6 +41,47 @@ func _ready() -> void:
 	set_slot(0, false, -1, Color.WHITE, true, 0, Color.WHITE)
 	_apply_node_color()
 
+	call_deferred("_init_default_param_name")
+	call_deferred("_setup_param_button")
+
+
+func _init_default_param_name() -> void:
+	if _param_name == "":
+		_param_name = "color_" + str(name).to_lower()
+		_param_name_edit.text = _param_name
+
+
+func _setup_param_button() -> void:
+	var hbox := get_titlebar_hbox()
+	_param_btn = Button.new()
+	_param_btn.text = "$"
+	_param_btn.flat = true
+	_param_btn.custom_minimum_size = Vector2(20, 0)
+	_param_btn.pressed.connect(_on_param_btn_pressed)
+	hbox.add_child(_param_btn)
+	_update_param_button()
+
+
+func _on_param_btn_pressed() -> void:
+	_param_mode = not _param_mode
+	_param_name_edit.visible = _param_mode
+	if not _param_mode:
+		call_deferred("reset_size")
+	_update_param_button()
+	_update_param_tooltip()
+	value_changed.emit()
+
+
+func _update_param_button() -> void:
+	if not _param_btn:
+		return
+	var luminance := _color.r * 0.299 + _color.g * 0.587 + _color.b * 0.114
+	var base_color := Color.BLACK if luminance > 0.5 else Color.WHITE
+	if _param_mode:
+		_param_btn.add_theme_color_override("font_color", Color(0.35, 0.9, 0.85))
+	else:
+		_param_btn.add_theme_color_override("font_color", Color(base_color.r, base_color.g, base_color.b, 0.4))
+
 
 func _on_clicked(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -41,6 +93,19 @@ func _on_color_changed(color: Color) -> void:
 	_color = color
 	_apply_node_color()
 	value_changed.emit()
+
+
+func _on_param_name_changed(new_name: String) -> void:
+	_param_name = new_name
+	_update_param_tooltip()
+	value_changed.emit()
+
+
+func _update_param_tooltip() -> void:
+	if _param_mode:
+		_param_name_edit.tooltip_text = 'material.set_shader_parameter("%s", Color(r, g, b, a))' % _param_name
+	else:
+		_param_name_edit.tooltip_text = ""
 
 
 func _apply_node_color() -> void:
@@ -63,18 +128,44 @@ func _update_title_color() -> void:
 	for child in hbox.get_children():
 		if child is Label:
 			child.add_theme_color_override("font_color", text_color)
+	_update_param_button()
 
 
 func _add_preview_controls() -> void:
 	pass
 
 
+func get_uniform_declaration() -> String:
+	if not _param_mode:
+		return ""
+	return "uniform vec4 %s : source_color;" % _param_name
+
+
 func get_shader_snippet(inputs: Array = []) -> String:
+	if _param_mode:
+		return "%s.rgb" % _param_name
 	return "vec3(%.4f, %.4f, %.4f)" % [_color.r, _color.g, _color.b]
 
 
+func apply_shader_params(material: ShaderMaterial) -> void:
+	if _param_mode:
+		material.set_shader_parameter(_param_name, _color)
+
+
+func get_param_export_line() -> String:
+	if not _param_mode:
+		return ""
+	return "shader_parameter/%s = Color(%.4f, %.4f, %.4f, %.4f)" % [
+		_param_name, _color.r, _color.g, _color.b, _color.a
+	]
+
+
 func get_state() -> Dictionary:
-	return {"color": [_color.r, _color.g, _color.b, _color.a]}
+	return {
+		"color": [_color.r, _color.g, _color.b, _color.a],
+		"param_mode": _param_mode,
+		"param_name": _param_name,
+	}
 
 
 func set_state(state: Dictionary) -> void:
@@ -82,3 +173,11 @@ func set_state(state: Dictionary) -> void:
 	_color = Color(c[0], c[1], c[2], c[3])
 	_picker.color = _color
 	_apply_node_color()
+	var pname = state.get("param_name", "")
+	if pname != "":
+		_param_name = pname
+		_param_name_edit.text = _param_name
+	_param_mode = state.get("param_mode", false)
+	_param_name_edit.visible = _param_mode
+	_update_param_button()
+	_update_param_tooltip()

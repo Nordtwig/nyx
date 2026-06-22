@@ -96,13 +96,9 @@ func _center_title() -> void:
 			child.hide()
 			break
 
-	var center := CenterContainer.new()
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hbox.add_child(center)
-
 	var lbl := Label.new()
 	lbl.text = _custom_name
+	lbl.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	lbl.add_theme_color_override("font_color", Color.WHITE)
 	lbl.add_theme_constant_override("outline_size", 0)
 	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0))
@@ -110,19 +106,24 @@ func _center_title() -> void:
 	lbl.add_theme_constant_override("shadow_offset_x", 0)
 	lbl.add_theme_constant_override("shadow_offset_y", 0)
 	lbl.mouse_filter = Control.MOUSE_FILTER_STOP
-	center.add_child(lbl)
+	hbox.add_child(lbl)
 	_name_label = lbl
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(spacer)
 
 	var name_edit := LineEdit.new()
 	name_edit.text = _custom_name
 	name_edit.custom_minimum_size = Vector2(80, 0)
-	name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_edit.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name_edit.add_theme_color_override("font_color", Color.WHITE)
 	name_edit.visible = false
 	_name_edit_field = name_edit
 	name_edit.text_submitted.connect(_on_name_submitted.bind(name_edit, lbl))
 	name_edit.focus_exited.connect(func(): _on_name_submitted(name_edit.text, name_edit, lbl))
-	center.add_child(name_edit)
+	hbox.add_child(name_edit)
 
 	lbl.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:

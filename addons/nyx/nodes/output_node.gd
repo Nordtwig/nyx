@@ -86,6 +86,9 @@ func _apply_style() -> void:
 	titlebar.border_width_right = 1
 	titlebar.border_width_top = 1
 	titlebar.border_color = Color(0.28, 0.28, 0.35)
+	titlebar.content_margin_left = 7
+	titlebar.content_margin_top = 3
+	titlebar.content_margin_bottom = -1
 	add_theme_stylebox_override("titlebar", titlebar)
 
 	_apply_selection_style(body, titlebar)

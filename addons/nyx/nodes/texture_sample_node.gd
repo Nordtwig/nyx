@@ -4,8 +4,10 @@ extends "res://addons/nyx/nodes/nyx_node.gd"
 signal texture_pick_requested(node)
 
 var _texture: Texture2D = null
+var _uniform_name: String = ""
 var _pick_btn: Button
 var _tex_label: Label
+var _name_edit: LineEdit
 
 
 func _ready() -> void:
@@ -31,12 +33,29 @@ func _ready() -> void:
 	_tex_label.custom_minimum_size = Vector2(140, 0)
 	add_child(_tex_label)
 
+	_uniform_name = "tex_" + str(name).to_lower()
+	var name_row := HBoxContainer.new()
+	var name_lbl := Label.new()
+	name_lbl.text = "Name"
+	name_row.add_child(name_lbl)
+	_name_edit = LineEdit.new()
+	_name_edit.text = _uniform_name
+	_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_name_edit.text_changed.connect(_on_name_changed)
+	name_row.add_child(_name_edit)
+	add_child(name_row)
+
 	set_slot(0, true, 0, Color.WHITE, false, -1, Color.WHITE)
 	set_slot(1, false, -1, Color.WHITE, true, 0, Color.WHITE)
 
 
+func _on_name_changed(new_name: String) -> void:
+	_uniform_name = new_name
+	value_changed.emit()
+
+
 func get_uniform_name() -> String:
-	return "tex_" + str(name).to_lower()
+	return _uniform_name if _uniform_name.strip_edges() != "" else "tex_" + str(name).to_lower()
 
 
 func get_uniform_declaration() -> String:
@@ -67,7 +86,7 @@ func get_default_inputs() -> Array:
 
 
 func get_state() -> Dictionary:
-	return {"path": _texture.resource_path if _texture else ""}
+	return {"path": _texture.resource_path if _texture else "", "uniform_name": _uniform_name}
 
 
 func set_state(state: Dictionary) -> void:
@@ -76,3 +95,7 @@ func set_state(state: Dictionary) -> void:
 		var tex = load(path)
 		if tex is Texture2D:
 			set_texture(tex)
+	var uname = state.get("uniform_name", "")
+	if uname != "":
+		_uniform_name = uname
+		_name_edit.text = _uniform_name
