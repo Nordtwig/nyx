@@ -47,6 +47,7 @@ const MinMaxNode = preload("res://addons/nyx/nodes/min_max_node.gd")
 const DivideNode = preload("res://addons/nyx/nodes/divide_node.gd")
 const ModNode = preload("res://addons/nyx/nodes/mod_node.gd")
 const NormalizeNode = preload("res://addons/nyx/nodes/normalize_node.gd")
+const CustomGLSLNode = preload("res://addons/nyx/nodes/custom_glsl_node.gd")
 const LengthNode = preload("res://addons/nyx/nodes/length_node.gd")
 const DotNode = preload("res://addons/nyx/nodes/dot_node.gd")
 
@@ -245,6 +246,13 @@ const _NODE_REGISTRY := [
 			"description": "Stacks multiple octaves of gradient noise, each at higher frequency and lower amplitude. The result looks like natural phenomena — clouds, terrain, smoke, fire. Octaves adds detail layers. Lacunarity controls frequency growth per octave (default 2.0). Gain controls how fast amplitude fades (default 0.5).",
 			"ports": ["UV (vec3) — coordinate input (use Vertex for seamless results on spheres)", "Scale (float) — base feature size", "Out (float)"],
 			"uses": ["Clouds and smoke", "Fire and lava", "Organic terrain", "Any effect needing natural multi-scale variation"]},
+	]},
+	{"category": "Advanced", "nodes": [
+		{"label": "Custom Function", "id": 47,
+			"summary": "Write raw GLSL directly as a node in the graph.",
+			"description": "The function body you write receives up to 4 vec3 inputs named in0–in3 and must return a vec3. Use this when the graph can't express what you need — complex math, custom sampling, or anything that would take dozens of nodes to wire up.",
+			"ports": ["in0–in3 (vec3) — connected inputs", "Out (vec3) — return value of your function"],
+			"uses": ["Complex custom math", "Escape hatch for unsupported operations", "Porting existing GLSL snippets into the graph"]},
 	]},
 ]
 
@@ -804,6 +812,8 @@ func _get_snippet_for(to_node: String, to_port: int, connections: Array, default
 	var default_type: int = 1 if not default_val.begins_with("vec") else 0
 	var result := _get_snippet_typed(to_node, to_port, connections, default_val, default_type)
 	var snippet: String = result[0]
+	if snippet.is_empty():
+		return snippet
 	var from_type: int = result[1]
 	var to_node_ref := _graph.get_node_or_null(to_node)
 	var to_type: int = to_node_ref.get_input_port_type(to_port) if to_node_ref else 0
@@ -1043,6 +1053,7 @@ func _on_context_menu_selected(id: int) -> void:
 		26: _add_node(NormalizeNode.new(), _spawn_position, "Normalize")
 		27: _add_node(LengthNode.new(), _spawn_position, "Length")
 		28: _add_node(DotNode.new(), _spawn_position, "Dot")
+		47: _add_node(CustomGLSLNode.new(), _spawn_position, "CustomGLSL")
 
 
 func _build_graph_toolbar() -> HBoxContainer:
