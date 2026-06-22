@@ -49,6 +49,9 @@ const ModNode = preload("res://addons/nyx/nodes/mod_node.gd")
 const NormalizeNode = preload("res://addons/nyx/nodes/normalize_node.gd")
 const CustomGLSLNode = preload("res://addons/nyx/nodes/custom_glsl_node.gd")
 const Vector3Node = preload("res://addons/nyx/nodes/vector3_node.gd")
+const RerouteNode = preload("res://addons/nyx/nodes/reroute_node.gd")
+const RelayNode = preload("res://addons/nyx/nodes/relay_node.gd")
+const PreviewRelayNode = preload("res://addons/nyx/nodes/preview_relay_node.gd")
 const SpriteTextureNode = preload("res://addons/nyx/nodes/sprite_texture_node.gd")
 const VertexColorNode = preload("res://addons/nyx/nodes/vertex_color_node.gd")
 const TexturePixelSizeNode = preload("res://addons/nyx/nodes/texture_pixel_size_node.gd")
@@ -273,6 +276,23 @@ const _NODE_REGISTRY := [
 			"ports": ["Size (vec3) — texel dimensions in UV space, XY only"],
 			"uses": ["Pixel-art outline shaders", "Nearest-neighbour blur", "Edge detection"]},
 	]},
+	{"category": "Organisation", "nodes": [
+		{"label": "Relay", "id": 53,
+			"summary": "Named, coloured pass-through — one to many pairs.",
+			"description": "A flexible wire organiser. Start with one in/out pair and press + to add more, making it a bus. Give it a name and colour to group related wires visually across your graph. Polymorphic — each pair independently carries float or vec3.",
+			"ports": ["In N — any type", "Out N — same type as In N"],
+			"uses": ["Redirecting wires around clutter", "Grouping related wires with colour", "Bundling multiple signals as a bus", "Annotating what a wire represents"]},
+		{"label": "Preview Relay", "id": 54,
+			"summary": "Like Relay but with an always-visible preview.",
+			"description": "A single in/out pass-through that always shows a live preview of what's flowing through it — no chevron toggle needed. Name and colour it to document the signal. Ideal as a checkpoint in a complex graph.",
+			"ports": ["In — any type", "Out — same type as input"],
+			"uses": ["Inspecting intermediate values mid-graph", "Debugging a complex chain without adding a branch", "Named checkpoints in a large graph"]},
+		{"label": "Reroute", "id": 52,
+			"summary": "Minimal pass-through for bending wires. Press R to place.",
+			"description": "A compact polymorphic connector. Place with R and reconnect wires through it to route them cleanly around other nodes. For named, coloured, or multi-wire organisation, use Relay instead.",
+			"ports": ["In — any type", "Out — same type as input"],
+			"uses": ["Quick wire bends", "Reducing crossing lines"]},
+	]},
 	{"category": "Advanced", "nodes": [
 		{"label": "Custom Function", "id": 47,
 			"summary": "Write raw GLSL directly as a node in the graph.",
@@ -340,6 +360,9 @@ const _TYPE_COLORS := {
 	# Noise/Procedural — yellow
 	"NoiseNode": Color("#E79D13"),
 	"FBMNode":   Color("#E79D13"),
+	"RerouteNode": Color("#3C4655"),
+	"RelayNode": Color("#3C4655"),
+	"PreviewRelayNode": Color("#3C4655"),
 	# Canvas — coral (scene-provided inputs, like UV/Time/ScreenUV)
 	"SpriteTextureNode":    Color("#CC5B4F"),
 	"VertexColorNode":      Color("#CC5B4F"),
@@ -395,6 +418,9 @@ const NODE_CLASSES := {
 	"NormalizeNode": NormalizeNode,
 	"LengthNode": LengthNode,
 	"DotNode": DotNode,
+	"RerouteNode": RerouteNode,
+	"RelayNode": RelayNode,
+	"PreviewRelayNode": PreviewRelayNode,
 	"CustomGLSLNode": CustomGLSLNode,
 	"Vector3Node": Vector3Node,
 	"SpriteTextureNode": SpriteTextureNode,
@@ -639,6 +665,8 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 		node.edit_started.connect(_push_undo_state)
 	if node.has_signal("texture_pick_requested"):
 		node.texture_pick_requested.connect(_on_texture_pick_requested)
+	if node.has_signal("pair_removed"):
+		node.pair_removed.connect(func(idx: int): _on_relay_pair_removed(node, idx))
 	if node.has_signal("preview_toggled"):
 		node.preview_toggled.connect(func():
 			if node.has_meta("_preview_material"):
@@ -829,6 +857,31 @@ func _build_shader_code() -> String:
 	var normal_line := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
 	var vertex_block := "void vertex() {\n\tVERTEX += %s;\n}\n\n" % vertex_offset if vertex_offset != "" else ""
 	return "shader_type spatial;\n%s%s\n%s%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n%s}\n" % [render_mode_line, uniform_lines, function_block, vertex_block, albedo, alpha, roughness, metallic, emission, normal_line]
+
+
+func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
+	var relay_name := str(relay.name)
+	var c := _graph.get_connection_list()
+	var to_reconnect := []
+	for conn in c:
+		var from := str(conn["from_node"])
+		var to := str(conn["to_node"])
+		var fp: int = conn["from_port"]
+		var tp: int = conn["to_port"]
+		if to == relay_name and tp == removed_idx:
+			_graph.disconnect_node(from, fp, to, tp)
+		elif to == relay_name and tp > removed_idx:
+			_graph.disconnect_node(from, fp, to, tp)
+			to_reconnect.append({"from": from, "fp": fp, "to": to, "tp": tp - 1})
+		elif from == relay_name and fp == removed_idx:
+			_graph.disconnect_node(from, fp, to, tp)
+		elif from == relay_name and fp > removed_idx:
+			_graph.disconnect_node(from, fp, to, tp)
+			to_reconnect.append({"from": from, "fp": fp - 1, "to": to, "tp": tp})
+	for r in to_reconnect:
+		_graph.connect_node(r["from"], r["fp"], r["to"], r["tp"])
+	_update_all_polymorphic_ports()
+	_request_compile()
 
 
 func _on_shader_type_changed(idx: int) -> void:
@@ -1175,6 +1228,10 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 					selected.append(child.name)
 			if not selected.is_empty():
 				_on_delete_nodes_request(selected)
+		elif event.keycode == KEY_R:
+			_push_undo_state()
+			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
+			_add_node(RerouteNode.new(), _spawn_position, "Reroute")
 		elif event.keycode == KEY_A:
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
 			_open_search_popup()
@@ -1230,6 +1287,9 @@ func _on_context_menu_selected(id: int) -> void:
 		26: _add_node(NormalizeNode.new(), _spawn_position, "Normalize")
 		27: _add_node(LengthNode.new(), _spawn_position, "Length")
 		28: _add_node(DotNode.new(), _spawn_position, "Dot")
+		52: _add_node(RerouteNode.new(), _spawn_position, "Reroute")
+		53: _add_node(RelayNode.new(), _spawn_position, "Relay")
+		54: _add_node(PreviewRelayNode.new(), _spawn_position, "PreviewRelay")
 		47: _add_node(CustomGLSLNode.new(), _spawn_position, "CustomGLSL")
 		48: _add_node(Vector3Node.new(), _spawn_position, "Vector3")
 		49: _add_node(SpriteTextureNode.new(), _spawn_position, "SpriteTexture")
