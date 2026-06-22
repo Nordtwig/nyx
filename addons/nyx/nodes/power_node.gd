@@ -14,14 +14,21 @@ func _ready() -> void:
 	label_exp.text = "Exp"
 	add_child(label_exp)
 
-	var float_color := Color(0.35, 0.9, 0.85)
 	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
-	set_slot(1, true, 1, float_color, false, -1, Color.WHITE)
+	set_slot(1, true, 0, Color.WHITE, false, -1, Color.WHITE)
 
+
+func is_polymorphic() -> bool:
+	return true
+
+func get_output_type(from_port: int, input_types: Array) -> int:
+	return input_types[0] if not input_types.is_empty() else 1
 
 func get_shader_snippet(inputs: Array = []) -> String:
-	return "pow(%s, vec3(%s))" % [inputs[0], inputs[1]]
-
+	return "pow(%s, %s)" % [inputs[0], inputs[1]]
 
 func get_default_inputs() -> Array:
-	return ["vec3(0.5)", "2.0"]
+	return ["0.5", "2.0"]
+
+func get_default_input_types() -> Array:
+	return [1, 1]

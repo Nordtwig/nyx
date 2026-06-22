@@ -1,12 +1,6 @@
 {
 	"connections": [
 		{
-			"from_node": "Time",
-			"from_port": 1,
-			"to_node": "TilingOffset",
-			"to_port": 3
-		},
-		{
 			"from_node": "TilingOffset",
 			"from_port": 0,
 			"to_node": "FBM",
@@ -19,19 +13,19 @@
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25077",
+			"from_node": "@GraphNode@37279",
 			"from_port": 0,
-			"to_node": "@GraphNode@25093",
+			"to_node": "@GraphNode@37295",
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25093",
+			"from_node": "@GraphNode@37295",
 			"from_port": 0,
-			"to_node": "@GraphNode@25107",
+			"to_node": "@GraphNode@37309",
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25107",
+			"from_node": "@GraphNode@37309",
 			"from_port": 0,
 			"to_node": "BlendNormals",
 			"to_port": 1
@@ -43,7 +37,7 @@
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25262",
+			"from_node": "@GraphNode@37466",
 			"from_port": 0,
 			"to_node": "OutputNode",
 			"to_port": 2
@@ -61,7 +55,7 @@
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25148",
+			"from_node": "@GraphNode@37351",
 			"from_port": 0,
 			"to_node": "Smoothstep",
 			"to_port": 1
@@ -103,25 +97,25 @@
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25292",
+			"from_node": "@GraphNode@37497",
 			"from_port": 0,
-			"to_node": "@GraphNode@25286",
+			"to_node": "@GraphNode@37491",
 			"to_port": 2
 		},
 		{
 			"from_node": "ScreenTexture",
 			"from_port": 0,
-			"to_node": "@GraphNode@25286",
+			"to_node": "@GraphNode@37491",
 			"to_port": 1
 		},
 		{
-			"from_node": "@GraphNode@25300",
+			"from_node": "@GraphNode@37506",
 			"from_port": 0,
-			"to_node": "@GraphNode@25286",
+			"to_node": "@GraphNode@37491",
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25286",
+			"from_node": "@GraphNode@37491",
 			"from_port": 0,
 			"to_node": "OutputNode",
 			"to_port": 0
@@ -139,7 +133,7 @@
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25286",
+			"from_node": "@GraphNode@37491",
 			"from_port": 0,
 			"to_node": "Mix",
 			"to_port": 1
@@ -151,7 +145,7 @@
 			"to_port": 5
 		},
 		{
-			"from_node": "@GraphNode@25425",
+			"from_node": "@GraphNode@37623",
 			"from_port": 0,
 			"to_node": "Scale",
 			"to_port": 1
@@ -169,37 +163,37 @@
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25605",
+			"from_node": "@GraphNode@37640",
 			"from_port": 0,
-			"to_node": "@GraphNode@25622",
+			"to_node": "@GraphNode@37635",
 			"to_port": 1
 		},
 		{
 			"from_node": "Sin",
 			"from_port": 0,
-			"to_node": "@GraphNode@25622",
+			"to_node": "@GraphNode@37635",
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25622",
+			"from_node": "@GraphNode@37635",
 			"from_port": 0,
-			"to_node": "@GraphNode@25697",
+			"to_node": "Split",
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25712",
+			"from_node": "@GraphNode@37654",
 			"from_port": 0,
 			"to_node": "Combine",
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25697",
+			"from_node": "Split",
 			"from_port": 1,
 			"to_node": "Combine",
 			"to_port": 1
 		},
 		{
-			"from_node": "@GraphNode@25753",
+			"from_node": "@GraphNode@37668",
 			"from_port": 0,
 			"to_node": "Combine",
 			"to_port": 2
@@ -219,29 +213,29 @@
 		{
 			"from_node": "UV",
 			"from_port": 0,
-			"to_node": "@GraphNode@25077",
+			"to_node": "@GraphNode@37279",
 			"to_port": 0
 		},
 		{
 			"from_node": "Vertex",
 			"from_port": 0,
-			"to_node": "Split",
+			"to_node": "@GraphNode@37680",
 			"to_port": 0
 		},
 		{
-			"from_node": "Split",
+			"from_node": "@GraphNode@37680",
 			"from_port": 0,
 			"to_node": "Scale",
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@25545",
+			"from_node": "Time",
 			"from_port": 0,
 			"to_node": "Multiply",
 			"to_port": 0
 		},
 		{
-			"from_node": "@GraphNode@33879",
+			"from_node": "@GraphNode@37695",
 			"from_port": 0,
 			"to_node": "Multiply",
 			"to_port": 1
@@ -253,9 +247,39 @@
 			"to_port": 1
 		},
 		{
-			"from_node": "Time",
+			"from_node": "@GraphNode@37704",
+			"from_port": 1,
+			"to_node": "@GraphNode@37857",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@37867",
+			"from_port": 0,
+			"to_node": "@GraphNode@37857",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@37857",
+			"from_port": 0,
+			"to_node": "TilingOffset",
+			"to_port": 3
+		},
+		{
+			"from_node": "@GraphNode@37704",
 			"from_port": 2,
-			"to_node": "@GraphNode@25077",
+			"to_node": "@GraphNode@37878",
+			"to_port": 0
+		},
+		{
+			"from_node": "@GraphNode@37867",
+			"from_port": 0,
+			"to_node": "@GraphNode@37878",
+			"to_port": 1
+		},
+		{
+			"from_node": "@GraphNode@37878",
+			"from_port": 0,
+			"to_node": "@GraphNode@37279",
 			"to_port": 4
 		}
 	],
@@ -300,7 +324,7 @@
 			"type": "NormalFromHeightNode"
 		},
 		{
-			"name": "@GraphNode@25077",
+			"name": "@GraphNode@37279",
 			"position": [
 				-20.0,
 				40.0
@@ -314,7 +338,7 @@
 			"type": "TilingOffsetNode"
 		},
 		{
-			"name": "@GraphNode@25093",
+			"name": "@GraphNode@37295",
 			"position": [
 				120.0,
 				40.0
@@ -328,7 +352,7 @@
 			"type": "FBMNode"
 		},
 		{
-			"name": "@GraphNode@25107",
+			"name": "@GraphNode@37309",
 			"position": [
 				260.0,
 				40.0
@@ -367,12 +391,12 @@
 			"state": {
 				"param_mode": false,
 				"param_name": "param_@graphnode@31822",
-				"value": 0.6
+				"value": 0.600000023841858
 			},
 			"type": "FloatNode"
 		},
 		{
-			"name": "@GraphNode@25148",
+			"name": "@GraphNode@37351",
 			"position": [
 				60.0,
 				520.0
@@ -380,7 +404,7 @@
 			"state": {
 				"param_mode": false,
 				"param_name": "param_@graphnode@31836",
-				"value": 0.85
+				"value": 0.850000023841858
 			},
 			"type": "FloatNode"
 		},
@@ -449,7 +473,7 @@
 			"type": "ColorNode"
 		},
 		{
-			"name": "@GraphNode@25262",
+			"name": "@GraphNode@37466",
 			"position": [
 				0.0,
 				-40.0
@@ -457,7 +481,7 @@
 			"state": {
 				"param_mode": false,
 				"param_name": "param_@graphnode@29633",
-				"value": 0.05
+				"value": 0.0499999523162842
 			},
 			"type": "FloatNode"
 		},
@@ -491,7 +515,7 @@
 			"type": "ScreenTextureNode"
 		},
 		{
-			"name": "@GraphNode@25286",
+			"name": "@GraphNode@37491",
 			"position": [
 				520.0,
 				-100.0
@@ -500,7 +524,7 @@
 			"type": "MixNode"
 		},
 		{
-			"name": "@GraphNode@25292",
+			"name": "@GraphNode@37497",
 			"position": [
 				340.0,
 				-40.0
@@ -508,12 +532,12 @@
 			"state": {
 				"param_mode": false,
 				"param_name": "param_@graphnode@27508",
-				"value": 0.3
+				"value": 0.299999952316284
 			},
 			"type": "FloatNode"
 		},
 		{
-			"name": "@GraphNode@25300",
+			"name": "@GraphNode@37506",
 			"position": [
 				320.0,
 				-180.0
@@ -579,7 +603,7 @@
 			"type": "AddNode"
 		},
 		{
-			"name": "@GraphNode@25425",
+			"name": "@GraphNode@37623",
 			"position": [
 				-620.0,
 				200.0
@@ -601,7 +625,7 @@
 			"type": "SinNode"
 		},
 		{
-			"name": "@GraphNode@25622",
+			"name": "@GraphNode@37635",
 			"position": [
 				-220.0,
 				320.0
@@ -610,7 +634,7 @@
 			"type": "ScaleNode"
 		},
 		{
-			"name": "@GraphNode@25605",
+			"name": "@GraphNode@37640",
 			"position": [
 				-380.0,
 				440.0
@@ -618,12 +642,12 @@
 			"state": {
 				"param_mode": false,
 				"param_name": "param_@graphnode@25605",
-				"value": 0.05
+				"value": 0.0499999523162842
 			},
 			"type": "FloatNode"
 		},
 		{
-			"name": "@GraphNode@25697",
+			"name": "Split",
 			"position": [
 				-160.0,
 				320.0
@@ -632,7 +656,7 @@
 			"type": "SplitNode"
 		},
 		{
-			"name": "@GraphNode@25712",
+			"name": "@GraphNode@37654",
 			"position": [
 				-300.0,
 				520.0
@@ -654,7 +678,7 @@
 			"type": "CombineNode"
 		},
 		{
-			"name": "@GraphNode@25753",
+			"name": "@GraphNode@37668",
 			"position": [
 				-300.0,
 				600.0
@@ -676,7 +700,7 @@
 			"type": "VertexNode"
 		},
 		{
-			"name": "Split",
+			"name": "@GraphNode@37680",
 			"position": [
 				-560.0,
 				300.0
@@ -685,7 +709,7 @@
 			"type": "SplitNode"
 		},
 		{
-			"name": "@GraphNode@25545",
+			"name": "Time",
 			"position": [
 				-520.0,
 				420.0
@@ -703,7 +727,7 @@
 			"type": "MultiplyNode"
 		},
 		{
-			"name": "@GraphNode@33879",
+			"name": "@GraphNode@37695",
 			"position": [
 				-600.0,
 				520.0
@@ -711,18 +735,49 @@
 			"state": {
 				"param_mode": false,
 				"param_name": "param_@graphnode@33879",
-				"value": 0.3
+				"value": 0.299999952316284
 			},
 			"type": "FloatNode"
 		},
 		{
-			"name": "Time",
+			"name": "@GraphNode@37704",
 			"position": [
-				-200.0,
-				220.0
+				-260.0,
+				200.0
 			],
 			"state": {},
 			"type": "TimeNode"
+		},
+		{
+			"name": "@GraphNode@37867",
+			"position": [
+				-340.0,
+				120.0
+			],
+			"state": {
+				"param_mode": false,
+				"param_name": "param_@graphnode@37867",
+				"value": 0.299999952316284
+			},
+			"type": "FloatNode"
+		},
+		{
+			"name": "@GraphNode@37857",
+			"position": [
+				-100.0,
+				260.0
+			],
+			"state": {},
+			"type": "MultiplyNode"
+		},
+		{
+			"name": "@GraphNode@37878",
+			"position": [
+				-160.0,
+				200.0
+			],
+			"state": {},
+			"type": "MultiplyNode"
 		}
 	]
 }

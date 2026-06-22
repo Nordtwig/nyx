@@ -35,13 +35,23 @@ func _on_type_selected(idx: int) -> void:
 	emit_signal("value_changed")
 
 
+func is_polymorphic() -> bool:
+	return true
+
+func get_output_type(from_port: int, input_types: Array) -> int:
+	for t in input_types:
+		if t == 0: return 0
+	return 1
+
 func get_shader_snippet(inputs: Array = []) -> String:
 	var op := "min" if _type == 0 else "max"
 	return "%s(%s, %s)" % [op, inputs[0], inputs[1]]
 
-
 func get_default_inputs() -> Array:
-	return ["vec3(0.0)", "vec3(0.0)"]
+	return ["0.0", "0.0"]
+
+func get_default_input_types() -> Array:
+	return [1, 1]
 
 
 func get_state() -> Dictionary:

@@ -185,6 +185,18 @@ func get_default_inputs() -> Array:
 	return []
 
 
+func get_default_input_types() -> Array:
+	return []
+
+
+func is_polymorphic() -> bool:
+	return false
+
+
+func get_output_type(from_port: int, input_types: Array) -> int:
+	return get_output_port_type(from_port)
+
+
 func get_state() -> Dictionary:
 	return {}
 

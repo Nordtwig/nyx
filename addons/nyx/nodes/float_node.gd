@@ -1,10 +1,10 @@
 @tool
 extends "res://addons/nyx/nodes/nyx_node.gd"
 
-var _value: float = 0.5
+var _value: float = 1.0
 var _param_mode: bool = false
 var _param_name: String = ""
-var _slider: EditorSpinSlider
+var _spinbox: SpinBox
 var _param_check: CheckBox
 var _param_name_edit: LineEdit
 
@@ -15,17 +15,15 @@ func _ready() -> void:
 
 	var float_color := Color(0.35, 0.9, 0.85)
 
-	_slider = EditorSpinSlider.new()
-	_slider.min_value = 0.0
-	_slider.max_value = 1.0
-	_slider.step = 0.01
-	_slider.allow_lesser = true
-	_slider.allow_greater = true
-	_slider.value = _value
-	_slider.custom_minimum_size = Vector2(80, 0)
-	_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_slider.value_changed.connect(_on_value_changed)
-	add_child(_slider)
+	_spinbox = SpinBox.new()
+	_spinbox.min_value = -1e9
+	_spinbox.max_value = 1e9
+	_spinbox.step = 0.001
+	_spinbox.value = _value
+	_spinbox.custom_minimum_size = Vector2(80, 0)
+	_spinbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_spinbox.value_changed.connect(_on_value_changed)
+	add_child(_spinbox)
 
 	var param_row := HBoxContainer.new()
 	_param_check = CheckBox.new()
@@ -94,8 +92,10 @@ func get_state() -> Dictionary:
 
 
 func set_state(state: Dictionary) -> void:
-	_value = state.get("value", 0.5)
-	_slider.value = _value
+	var v = state.get("value")
+	if v is float:
+		_value = v
+	_spinbox.value = _value
 	_param_name = state.get("param_name", _param_name)
 	_param_name_edit.text = _param_name
 	_param_mode = state.get("param_mode", false)

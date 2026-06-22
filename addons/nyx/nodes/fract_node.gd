@@ -11,9 +11,18 @@ func _ready() -> void:
 	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
 
 
+func is_polymorphic() -> bool:
+	return true
+
+func get_output_type(from_port: int, input_types: Array) -> int:
+	return input_types[0] if not input_types.is_empty() else 1
+
 func get_shader_snippet(inputs: Array = []) -> String:
 	return "fract(%s)" % inputs[0]
 
 
 func get_default_inputs() -> Array:
-	return ["vec3(0.0)"]
+	return ["0.0"]
+
+func get_default_input_types() -> Array:
+	return [1]

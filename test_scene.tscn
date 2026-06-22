@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://dhaoueeenwrfx"]
 
-[ext_resource type="Material" uid="uid://cwuhd4tj66jas" path="res://flames.tres" id="1_sasra"]
 [ext_resource type="Material" path="res://ground_texture.tres" id="1_uhqqe"]
+[ext_resource type="Shader" uid="uid://olidw2foyudn" path="res://test_scene.tres" id="2_2nij2"]
 [ext_resource type="Script" uid="uid://b4trhrm3nv6qg" path="res://dissolve_test.gd" id="2_coq8p"]
-[ext_resource type="Material" path="res://wavey_waves.tres" id="6_7cbxl"]
+[ext_resource type="Material" uid="uid://ctfvq7si1jwc1" path="res://waves_v2.tres" id="5_2nij2"]
 [ext_resource type="Script" uid="uid://0j1ki6h1f2nb" path="res://camera_orbit.gd" id="cam_orbit"]
 
 [sub_resource type="Environment" id="Environment_1"]
@@ -12,6 +12,10 @@ ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_energy = 0.3
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_2nij2"]
+render_priority = 0
+shader = ExtResource("2_2nij2")
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1"]
 size = Vector2(20, 20)
@@ -40,7 +44,7 @@ shadow_enabled = true
 [node name="Sphere" type="MeshInstance3D" parent="." unique_id=1799833702]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.623306, 0.5, -2.0258384)
 mesh = SubResource("SphereMesh_1")
-surface_material_override/0 = ExtResource("1_sasra")
+surface_material_override/0 = SubResource("ShaderMaterial_2nij2")
 script = ExtResource("2_coq8p")
 
 [node name="Ground" type="MeshInstance3D" parent="." unique_id=1054336464]
@@ -51,4 +55,4 @@ surface_material_override/0 = ExtResource("1_uhqqe")
 [node name="Water" type="MeshInstance3D" parent="." unique_id=678585375]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5137469, -0.081594706, -0.01090005)
 mesh = SubResource("PlaneMesh_7cbxl")
-surface_material_override/0 = ExtResource("6_7cbxl")
+surface_material_override/0 = ExtResource("5_2nij2")

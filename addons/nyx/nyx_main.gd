@@ -343,6 +343,7 @@ func _ready() -> void:
 	_graph = GraphEdit.new()
 	_graph.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_graph.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
 	_graph.right_disconnects = true
 	_graph.connection_request.connect(_on_connection_request)
 	_graph.disconnection_request.connect(_on_disconnection_request)
@@ -620,16 +621,12 @@ func _build_node_preview_shader(node: Node) -> String:
 	for fn in shader_functions:
 		function_block += shader_functions[fn]
 
-	var result: String
 	var albedo_expr: String
 	if node.get_output_port_count() == 0:
-		# Sink node (e.g. OutputNode) — show what feeds into its first input slot
-		result = _get_snippet_for(node.name, 0, c, "vec3(0.5, 0.5, 0.5)")
-		albedo_expr = result
+		albedo_expr = _get_snippet_for(node.name, 0, c, "vec3(0.5, 0.5, 0.5)")
 	else:
-		result = _get_node_snippet(node, 0, c)
-		var output_type: int = node.get_output_port_type(0)
-		albedo_expr = "vec3(%s)" % result if output_type == 1 else result
+		var node_result := _get_node_snippet(node, 0, c)
+		albedo_expr = "vec3(%s)" % node_result[0] if node_result[1] == 1 else node_result[0]
 
 	return "shader_type spatial;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tALBEDO = %s;\n}\n" % [uniform_lines, function_block, albedo_expr]
 
@@ -794,26 +791,99 @@ func _on_export_file_selected(path: String) -> void:
 
 
 
-func _get_snippet_for(to_node: String, to_port: int, connections: Array, default_val: String) -> String:
+func _get_snippet_typed(to_node: String, to_port: int, connections: Array, default_val: String, default_type: int) -> Array:
 	for conn in connections:
 		if str(conn["to_node"]) == to_node and conn["to_port"] == to_port:
 			var from := _graph.get_node_or_null(str(conn["from_node"]))
 			if from:
-				var snippet := _get_node_snippet(from, conn["from_port"], connections)
-				var to_node_ref := _graph.get_node_or_null(to_node)
-				if to_node_ref and from.get_output_port_type(conn["from_port"]) == 1 and to_node_ref.get_input_port_type(to_port) == 0:
-					return "vec3(%s)" % snippet
-				return snippet
-	return default_val
+				return _get_node_snippet(from, conn["from_port"], connections)
+	return [default_val, default_type]
 
 
-func _get_node_snippet(node: Node, from_port: int, connections: Array) -> String:
-	var defaults = node.get_default_inputs() if node.has_method("get_default_inputs") else []
-	var inputs := []
+func _get_snippet_for(to_node: String, to_port: int, connections: Array, default_val: String) -> String:
+	var default_type: int = 1 if not default_val.begins_with("vec") else 0
+	var result := _get_snippet_typed(to_node, to_port, connections, default_val, default_type)
+	var snippet: String = result[0]
+	var from_type: int = result[1]
+	var to_node_ref := _graph.get_node_or_null(to_node)
+	var to_type: int = to_node_ref.get_input_port_type(to_port) if to_node_ref else 0
+	if from_type == 1 and to_type == 0:
+		return "vec3(%s)" % snippet
+	return snippet
+
+
+func _get_node_snippet(node: Node, from_port: int, connections: Array) -> Array:
+	var defaults: Array = node.get_default_inputs() if node.has_method("get_default_inputs") else []
+	var default_types: Array = node.get_default_input_types() if node.has_method("get_default_input_types") else []
+
+	var raw_inputs := []
 	for i in range(node.get_input_port_count()):
-		var default_val = defaults[i] if i < defaults.size() else "0.0"
-		inputs.append(_get_snippet_for(node.name, i, connections, default_val))
-	return node.get_output_snippet(from_port, inputs)
+		var default_val: String = defaults[i] if i < defaults.size() else "0.0"
+		var default_type: int = default_types[i] if i < default_types.size() else node.get_input_port_type(i)
+		raw_inputs.append(_get_snippet_typed(node.name, i, connections, default_val, default_type))
+
+	var input_types := []
+	for r in raw_inputs:
+		input_types.append(r[1])
+
+	var output_type: int
+	if node.has_method("get_output_type"):
+		output_type = node.get_output_type(from_port, input_types)
+	else:
+		output_type = node.get_output_port_type(from_port) if node.get_output_port_count() > from_port else 0
+
+	var is_poly: bool = node.has_method("is_polymorphic") and node.is_polymorphic()
+
+	var inputs := []
+	for i in range(raw_inputs.size()):
+		var snippet: String = raw_inputs[i][0]
+		var in_type: int = raw_inputs[i][1]
+		var port_type: int = node.get_input_port_type(i) if i < node.get_input_port_count() else 0
+		if in_type == 1 and port_type == 0:
+			if is_poly and output_type == 1:
+				inputs.append(snippet)
+			else:
+				inputs.append("vec3(%s)" % snippet)
+		else:
+			inputs.append(snippet)
+
+	return [node.get_output_snippet(from_port, inputs), output_type]
+
+
+func _resolve_output_type(node: Node, from_port: int) -> int:
+	if not node.has_method("is_polymorphic") or not node.is_polymorphic():
+		return node.get_output_port_type(from_port)
+	var c := _graph.get_connection_list()
+	var default_types: Array = node.get_default_input_types() if node.has_method("get_default_input_types") else []
+	var input_types := []
+	for i in range(node.get_input_port_count()):
+		var in_type: int = default_types[i] if i < default_types.size() else node.get_input_port_type(i)
+		for conn in c:
+			if str(conn["to_node"]) == node.name and conn["to_port"] == i:
+				var from_n := _graph.get_node_or_null(str(conn["from_node"]))
+				if from_n:
+					in_type = _resolve_output_type(from_n, conn["from_port"])
+				break
+		input_types.append(in_type)
+	return node.get_output_type(from_port, input_types) if node.has_method("get_output_type") else node.get_output_port_type(from_port)
+
+
+func _update_all_polymorphic_ports() -> void:
+	var float_color := Color(0.35, 0.9, 0.85)
+	var vec3_color := Color.WHITE
+	for child in _graph.get_children():
+		if not (child is GraphNode):
+			continue
+		if not child.has_method("is_polymorphic") or not child.is_polymorphic():
+			continue
+		for port in range(child.get_output_port_count()):
+			var resolved_type := _resolve_output_type(child, port)
+			if child.get_output_port_type(port) == resolved_type:
+				continue
+			var port_color := float_color if resolved_type == 1 else vec3_color
+			child.set_slot(port,
+				child.is_slot_enabled_left(port), child.get_slot_type_left(port), child.get_slot_color_left(port),
+				child.is_slot_enabled_right(port), resolved_type, port_color)
 
 
 func sync_size(new_size: Vector2) -> void:
@@ -888,18 +958,20 @@ func _on_connection_request(from_node: StringName, from_port: int, to_node: Stri
 	var to := _graph.get_node_or_null(str(to_node))
 	if not from or not to:
 		return
-	var from_type: int = from.get_output_port_type(from_port)
+	var from_type: int = _resolve_output_type(from, from_port)
 	var to_type: int = to.get_input_port_type(to_port)
 	if from_type != to_type and not (from_type == 1 and to_type == 0):
 		return
 	_push_undo_state()
 	_graph.connect_node(from_node, from_port, to_node, to_port)
+	_update_all_polymorphic_ports()
 	_request_compile()
 
 
 func _on_disconnection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
 	_push_undo_state()
 	_graph.disconnect_node(from_node, from_port, to_node, to_port)
+	_update_all_polymorphic_ports()
 	_request_compile()
 
 

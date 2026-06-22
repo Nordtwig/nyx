@@ -23,9 +23,19 @@ func _ready() -> void:
 	set_slot(2, true, 1, Color(0.35, 0.9, 0.85), false, -1, Color.WHITE)
 
 
+func is_polymorphic() -> bool:
+	return true
+
+func get_output_type(from_port: int, input_types: Array) -> int:
+	if input_types.size() >= 2 and (input_types[0] == 0 or input_types[1] == 0):
+		return 0
+	return 1
+
 func get_shader_snippet(inputs: Array = []) -> String:
 	return "mix(%s, %s, %s)" % [inputs[0], inputs[1], inputs[2]]
 
-
 func get_default_inputs() -> Array:
-	return ["vec3(0.0)", "vec3(1.0)", "0.5"]
+	return ["0.0", "1.0", "0.5"]
+
+func get_default_input_types() -> Array:
+	return [1, 1, 1]
