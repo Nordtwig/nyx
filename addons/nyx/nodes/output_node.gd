@@ -61,7 +61,8 @@ func set_state(state: Dictionary) -> void:
 
 
 func _apply_style() -> void:
-	var color := Color(0.18, 0.18, 0.22)
+	var color := Color("#3C4655")
+	var border := Color(1, 1, 1, 0.1)
 
 	var body := StyleBoxFlat.new()
 	body.bg_color = color
@@ -73,8 +74,12 @@ func _apply_style() -> void:
 	body.border_width_left = 1
 	body.border_width_right = 1
 	body.border_width_bottom = 1
-	body.border_color = Color(0.28, 0.28, 0.35)
+	body.border_color = border
+	body.content_margin_left = 2
+	body.content_margin_right = 2
+	body.content_margin_bottom = 6
 	add_theme_stylebox_override("panel", body)
+	add_theme_constant_override("separation", 4)
 
 	var titlebar := StyleBoxFlat.new()
 	titlebar.bg_color = color
@@ -85,7 +90,7 @@ func _apply_style() -> void:
 	titlebar.border_width_left = 1
 	titlebar.border_width_right = 1
 	titlebar.border_width_top = 1
-	titlebar.border_color = Color(0.28, 0.28, 0.35)
+	titlebar.border_color = border
 	titlebar.content_margin_left = 7
 	titlebar.content_margin_top = 3
 	titlebar.content_margin_bottom = -1

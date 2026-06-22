@@ -5,6 +5,7 @@ signal value_changed
 signal edit_started
 signal preview_toggled
 
+var _node_color: Color = Color("#269B5B")
 var _preview_open: bool = false
 var _preview_slot: TextureRect
 var _preview_wrapper: Panel
@@ -15,6 +16,7 @@ var _body_style: StyleBoxFlat
 func _ready() -> void:
 	_apply_style()
 	call_deferred("_add_preview_controls")
+	call_deferred("_apply_input_styles")
 	resized.connect(_update_body_for_preview)
 
 
@@ -87,7 +89,7 @@ func get_preview_slot() -> TextureRect:
 
 
 func _apply_style() -> void:
-	var color := Color("#269b5b")
+	var color := _node_color
 
 	_body_style = StyleBoxFlat.new()
 	_body_style.bg_color = color
@@ -96,7 +98,11 @@ func _apply_style() -> void:
 	_body_style.corner_radius_bottom_left = 12
 	_body_style.corner_radius_bottom_right = 6
 	_body_style.expand_margin_top = 2
+	_body_style.content_margin_left = 2
+	_body_style.content_margin_right = 2
+	_body_style.content_margin_bottom = 6
 	add_theme_stylebox_override("panel", _body_style)
+	add_theme_constant_override("separation", 4)
 
 	var titlebar := StyleBoxFlat.new()
 	titlebar.bg_color = color
@@ -168,6 +174,57 @@ func _create_port_texture(size: int, outline: int) -> ImageTexture:
 				img.set_pixel(x, y, pixel)
 
 	return ImageTexture.create_from_image(img)
+
+
+func _apply_input_styles() -> void:
+	_style_inputs_recursive(self)
+
+
+func _style_inputs_recursive(node: Node) -> void:
+	for child in node.get_children():
+		if child is Popup:
+			continue
+		if child is SpinBox:
+			_style_spinbox(child)
+			continue
+		if child is LineEdit:
+			_style_lineedit(child)
+		elif child is TextEdit:
+			_style_textedit(child)
+		_style_inputs_recursive(child)
+
+
+func _make_input_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("#3C4655")
+	style.corner_radius_top_left = 3
+	style.corner_radius_top_right = 3
+	style.corner_radius_bottom_left = 3
+	style.corner_radius_bottom_right = 3
+	style.content_margin_left = 4
+	style.content_margin_right = 4
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	return style
+
+
+func _style_spinbox(sb: SpinBox) -> void:
+	var style := _make_input_style()
+	var le := sb.get_line_edit()
+	le.add_theme_stylebox_override("normal", style)
+	le.add_theme_stylebox_override("focus", style)
+
+
+func _style_lineedit(le: LineEdit) -> void:
+	var style := _make_input_style()
+	le.add_theme_stylebox_override("normal", style)
+	le.add_theme_stylebox_override("focus", style)
+
+
+func _style_textedit(te: TextEdit) -> void:
+	var style := _make_input_style()
+	te.add_theme_stylebox_override("normal", style)
+	te.add_theme_stylebox_override("focus", style)
 
 
 func get_shader_snippet(inputs: Array = []) -> String:

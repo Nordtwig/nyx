@@ -262,6 +262,66 @@ const _NODE_REGISTRY := [
 	]},
 ]
 
+const _TYPE_COLORS := {
+	# Inputs — coral
+	"FloatNode":    Color("#CC5B4F"),
+	"Vector3Node":  Color("#CC5B4F"),
+	"UVNode":       Color("#CC5B4F"),
+	"VertexNode":   Color("#CC5B4F"),
+	"TimeNode":     Color("#CC5B4F"),
+	# Screen — coral
+	"ScreenUVNode":      Color("#CC5B4F"),
+	"ScreenTextureNode": Color("#CC5B4F"),
+	"DepthFadeNode":     Color("#CC5B4F"),
+	# Math — green
+	"AddNode":      Color("#269B5B"),
+	"SubtractNode": Color("#269B5B"),
+	"MultiplyNode": Color("#269B5B"),
+	"DivideNode":   Color("#269B5B"),
+	"MixNode":      Color("#269B5B"),
+	"ClampNode":    Color("#269B5B"),
+	"PowerNode":    Color("#269B5B"),
+	"MinMaxNode":   Color("#269B5B"),
+	"ModNode":      Color("#269B5B"),
+	"AbsNode":      Color("#269B5B"),
+	"CeilNode":     Color("#269B5B"),
+	"FloorNode":    Color("#269B5B"),
+	"FractNode":    Color("#269B5B"),
+	"NegateNode":   Color("#269B5B"),
+	"OneMinusNode": Color("#269B5B"),
+	"RoundNode":    Color("#269B5B"),
+	"SqrtNode":     Color("#269B5B"),
+	"SinNode":      Color("#269B5B"),
+	"CosNode":      Color("#269B5B"),
+	# Shape — green (mathematical value ops)
+	"FresnelNode":    Color("#269B5B"),
+	"StepNode":       Color("#269B5B"),
+	"SmoothstepNode": Color("#269B5B"),
+	# Advanced — green
+	"CustomGLSLNode": Color("#269B5B"),
+	# Vector — blue
+	"NormalizeNode":       Color("#3B82F6"),
+	"LengthNode":          Color("#3B82F6"),
+	"DotNode":             Color("#3B82F6"),
+	"SplitNode":           Color("#3B82F6"),
+	"CombineNode":         Color("#3B82F6"),
+	"NormalFromHeightNode": Color("#3B82F6"),
+	"BlendNormalsNode":    Color("#3B82F6"),
+	"ScaleNode":           Color("#3B82F6"),
+	# Texture — yellow
+	"TextureSampleNode": Color("#E79D13"),
+	"NormalMapNode":     Color("#E79D13"),
+	"GradientNode":      Color("#E79D13"),
+	"CurveNode":         Color("#E79D13"),
+	# UV — yellow
+	"TilingOffsetNode": Color("#E79D13"),
+	"RotateUVNode":     Color("#E79D13"),
+	"WarpNode":         Color("#E79D13"),
+	# Noise/Procedural — yellow
+	"NoiseNode": Color("#E79D13"),
+	"FBMNode":   Color("#E79D13"),
+}
+
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
 	"ColorNode": ColorNode,
@@ -311,6 +371,8 @@ const NODE_CLASSES := {
 	"NormalizeNode": NormalizeNode,
 	"LengthNode": LengthNode,
 	"DotNode": DotNode,
+	"CustomGLSLNode": CustomGLSLNode,
+	"Vector3Node": Vector3Node,
 }
 
 var _graph_container: VBoxContainer
@@ -358,6 +420,11 @@ func _ready() -> void:
 	_graph.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_graph.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
+	var graph_bg := StyleBoxFlat.new()
+	graph_bg.bg_color = Color("#0C1018")
+	_graph.add_theme_stylebox_override("panel", graph_bg)
+	_graph.add_theme_color_override("grid_minor", Color(1, 1, 1, 0.07))
+	_graph.add_theme_color_override("grid_major", Color(1, 1, 1, 0.12))
 	_graph.right_disconnects = true
 	_graph.connection_request.connect(_on_connection_request)
 	_graph.disconnection_request.connect(_on_disconnection_request)
@@ -505,6 +572,9 @@ func _build_preview_panel() -> Panel:
 func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	if node_name != "":
 		node.name = node_name
+	var type_name := _get_node_type(node)
+	if _TYPE_COLORS.has(type_name):
+		node._node_color = _TYPE_COLORS[type_name]
 	node.position_offset = offset
 	_graph.add_child(node)
 	if node.has_signal("value_changed"):
