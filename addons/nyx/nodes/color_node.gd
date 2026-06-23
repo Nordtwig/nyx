@@ -38,7 +38,7 @@ func _ready() -> void:
 	_picker.color_changed.connect(_on_color_changed)
 	_popup.add_child(_picker)
 
-	set_slot(0, false, -1, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, false, -1, Color.WHITE, true, 3, Color("#FF8FC0"))
 	_apply_node_color()
 
 	call_deferred("_init_default_param_name")
@@ -143,8 +143,8 @@ func get_uniform_declaration() -> String:
 
 func get_shader_snippet(inputs: Array = []) -> String:
 	if _param_mode:
-		return "%s.rgb" % _param_name
-	return "vec3(%.4f, %.4f, %.4f)" % [_color.r, _color.g, _color.b]
+		return _param_name
+	return "vec4(%.4f, %.4f, %.4f, %.4f)" % [_color.r, _color.g, _color.b, _color.a]
 
 
 func apply_shader_params(material: ShaderMaterial) -> void:

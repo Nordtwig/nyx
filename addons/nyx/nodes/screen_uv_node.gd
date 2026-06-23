@@ -10,7 +10,7 @@ func _ready() -> void:
 	out_lbl.text = "Screen UV"
 	add_child(out_lbl)
 
-	set_slot(0, false, -1, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, false, -1, Color.WHITE, true, 2, Color("#A99BFF"))
 
 
 func _add_preview_controls() -> void:
@@ -18,7 +18,7 @@ func _add_preview_controls() -> void:
 
 
 func get_shader_snippet(inputs: Array = []) -> String:
-	return "vec3(SCREEN_UV, 0.0)"
+	return "SCREEN_UV"
 
 
 func get_default_inputs() -> Array:

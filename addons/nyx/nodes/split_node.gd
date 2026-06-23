@@ -20,9 +20,15 @@ func _ready() -> void:
 	label_b.text = "B"
 	add_child(label_b)
 
-	set_slot(0, true, 0, Color.WHITE, true, 1, float_color)
+	var label_a := Label.new()
+	label_a.text = "A"
+	add_child(label_a)
+
+	# Input is vec4 so the alpha channel is available; vec3/vec2/float promote up.
+	set_slot(0, true, 3, Color("#FF8FC0"), true, 1, float_color)
 	set_slot(1, false, -1, Color.WHITE, true, 1, float_color)
 	set_slot(2, false, -1, Color.WHITE, true, 1, float_color)
+	set_slot(3, false, -1, Color.WHITE, true, 1, float_color)
 
 
 func get_output_snippet(port: int, inputs: Array = []) -> String:
@@ -31,9 +37,11 @@ func get_output_snippet(port: int, inputs: Array = []) -> String:
 			return "(%s).g" % [inputs[0]]
 		2:
 			return "(%s).b" % [inputs[0]]
+		3:
+			return "(%s).a" % [inputs[0]]
 		_:
 			return "(%s).r" % [inputs[0]]
 
 
 func get_default_inputs() -> Array:
-	return ["vec3(0.0)"]
+	return ["vec4(0.0)"]

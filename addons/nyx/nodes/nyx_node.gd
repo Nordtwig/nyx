@@ -5,7 +5,7 @@ signal value_changed
 signal edit_started
 signal preview_toggled
 
-var _node_color: Color = Color("#269B5B")
+var _node_color: Color = Color("#2E8266")
 var _preview_open: bool = false
 var _preview_slot: TextureRect
 var _preview_wrapper: Panel
@@ -252,7 +252,24 @@ func is_polymorphic() -> bool:
 
 
 func get_output_type(from_port: int, input_types: Array) -> int:
+	if is_polymorphic():
+		return _dominant_type(input_types)
 	return get_output_port_type(from_port)
+
+
+# Resolve the widest type among inputs. Rank: float < vec2 < vec3 < vec4.
+# Type IDs: 0 = vec3, 1 = float, 2 = vec2, 3 = vec4. Float inputs promote up to
+# whatever vec type is present; an all-float set stays float.
+func _dominant_type(input_types: Array) -> int:
+	var rank := {1: 0, 2: 1, 0: 2, 3: 3}
+	var best := 1
+	var best_rank := 0
+	for t in input_types:
+		var r: int = rank.get(t, 0)
+		if r > best_rank:
+			best_rank = r
+			best = t
+	return best
 
 
 func get_state() -> Dictionary:

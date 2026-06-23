@@ -10,8 +10,8 @@ func _ready() -> void:
 	label.text = "UV"
 	add_child(label)
 
-	set_slot(0, false, -1, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, false, -1, Color.WHITE, true, 2, Color("#A99BFF"))
 
 
 func get_shader_snippet(inputs: Array = []) -> String:
-	return "vec3(UV, 0.0)"
+	return "UV"

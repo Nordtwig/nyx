@@ -302,71 +302,81 @@ const _NODE_REGISTRY := [
 	]},
 ]
 
+# Twilight palette — cooler, muted category accents that sit clearly above the
+# dark abyss background without competing with the bright connection lines.
+# Tune a whole category by editing one constant here.
+const _CAT_INPUTS  := Color("#A85A5E")  # dusty rose (was coral #CC5B4F)
+const _CAT_MATH    := Color("#2E8266")  # deep sea-green (was green #269B5B)
+const _CAT_VECTOR  := Color("#4A6BC4")  # indigo (was blue #3B82F6)
+const _CAT_TEXTURE := Color("#B8893C")  # antique gold (was yellow #E79D13)
+const _CAT_OUTPUT  := Color("#3C4655")  # cool slate (unchanged)
+
 const _TYPE_COLORS := {
-	# Inputs — coral
-	"FloatNode":    Color("#CC5B4F"),
-	"Vector3Node":  Color("#CC5B4F"),
-	"UVNode":       Color("#CC5B4F"),
-	"VertexNode":   Color("#CC5B4F"),
-	"TimeNode":     Color("#CC5B4F"),
-	# Screen — coral
-	"ScreenUVNode":      Color("#CC5B4F"),
-	"ScreenTextureNode": Color("#CC5B4F"),
-	"DepthFadeNode":     Color("#CC5B4F"),
-	# Math — green
-	"AddNode":      Color("#269B5B"),
-	"SubtractNode": Color("#269B5B"),
-	"MultiplyNode": Color("#269B5B"),
-	"DivideNode":   Color("#269B5B"),
-	"MixNode":      Color("#269B5B"),
-	"ClampNode":    Color("#269B5B"),
-	"PowerNode":    Color("#269B5B"),
-	"MinMaxNode":   Color("#269B5B"),
-	"ModNode":      Color("#269B5B"),
-	"AbsNode":      Color("#269B5B"),
-	"CeilNode":     Color("#269B5B"),
-	"FloorNode":    Color("#269B5B"),
-	"FractNode":    Color("#269B5B"),
-	"NegateNode":   Color("#269B5B"),
-	"OneMinusNode": Color("#269B5B"),
-	"RoundNode":    Color("#269B5B"),
-	"SqrtNode":     Color("#269B5B"),
-	"SinNode":      Color("#269B5B"),
-	"CosNode":      Color("#269B5B"),
-	# Shape — green (mathematical value ops)
-	"FresnelNode":    Color("#269B5B"),
-	"StepNode":       Color("#269B5B"),
-	"SmoothstepNode": Color("#269B5B"),
-	# Advanced — green
-	"CustomGLSLNode": Color("#269B5B"),
-	# Vector — blue
-	"NormalizeNode":       Color("#3B82F6"),
-	"LengthNode":          Color("#3B82F6"),
-	"DotNode":             Color("#3B82F6"),
-	"SplitNode":           Color("#3B82F6"),
-	"CombineNode":         Color("#3B82F6"),
-	"NormalFromHeightNode": Color("#3B82F6"),
-	"BlendNormalsNode":    Color("#3B82F6"),
-	"ScaleNode":           Color("#3B82F6"),
-	# Texture — yellow
-	"TextureSampleNode": Color("#E79D13"),
-	"NormalMapNode":     Color("#E79D13"),
-	"GradientNode":      Color("#E79D13"),
-	"CurveNode":         Color("#E79D13"),
-	# UV — yellow
-	"TilingOffsetNode": Color("#E79D13"),
-	"RotateUVNode":     Color("#E79D13"),
-	"WarpNode":         Color("#E79D13"),
-	# Noise/Procedural — yellow
-	"NoiseNode": Color("#E79D13"),
-	"FBMNode":   Color("#E79D13"),
-	"RerouteNode": Color("#3C4655"),
-	"RelayNode": Color("#3C4655"),
-	"PreviewRelayNode": Color("#3C4655"),
-	# Canvas — coral (scene-provided inputs, like UV/Time/ScreenUV)
-	"SpriteTextureNode":    Color("#CC5B4F"),
-	"VertexColorNode":      Color("#CC5B4F"),
-	"TexturePixelSizeNode": Color("#CC5B4F"),
+	# Inputs
+	"FloatNode":    _CAT_INPUTS,
+	"Vector3Node":  _CAT_INPUTS,
+	"UVNode":       _CAT_INPUTS,
+	"VertexNode":   _CAT_INPUTS,
+	"TimeNode":     _CAT_INPUTS,
+	# Screen
+	"ScreenUVNode":      _CAT_INPUTS,
+	"ScreenTextureNode": _CAT_INPUTS,
+	"DepthFadeNode":     _CAT_INPUTS,
+	# Math
+	"AddNode":      _CAT_MATH,
+	"SubtractNode": _CAT_MATH,
+	"MultiplyNode": _CAT_MATH,
+	"DivideNode":   _CAT_MATH,
+	"MixNode":      _CAT_MATH,
+	"ClampNode":    _CAT_MATH,
+	"PowerNode":    _CAT_MATH,
+	"MinMaxNode":   _CAT_MATH,
+	"ModNode":      _CAT_MATH,
+	"AbsNode":      _CAT_MATH,
+	"CeilNode":     _CAT_MATH,
+	"FloorNode":    _CAT_MATH,
+	"FractNode":    _CAT_MATH,
+	"NegateNode":   _CAT_MATH,
+	"OneMinusNode": _CAT_MATH,
+	"RoundNode":    _CAT_MATH,
+	"SqrtNode":     _CAT_MATH,
+	"SinNode":      _CAT_MATH,
+	"CosNode":      _CAT_MATH,
+	# Shape — mathematical value ops
+	"FresnelNode":    _CAT_MATH,
+	"StepNode":       _CAT_MATH,
+	"SmoothstepNode": _CAT_MATH,
+	# Advanced
+	"CustomGLSLNode": _CAT_MATH,
+	# Vector
+	"NormalizeNode":       _CAT_VECTOR,
+	"LengthNode":          _CAT_VECTOR,
+	"DotNode":             _CAT_VECTOR,
+	"SplitNode":           _CAT_VECTOR,
+	"CombineNode":         _CAT_VECTOR,
+	"NormalFromHeightNode": _CAT_VECTOR,
+	"BlendNormalsNode":    _CAT_VECTOR,
+	"ScaleNode":           _CAT_VECTOR,
+	# Texture
+	"TextureSampleNode": _CAT_TEXTURE,
+	"NormalMapNode":     _CAT_TEXTURE,
+	"GradientNode":      _CAT_TEXTURE,
+	"CurveNode":         _CAT_TEXTURE,
+	# UV
+	"TilingOffsetNode": _CAT_TEXTURE,
+	"RotateUVNode":     _CAT_TEXTURE,
+	"WarpNode":         _CAT_TEXTURE,
+	# Noise/Procedural
+	"NoiseNode": _CAT_TEXTURE,
+	"FBMNode":   _CAT_TEXTURE,
+	# Organisation
+	"RerouteNode":      _CAT_OUTPUT,
+	"RelayNode":        _CAT_OUTPUT,
+	"PreviewRelayNode": _CAT_OUTPUT,
+	# Canvas — scene-provided inputs, like UV/Time/ScreenUV
+	"SpriteTextureNode":    _CAT_INPUTS,
+	"VertexColorNode":      _CAT_INPUTS,
+	"TexturePixelSizeNode": _CAT_INPUTS,
 }
 
 const NODE_CLASSES := {
@@ -438,6 +448,8 @@ var _vpc_2d: SubViewportContainer
 var _viewport_2d: SubViewport
 var _shader_material_2d: ShaderMaterial
 var _preview_panel: Panel
+var _type_legend: PanelContainer
+var _legend_toggle: Button
 var _preview_dragging: bool = false
 var _preview_resizing: bool = false
 var _preview_positioned: bool = false
@@ -490,9 +502,21 @@ func _ready() -> void:
 	_graph.disconnection_request.connect(_on_disconnection_request)
 	_graph.delete_nodes_request.connect(_on_delete_nodes_request)
 	_graph.gui_input.connect(_on_graph_gui_input)
+	# Type IDs: 0 = vec3, 1 = float, 2 = vec2, 3 = vec4.
+	# Same-type connections:
 	_graph.add_valid_connection_type(0, 0)
 	_graph.add_valid_connection_type(1, 1)
-	_graph.add_valid_connection_type(1, 0)
+	_graph.add_valid_connection_type(2, 2)
+	_graph.add_valid_connection_type(3, 3)
+	# Implicit promotion (widening only):
+	_graph.add_valid_connection_type(1, 2)  # float → vec2
+	_graph.add_valid_connection_type(1, 0)  # float → vec3
+	_graph.add_valid_connection_type(1, 3)  # float → vec4
+	_graph.add_valid_connection_type(2, 0)  # vec2  → vec3
+	_graph.add_valid_connection_type(2, 3)  # vec2  → vec4
+	_graph.add_valid_connection_type(0, 3)  # vec3  → vec4
+	# The one sanctioned narrowing — dropping alpha is unambiguous (.rgb):
+	_graph.add_valid_connection_type(3, 0)  # vec4  → vec3
 
 	_graph_container = VBoxContainer.new()
 	_graph_container.add_child(_build_graph_toolbar())
@@ -531,6 +555,13 @@ func _ready() -> void:
 
 	_preview_panel = _build_preview_panel()
 	add_child(_preview_panel)
+
+	_type_legend = _build_type_legend()
+	_type_legend.visible = false
+	add_child(_type_legend)
+	_legend_toggle = _build_legend_toggle()
+	add_child(_legend_toggle)
+	call_deferred("_reposition_legend")
 
 	_add_node(OutputNode.new(), Vector2(400, 200), "OutputNode")
 	_add_node(ColorNode.new(), Vector2(150, 200))
@@ -801,7 +832,7 @@ func _build_node_preview_shader(node: Node) -> String:
 		preview_expr = _get_snippet_for(node.name, 0, c, "vec3(0.5, 0.5, 0.5)")
 	else:
 		var node_result := _get_node_snippet(node, 0, c)
-		preview_expr = "vec3(%s)" % node_result[0] if node_result[1] == 1 else node_result[0]
+		preview_expr = _to_vec3_display(node_result[0], node_result[1])
 
 	if _shader_type == 1:
 		return "shader_type canvas_item;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tCOLOR = vec4(%s, 1.0);\n}\n" % [uniform_lines, function_block, preview_expr]
@@ -1047,9 +1078,7 @@ func _get_snippet_for(to_node: String, to_port: int, connections: Array, default
 	var from_type: int = result[1]
 	var to_node_ref := _graph.get_node_or_null(to_node)
 	var to_type: int = to_node_ref.get_input_port_type(to_port) if to_node_ref else 0
-	if from_type == 1 and to_type == 0:
-		return "vec3(%s)" % snippet
-	return snippet
+	return _promote(snippet, from_type, to_type)
 
 
 func _get_node_snippet(node: Node, from_port: int, connections: Array) -> Array:
@@ -1078,14 +1107,10 @@ func _get_node_snippet(node: Node, from_port: int, connections: Array) -> Array:
 	for i in range(raw_inputs.size()):
 		var snippet: String = raw_inputs[i][0]
 		var in_type: int = raw_inputs[i][1]
-		var port_type: int = node.get_input_port_type(i) if i < node.get_input_port_count() else 0
-		if in_type == 1 and port_type == 0:
-			if is_poly and output_type == 1:
-				inputs.append(snippet)
-			else:
-				inputs.append("vec3(%s)" % snippet)
-		else:
-			inputs.append(snippet)
+		# Polymorphic nodes operate at their resolved output type, so promote
+		# every input up to it. Fixed-type nodes promote to the declared port type.
+		var target_type: int = output_type if is_poly else (node.get_input_port_type(i) if i < node.get_input_port_count() else 0)
+		inputs.append(_promote(snippet, in_type, target_type))
 
 	return [node.get_output_snippet(from_port, inputs), output_type]
 
@@ -1109,8 +1134,6 @@ func _resolve_output_type(node: Node, from_port: int) -> int:
 
 
 func _update_all_polymorphic_ports() -> void:
-	var float_color := Color(0.35, 0.9, 0.85)
-	var vec3_color := Color.WHITE
 	for child in _graph.get_children():
 		if not (child is GraphNode):
 			continue
@@ -1120,7 +1143,7 @@ func _update_all_polymorphic_ports() -> void:
 			var resolved_type := _resolve_output_type(child, port)
 			if child.get_output_port_type(port) == resolved_type:
 				continue
-			var port_color := float_color if resolved_type == 1 else vec3_color
+			var port_color := _type_color(resolved_type)
 			child.set_slot(port,
 				child.is_slot_enabled_left(port), child.get_slot_type_left(port), child.get_slot_color_left(port),
 				child.is_slot_enabled_right(port), resolved_type, port_color)
@@ -1132,10 +1155,102 @@ func sync_size(new_size: Vector2) -> void:
 	if not _preview_positioned and _preview_panel:
 		_preview_positioned = true
 		call_deferred("_position_preview_default")
+	_reposition_legend()
 
 
 func _position_preview_default() -> void:
 	_preview_panel.position = Vector2(_graph_container.size.x - _preview_panel.size.x - 20, 20)
+
+
+# Static key in the bottom-left corner of the graph mapping the four data-type
+# dot colors to plain-language names. The dot color is the real type encoding;
+# this just reinforces it without any per-port hover machinery.
+func _build_type_legend() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.047, 0.063, 0.094, 0.85)
+	bg.set_corner_radius_all(6)
+	bg.set_content_margin_all(8)
+	bg.set_border_width_all(1)
+	bg.border_color = Color(1, 1, 1, 0.08)
+	panel.add_theme_stylebox_override("panel", bg)
+
+	var vbox := VBoxContainer.new()
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_theme_constant_override("separation", 4)
+	panel.add_child(vbox)
+
+	# [type_id, friendly_name, glsl_name]
+	var entries := [
+		[1, "Value", "float"],
+		[2, "UV", "vec2"],
+		[0, "Color", "vec3"],
+		[3, "Color + Alpha", "vec4"],
+	]
+	for e in entries:
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_theme_constant_override("separation", 6)
+
+		var sw := ColorRect.new()
+		sw.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sw.color = _type_color(e[0])
+		sw.custom_minimum_size = Vector2(12, 12)
+		sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(sw)
+
+		var lbl := Label.new()
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.text = "%s  (%s)" % [e[1], e[2]]
+		lbl.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
+		lbl.add_theme_font_size_override("font_size", 12)
+		row.add_child(lbl)
+
+		vbox.add_child(row)
+
+	return panel
+
+
+func _build_legend_toggle() -> Button:
+	var btn := Button.new()
+	btn.text = "Types  ▴"
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.add_theme_font_size_override("font_size", 12)
+	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
+
+	var chip := StyleBoxFlat.new()
+	chip.bg_color = Color(0.047, 0.063, 0.094, 0.85)
+	chip.set_corner_radius_all(6)
+	chip.set_content_margin_all(6)
+	chip.set_border_width_all(1)
+	chip.border_color = Color(1, 1, 1, 0.08)
+	btn.add_theme_stylebox_override("normal", chip)
+
+	var chip_hover := chip.duplicate() as StyleBoxFlat
+	chip_hover.bg_color = Color(0.09, 0.11, 0.15, 0.9)
+	btn.add_theme_stylebox_override("hover", chip_hover)
+	btn.add_theme_stylebox_override("pressed", chip_hover)
+
+	btn.pressed.connect(_on_legend_toggle)
+	return btn
+
+
+func _on_legend_toggle() -> void:
+	_type_legend.visible = not _type_legend.visible
+	_legend_toggle.text = "Types  ▾" if _type_legend.visible else "Types  ▴"
+	_reposition_legend()
+
+
+func _reposition_legend() -> void:
+	if not _legend_toggle or not _graph_container:
+		return
+	var bh: float = _legend_toggle.get_combined_minimum_size().y
+	_legend_toggle.position = Vector2(20, _graph_container.size.y - bh - 20)
+	if _type_legend:
+		var ph: float = _type_legend.get_combined_minimum_size().y
+		_type_legend.position = Vector2(20, _legend_toggle.position.y - ph - 6)
 
 
 func _on_preview_header_input(event: InputEvent) -> void:
@@ -1200,12 +1315,59 @@ func _on_connection_request(from_node: StringName, from_port: int, to_node: Stri
 		return
 	var from_type: int = _resolve_output_type(from, from_port)
 	var to_type: int = to.get_input_port_type(to_port)
-	if from_type != to_type and not (from_type == 1 and to_type == 0):
+	if not _can_promote(from_type, to_type):
 		return
 	_push_undo_state()
 	_graph.connect_node(from_node, from_port, to_node, to_port)
 	_update_all_polymorphic_ports()
 	_request_compile()
+
+
+# Type IDs: 0 = vec3, 1 = float, 2 = vec2, 3 = vec4.
+func _can_promote(from_type: int, to_type: int) -> bool:
+	if from_type == to_type:
+		return true
+	match from_type:
+		1: return to_type in [2, 0, 3]  # float → vec2/vec3/vec4
+		2: return to_type in [0, 3]     # vec2  → vec3/vec4
+		0: return to_type == 3          # vec3  → vec4
+		3: return to_type == 0          # vec4  → vec3 (drop alpha, .rgb)
+	return false
+
+
+# Widen a GLSL snippet from one type to another (no-op if already matching).
+func _promote(snippet: String, from_type: int, to_type: int) -> String:
+	if from_type == to_type:
+		return snippet
+	match to_type:
+		2:
+			if from_type == 1: return "vec2(%s)" % snippet
+		0:
+			if from_type == 1: return "vec3(%s)" % snippet
+			if from_type == 2: return "vec3(%s, 0.0)" % snippet
+			if from_type == 3: return "(%s).rgb" % snippet
+		3:
+			if from_type == 1: return "vec4(%s)" % snippet
+			if from_type == 2: return "vec4(%s, 0.0, 1.0)" % snippet
+			if from_type == 0: return "vec4(%s, 1.0)" % snippet
+	return snippet
+
+
+# Narrow any type down to a vec3 for display in per-node previews.
+func _to_vec3_display(snippet: String, type: int) -> String:
+	match type:
+		1: return "vec3(%s)" % snippet
+		2: return "vec3(%s, 0.0)" % snippet
+		3: return "(%s).rgb" % snippet
+	return snippet
+
+
+func _type_color(type: int) -> Color:
+	match type:
+		1: return Color(0.35, 0.9, 0.85)  # float — teal
+		2: return Color("#A99BFF")        # vec2  — lavender
+		3: return Color("#FF8FC0")        # vec4  — magenta
+	return Color.WHITE                    # vec3  — white
 
 
 func _on_disconnection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:

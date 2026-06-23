@@ -46,7 +46,7 @@ func _ready() -> void:
 	add_child(name_row)
 
 	set_slot(0, true, 0, Color.WHITE, false, -1, Color.WHITE)
-	set_slot(1, false, -1, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(1, false, -1, Color.WHITE, true, 3, Color("#FF8FC0"))
 
 
 func _on_name_changed(new_name: String) -> void:
@@ -78,7 +78,7 @@ func set_texture(texture: Texture2D) -> void:
 
 
 func get_shader_snippet(inputs: Array = []) -> String:
-	return "texture(%s, (%s).xy).rgb" % [get_uniform_name(), inputs[0]]
+	return "texture(%s, (%s).xy)" % [get_uniform_name(), inputs[0]]
 
 
 func get_default_inputs() -> Array:

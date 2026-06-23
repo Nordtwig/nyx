@@ -26,11 +26,6 @@ func _ready() -> void:
 func is_polymorphic() -> bool:
 	return true
 
-func get_output_type(from_port: int, input_types: Array) -> int:
-	if input_types.size() >= 2 and (input_types[0] == 0 or input_types[1] == 0):
-		return 0
-	return 1
-
 func get_shader_snippet(inputs: Array = []) -> String:
 	return "mix(%s, %s, %s)" % [inputs[0], inputs[1], inputs[2]]
 
