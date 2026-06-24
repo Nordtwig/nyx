@@ -108,6 +108,12 @@ func get_state() -> Dictionary:
 
 
 func set_state(state: Dictionary) -> void:
+	# Restore slot config first (set_shader_type rebuilds the mode dropdown and
+	# resets _mode), then apply the saved render mode. Particle mode (2) keeps the
+	# OutputNode in its prior spatial/canvas config since it isn't the active sink.
+	var st: int = state.get("shader_type", 0)
+	if st <= 1 and st != _shader_type:
+		set_shader_type(st)
 	_mode = state.get("mode", 0)
 	_option_btn.selected = _mode
 

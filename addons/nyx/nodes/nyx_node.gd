@@ -10,6 +10,7 @@ var _preview_open: bool = false
 var _preview_slot: TextureRect
 var _preview_wrapper: Panel
 var _preview_spacer: Control
+var _preview_chevron: Button
 var _body_style: StyleBoxFlat
 
 
@@ -27,6 +28,7 @@ func _add_preview_controls() -> void:
 	chevron.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	chevron.pressed.connect(_on_preview_chevron_pressed.bind(chevron))
 	add_child(chevron)
+	_preview_chevron = chevron
 
 	_preview_spacer = Control.new()
 	_preview_spacer.custom_minimum_size = Vector2(0, 8)
@@ -86,6 +88,24 @@ func _update_body_for_preview() -> void:
 
 func get_preview_slot() -> TextureRect:
 	return _preview_slot
+
+
+# Hide/show the per-node preview chevron. Particle mode disables previews
+# (per-particle values have no per-pixel meaning); force any open one closed.
+func set_preview_chevron_visible(v: bool) -> void:
+	if _preview_chevron == null:
+		return
+	_preview_chevron.visible = v
+	if not v and _preview_open:
+		# Reset the open-state visuals; the viewport/material meta teardown is
+		# handled by nyx_main when the shader mode changes.
+		_preview_open = false
+		_preview_chevron.text = "▾"
+		if _preview_spacer:
+			_preview_spacer.visible = false
+		if _preview_wrapper:
+			_preview_wrapper.visible = false
+		call_deferred("reset_size")
 
 
 func _apply_style() -> void:

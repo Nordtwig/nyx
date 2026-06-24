@@ -57,6 +57,14 @@ const VertexColorNode = preload("res://addons/nyx/nodes/vertex_color_node.gd")
 const TexturePixelSizeNode = preload("res://addons/nyx/nodes/texture_pixel_size_node.gd")
 const LengthNode = preload("res://addons/nyx/nodes/length_node.gd")
 const DotNode = preload("res://addons/nyx/nodes/dot_node.gd")
+const ParticleStartNode = preload("res://addons/nyx/nodes/particle_start_node.gd")
+const ParticleProcessNode = preload("res://addons/nyx/nodes/particle_process_node.gd")
+const ParticleAgeNode = preload("res://addons/nyx/nodes/particle_age_node.gd")
+const ParticleVelocityNode = preload("res://addons/nyx/nodes/particle_velocity_node.gd")
+const ParticlePositionNode = preload("res://addons/nyx/nodes/particle_position_node.gd")
+const ParticleDeltaNode = preload("res://addons/nyx/nodes/particle_delta_node.gd")
+const ParticleRandomNode = preload("res://addons/nyx/nodes/particle_random_node.gd")
+const ParticleIndexNode = preload("res://addons/nyx/nodes/particle_index_node.gd")
 
 const _NODE_REGISTRY := [
 	{"category": "Inputs", "nodes": [
@@ -75,7 +83,7 @@ const _NODE_REGISTRY := [
 			"description": "Set X, Y, Z individually. Enable Param mode to expose as a named uniform vec3 — animate from GDScript with set_shader_parameter().",
 			"ports": ["Out (vec3) — the XYZ value"],
 			"uses": ["Direction vectors", "Positional offsets", "Any vec3 you want to control from code"]},
-		{"label": "UV", "id": 4,
+		{"label": "UV", "id": 4, "particle_unsafe": true,
 			"summary": "The mesh's texture coordinates.",
 			"description": "Outputs the UV coordinates of the current fragment as a vec3 (Z is always 0). UV runs from (0,0) at one corner to (1,1) at the opposite corner.",
 			"ports": ["Out (vec3) — UV.x, UV.y, 0.0"],
@@ -92,12 +100,12 @@ const _NODE_REGISTRY := [
 			"uses": ["Pulsing emission", "Animated dissolve", "Scrolling textures", "Wave effects"]},
 	]},
 	{"category": "Texture", "nodes": [
-		{"label": "Texture Sample", "id": 14,
+		{"label": "Texture Sample", "id": 14, "particle_unsafe": true,
 			"summary": "Samples a colour from a 2D texture at UV coordinates.",
 			"description": "The texture is exported as a shader uniform, so it's baked into the material. Connect a UV or Tiling & Offset node to control mapping.",
 			"ports": ["UV (vec3) — texture coordinates", "Out (vec3) — sampled RGB colour"],
 			"uses": ["Painted textures", "Photo albedo", "Using a texture as a mask or detail layer"]},
-		{"label": "Normal Map", "id": 21,
+		{"label": "Normal Map", "id": 21, "particle_unsafe": true,
 			"summary": "Samples a normal map texture and applies it to the surface.",
 			"description": "Like Texture Sample but configured for normal maps — uses the hint_normal sampler and writes to NORMAL_MAP. Connect the output to the Output node's Normal slot.",
 			"ports": ["UV (vec3) — texture coordinates", "Out (vec3) — normal map value"],
@@ -180,12 +188,12 @@ const _NODE_REGISTRY := [
 			"description": "Takes three separate float values and packs them into a single vec3.",
 			"ports": ["R (float)", "G (float)", "B (float)", "Out (vec3)"],
 			"uses": ["Assembling colour from independently-calculated channels", "Building direction vectors from scalar results"]},
-		{"label": "Normal from Height", "id": 42,
+		{"label": "Normal from Height", "id": 42, "particle_unsafe": true,
 			"summary": "Converts a greyscale height field into a normal map using screen-space derivatives.",
 			"description": "Uses dFdx/dFdy to compute the surface gradient of the height input and outputs a tangent-space normal. Connects directly to the Output node's Normal slot. Strength controls how pronounced the bumps appear.",
 			"ports": ["Height (float) — the height field (e.g. FBM output)", "Strength (float) — bump intensity", "Normal (vec3) — tangent-space normal for Output Normal slot"],
 			"uses": ["Procedural water normals from FBM", "Bump mapping without a texture", "Converting any noise to surface detail"]},
-		{"label": "Blend Normals", "id": 43,
+		{"label": "Blend Normals", "id": 43, "particle_unsafe": true,
 			"summary": "Combines two normal maps correctly.",
 			"description": "Unpacks both normals from the 0–1 NORMAL_MAP encoding, adds their XY deflections, and repacks. More accurate than simply adding or mixing, especially at steep angles. Both inputs should come from Normal from Height or Normal Map nodes.",
 			"ports": ["A (vec3) — first normal (NORMAL_MAP encoded)", "B (vec3) — second normal (NORMAL_MAP encoded)", "Normal (vec3) — blended normal for Output Normal slot"],
@@ -214,12 +222,12 @@ const _NODE_REGISTRY := [
 			"uses": ["Soft dissolve edges", "Smooth masks", "Anti-aliased procedural shapes", "Gradient falloffs"]},
 	]},
 	{"category": "Screen", "nodes": [
-		{"label": "Screen UV", "id": 44,
+		{"label": "Screen UV", "id": 44, "particle_unsafe": true,
 			"summary": "The current fragment's position in screen space (0-1).",
 			"description": "Outputs the UV coordinates of the current pixel on screen. Use as input to Screen Texture for basic sampling, or offset it with a normal map for refraction effects.",
 			"ports": ["Screen UV (vec3) — screen-space UV, XY in 0-1 range"],
 			"uses": ["Input to Screen Texture for refraction", "Warping with a normal for underwater distortion"]},
-		{"label": "Screen Texture", "id": 45,
+		{"label": "Screen Texture", "id": 45, "particle_unsafe": true,
 			"summary": "Samples the rendered scene behind the current surface.",
 			"description": "Reads the colour of what's been rendered behind this transparent surface. Offset the UV input with a water normal to create convincing refraction. Requires the material's render mode to be Mix, Add, or Premult Alpha.",
 			"ports": ["UV (vec3) — screen UV to sample (offset for refraction)", "Color (vec3) — the scene colour at that UV"],
@@ -231,29 +239,29 @@ const _NODE_REGISTRY := [
 			"uses": ["Shoreline foam (1 - DepthFade drives foam mask)", "Soft transparency at water edges", "Depth-based colour (shallow vs deep)", "Soft particles that don't clip geometry"]},
 	]},
 	{"category": "UV", "nodes": [
-		{"label": "Tiling & Offset", "id": 39,
+		{"label": "Tiling & Offset", "id": 39, "particle_unsafe": true,
 			"summary": "Tiles and scrolls UV coordinates.",
 			"description": "Multiplies UV by a tiling factor (zoom) and adds an offset (scroll). Connect Time to Offset X or Y to animate scrolling. Use two of these at different speeds for layered water or cloud effects.",
 			"ports": ["UV (vec3) — coordinate input", "Tiling X (float) — horizontal tile count", "Tiling Y (float) — vertical tile count", "Offset X (float) — horizontal scroll", "Offset Y (float) — vertical scroll", "Out (vec3) — transformed UV"],
 			"uses": ["Scrolling normal maps for water", "Tiling a texture at a different scale", "Animated UV for fire or clouds", "Offsetting two layers at different speeds"]},
-		{"label": "Rotate UV", "id": 40,
+		{"label": "Rotate UV", "id": 40, "particle_unsafe": true,
 			"summary": "Rotates UV coordinates around the centre.",
 			"description": "Rotates the UV around the point (0.5, 0.5). Angle is in radians. Connect Time to Angle for a continuously spinning effect, or use a small fixed angle to make two texture layers feel independent.",
 			"ports": ["UV (vec3) — coordinate input", "Angle (float) — rotation in radians", "Out (vec3) — rotated UV"],
 			"uses": ["Spinning effects", "Making two water normal layers feel independent", "Slow UV rotation for lava or energy fields"]},
-		{"label": "Warp", "id": 41,
+		{"label": "Warp", "id": 41, "particle_unsafe": true,
 			"summary": "Distorts UV coordinates using an offset input.",
 			"description": "Shifts UV by the XY of an Offset vector, scaled by Strength. Feed noise or FBM into Offset to get organic, fluid-looking distortion. The key node for making water feel alive rather than just sliding.",
 			"ports": ["UV (vec3) — coordinate input", "Offset (vec3) — distortion direction, uses XY", "Strength (float) — distortion amount", "Out (vec3) — distorted UV"],
 			"uses": ["Water surface distortion", "Heat haze", "Warping a texture with noise", "Organic UV deformation"]},
 	]},
 	{"category": "Noise", "nodes": [
-		{"label": "Noise", "id": 19,
+		{"label": "Noise", "id": 19, "particle_unsafe": true,
 			"summary": "Procedural noise — organic, hash-based variation across a surface.",
 			"description": "Three types via dropdown: Value (smooth, slightly blocky), Gradient (classic Perlin-style, most organic), Voronoi (cell-based, crystalline or cracked). Scale controls feature size — higher values mean smaller, denser features.",
 			"ports": ["UV (vec3) — coordinate input (use Vertex for seamless noise on spheres)", "Scale (float) — feature size", "Out (float)"],
 			"uses": ["Organic textures", "Dissolve masks", "Cloud-like patterns", "Randomising roughness or emission"]},
-		{"label": "FBM", "id": 36,
+		{"label": "FBM", "id": 36, "particle_unsafe": true,
 			"summary": "Fractal Brownian Motion — noise layered at multiple scales for natural, rich detail.",
 			"description": "Stacks multiple octaves of gradient noise, each at higher frequency and lower amplitude. The result looks like natural phenomena — clouds, terrain, smoke, fire. Octaves adds detail layers. Lacunarity controls frequency growth per octave (default 2.0). Gain controls how fast amplitude fades (default 0.5).",
 			"ports": ["UV (vec3) — coordinate input (use Vertex for seamless results on spheres)", "Scale (float) — base feature size", "Out (float)"],
@@ -276,13 +284,55 @@ const _NODE_REGISTRY := [
 			"ports": ["Size (vec3) — texel dimensions in UV space, XY only"],
 			"uses": ["Pixel-art outline shaders", "Nearest-neighbour blur", "Edge detection"]},
 	]},
+	{"category": "Particles", "nodes": [
+		{"label": "Particle Start", "id": 55, "particle_only": true,
+			"summary": "Initial per-particle state — runs once when a particle spawns.",
+			"description": "The spawn brain. Set a particle's starting Position, Velocity, Color, Scale and Rotation. Unconnected slots use sensible defaults (Position 0, Velocity 0, Color white, Scale 1, Rotation 0). Position is an offset from the emitter; Rotation is euler radians.",
+			"ports": ["Position (vec3) — spawn offset from emitter", "Velocity (vec3) — initial velocity", "Color (vec4) — initial colour", "Scale (vec3) — initial scale", "Rotation (vec3) — initial euler rotation"],
+			"uses": ["Spawning particles in a shape", "Randomised initial velocity (with Random)", "Per-particle starting colour"]},
+		{"label": "Particle Process", "id": 56, "particle_only": true,
+			"summary": "Per-frame per-particle update — runs every frame.",
+			"description": "The motion brain. Override Velocity to apply forces, fade Color over life, or set an absolute Position. Each slot only takes effect if connected; leave a slot empty to keep the default behaviour. Position auto-integrates from velocity unless you drive it directly.",
+			"ports": ["Velocity (vec3) — apply forces / override", "Color (vec4) — fade over Age Ratio", "Position (vec3) — absolute override (else auto-integrates)"],
+			"uses": ["Gravity and drag", "Fading particles out over their life", "Steering and attraction forces"]},
+		{"label": "Age Ratio", "id": 57, "particle_only": true,
+			"summary": "How far through its life a particle is, 0 to 1.",
+			"description": "0 the instant a particle spawns, 1 as it dies. The single most useful particle input — drive Color, Scale or alpha through a Gradient or Curve to animate over lifetime.",
+			"ports": ["Age (float) — 0 at birth, 1 at death"],
+			"uses": ["Fading alpha out over life", "Colour-over-life via Gradient", "Shrinking or growing with a Curve"]},
+		{"label": "Velocity", "id": 58, "particle_only": true,
+			"summary": "The particle's current velocity vector.",
+			"description": "Reads the live velocity in the Process stage. Use it to build forces relative to motion — drag (negate and scale), or steering.",
+			"ports": ["Velocity (vec3) — current velocity"],
+			"uses": ["Velocity-based drag", "Aligning particles to motion", "Speed-based colour"]},
+		{"label": "Position", "id": 59, "particle_only": true,
+			"summary": "The particle's current world position.",
+			"description": "Reads TRANSFORM[3].xyz. Use for position-dependent forces such as radial attraction toward a point or keeping particles within bounds.",
+			"ports": ["Position (vec3) — current position"],
+			"uses": ["Radial attraction / repulsion", "Bounding-box forces", "Position-based colour"]},
+		{"label": "Delta", "id": 60, "particle_only": true,
+			"summary": "Seconds since the last simulation frame.",
+			"description": "Multiply any force or rate by Delta to make it frame-rate independent. The default velocity integration already applies Delta for you.",
+			"ports": ["Delta (float) — frame time in seconds"],
+			"uses": ["Frame-rate-independent forces", "Time-stepped accumulation"]},
+		{"label": "Random", "id": 61, "particle_only": true,
+			"summary": "A stable per-particle random value, in a range you set.",
+			"description": "Hashed from the particle's unique number, so the same particle always returns the same value — safe in both Start and Process. Vector mode gives three decorrelated channels (random direction/position); Scalar mode gives one number. Min/Max set the output range directly, so Vector → Velocity scatters with no extra math (default range is a symmetric -1 to 1).",
+			"ports": ["Random (vec3 or float) — per-particle random within [Min, Max]"],
+			"uses": ["Randomised initial velocity / scatter direction", "Per-particle size or colour jitter", "Random spawn offset", "Staggering behaviour across particles"]},
+		{"label": "Index", "id": 62, "particle_only": true,
+			"summary": "This particle's index as a float.",
+			"description": "A deterministic per-particle counter. Unlike Random it's ordered, so it's ideal for striping or sequencing particles — e.g. drive a gradient by Index for a rainbow spread.",
+			"ports": ["Index (float) — particle index"],
+			"uses": ["Sequenced colour ramps", "Deterministic striping", "Index-based fan-out"]},
+	]},
 	{"category": "Organisation", "nodes": [
 		{"label": "Relay", "id": 53,
 			"summary": "Named, coloured pass-through — one to many pairs.",
 			"description": "A flexible wire organiser. Start with one in/out pair and press + to add more, making it a bus. Give it a name and colour to group related wires visually across your graph. Polymorphic — each pair independently carries float or vec3.",
 			"ports": ["In N — any type", "Out N — same type as In N"],
 			"uses": ["Redirecting wires around clutter", "Grouping related wires with colour", "Bundling multiple signals as a bus", "Annotating what a wire represents"]},
-		{"label": "Preview Relay", "id": 54,
+		{"label": "Preview Relay", "id": 54, "particle_unsafe": true,
 			"summary": "Like Relay but with an always-visible preview.",
 			"description": "A single in/out pass-through that always shows a live preview of what's flowing through it — no chevron toggle needed. Name and colour it to document the signal. Ideal as a checkpoint in a complex graph.",
 			"ports": ["In — any type", "Out — same type as input"],
@@ -377,6 +427,13 @@ const _TYPE_COLORS := {
 	"SpriteTextureNode":    _CAT_INPUTS,
 	"VertexColorNode":      _CAT_INPUTS,
 	"TexturePixelSizeNode": _CAT_INPUTS,
+	# Particles — per-particle context inputs (sinks keep their own slate style)
+	"ParticleAgeNode":      _CAT_INPUTS,
+	"ParticleVelocityNode": _CAT_INPUTS,
+	"ParticlePositionNode": _CAT_INPUTS,
+	"ParticleDeltaNode":    _CAT_INPUTS,
+	"ParticleRandomNode":   _CAT_INPUTS,
+	"ParticleIndexNode":    _CAT_INPUTS,
 }
 
 const NODE_CLASSES := {
@@ -436,6 +493,14 @@ const NODE_CLASSES := {
 	"SpriteTextureNode": SpriteTextureNode,
 	"VertexColorNode": VertexColorNode,
 	"TexturePixelSizeNode": TexturePixelSizeNode,
+	"ParticleStartNode": ParticleStartNode,
+	"ParticleProcessNode": ParticleProcessNode,
+	"ParticleAgeNode": ParticleAgeNode,
+	"ParticleVelocityNode": ParticleVelocityNode,
+	"ParticlePositionNode": ParticlePositionNode,
+	"ParticleDeltaNode": ParticleDeltaNode,
+	"ParticleRandomNode": ParticleRandomNode,
+	"ParticleIndexNode": ParticleIndexNode,
 }
 
 var _graph_container: VBoxContainer
@@ -458,6 +523,8 @@ var _preview_mesh: MeshInstance3D
 var _preview_camera: Camera3D
 var _preview_mesh_buttons: Array[Button] = []
 var _shader_material: ShaderMaterial
+var _shader_material_particle: ShaderMaterial
+var _particles: GPUParticles3D
 var _compile_timer: Timer
 var _search_popup: PopupPanel
 var _search_input: LineEdit
@@ -647,6 +714,31 @@ func _build_preview_panel() -> Panel:
 	light.rotation_degrees = Vector3(-45, 45, 0)
 	_viewport.add_child(light)
 
+	# Particle preview — a GPUParticles3D sharing the 3D viewport. Its process
+	# material is the compiled particle shader; the draw pass is a small additive
+	# billboard quad tinted by COLOR. Preview-only, not part of export.
+	_shader_material_particle = ShaderMaterial.new()
+	_shader_material_particle.shader = Shader.new()
+	_shader_material_particle.shader.code = "shader_type particles;\nvoid start() {}\nvoid process() {}\n"
+
+	_particles = GPUParticles3D.new()
+	_particles.amount = 48
+	_particles.lifetime = 2.0
+	_particles.process_material = _shader_material_particle
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.08, 0.08)
+	var draw_mat := StandardMaterial3D.new()
+	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	draw_mat.vertex_color_use_as_albedo = true
+	draw_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	draw_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	draw_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	quad.material = draw_mat
+	_particles.draw_pass_1 = quad
+	_particles.visible = false
+	_particles.emitting = false
+	_viewport.add_child(_particles)
+
 	_vpc_2d = SubViewportContainer.new()
 	_vpc_2d.stretch = true
 	_vpc_2d.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -718,6 +810,9 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 				_redo_stack.clear()
 				_pre_drag_snapshot = null
 		)
+	# Nodes spawned while in particle mode shouldn't carry a preview chevron.
+	if _shader_type == 2 and node.has_method("set_preview_chevron_visible"):
+		node.call_deferred("set_preview_chevron_visible", false)
 
 
 func _toggle_preview() -> void:
@@ -734,6 +829,10 @@ func _on_mesh_btn_pressed(btn: Button, mesh: Mesh, rotation: Vector3, cam_z: flo
 
 
 func _open_node_preview(node: Node) -> void:
+	# No per-node previews in particle mode — values are per-particle, and a
+	# spatial preview shader would reference particle-only builtins (CUSTOM, etc).
+	if _shader_type == 2:
+		return
 	var tex_rect: TextureRect = node.get_preview_slot()
 	if not tex_rect:
 		return
@@ -877,6 +976,61 @@ func _build_shader_code() -> String:
 		var normal_line := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
 		return "shader_type canvas_item;\n%s%s\n%svoid fragment() {\n\tCOLOR = vec4(%s, %s);\n%s}\n" % [render_mode_line, uniform_lines, function_block, color, alpha, normal_line]
 
+	if _shader_type == 2:
+		# Particles — process shader. Two entry points: start() (once, on spawn)
+		# and process() (per frame). TRANSFORM is recomposed from decomposed
+		# Position/Rotation/Scale via nyx_compose_transform. CUSTOM.y is reserved
+		# for age tracking (0 at spawn, += DELTA/LIFETIME each frame → Age Ratio).
+		var compose_fn := "mat4 nyx_compose_transform(vec3 pos, vec3 euler, vec3 scale) {\n" \
+			+ "\tfloat cx = cos(euler.x); float sx = sin(euler.x);\n" \
+			+ "\tfloat cy = cos(euler.y); float sy = sin(euler.y);\n" \
+			+ "\tfloat cz = cos(euler.z); float sz = sin(euler.z);\n" \
+			+ "\tmat3 rx = mat3(vec3(1.0, 0.0, 0.0), vec3(0.0, cx, sx), vec3(0.0, -sx, cx));\n" \
+			+ "\tmat3 ry = mat3(vec3(cy, 0.0, -sy), vec3(0.0, 1.0, 0.0), vec3(sy, 0.0, cy));\n" \
+			+ "\tmat3 rz = mat3(vec3(cz, sz, 0.0), vec3(-sz, cz, 0.0), vec3(0.0, 0.0, 1.0));\n" \
+			+ "\tmat3 basis = rz * ry * rx;\n" \
+			+ "\tbasis[0] *= scale.x; basis[1] *= scale.y; basis[2] *= scale.z;\n" \
+			+ "\tmat4 m;\n" \
+			+ "\tm[0] = vec4(basis[0], 0.0);\n" \
+			+ "\tm[1] = vec4(basis[1], 0.0);\n" \
+			+ "\tm[2] = vec4(basis[2], 0.0);\n" \
+			+ "\tm[3] = vec4(pos, 1.0);\n" \
+			+ "\treturn m;\n}\n\n"
+
+		var s_pos := "vec3(0.0)"
+		var s_vel := "vec3(0.0)"
+		var s_col := "vec4(1.0)"
+		var s_scale := "vec3(1.0)"
+		var s_rot := "vec3(0.0)"
+		if _graph.get_node_or_null("ParticleStartNode"):
+			s_pos   = _get_typed_snippet_for("ParticleStartNode", 0, c, "vec3(0.0)", 0)
+			s_vel   = _get_typed_snippet_for("ParticleStartNode", 1, c, "vec3(0.0)", 0)
+			s_col   = _get_typed_snippet_for("ParticleStartNode", 2, c, "vec4(1.0)", 3)
+			s_scale = _get_typed_snippet_for("ParticleStartNode", 3, c, "vec3(1.0)", 0)
+			s_rot   = _get_typed_snippet_for("ParticleStartNode", 4, c, "vec3(0.0)", 0)
+
+		var start_body := "\tTRANSFORM = EMISSION_TRANSFORM * nyx_compose_transform(%s, %s, %s);\n" % [s_pos, s_rot, s_scale]
+		start_body += "\tVELOCITY = %s;\n" % s_vel
+		start_body += "\tCOLOR = %s;\n" % s_col
+		start_body += "\tCUSTOM.y = 0.0;\n"
+
+		var process_body := "\tCUSTOM.y += DELTA / max(LIFETIME, 0.0001);\n"
+		var p_pos := ""
+		if _graph.get_node_or_null("ParticleProcessNode"):
+			var p_vel := _get_typed_snippet_for("ParticleProcessNode", 0, c, "", 0)
+			var p_col := _get_typed_snippet_for("ParticleProcessNode", 1, c, "", 3)
+			p_pos = _get_typed_snippet_for("ParticleProcessNode", 2, c, "", 0)
+			if p_vel != "":
+				process_body += "\tVELOCITY = %s;\n" % p_vel
+			if p_col != "":
+				process_body += "\tCOLOR = %s;\n" % p_col
+		if p_pos != "":
+			process_body += "\tTRANSFORM[3].xyz = %s;\n" % p_pos
+		else:
+			process_body += "\tTRANSFORM[3].xyz += VELOCITY * DELTA;\n"
+
+		return "shader_type particles;\n%s\n%s%svoid start() {\n%s}\n\nvoid process() {\n%s}\n" % [uniform_lines, function_block, compose_fn, start_body, process_body]
+
 	# Spatial
 	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
 	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
@@ -917,29 +1071,67 @@ func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
 
 func _on_shader_type_changed(idx: int) -> void:
 	_shader_type = idx
-	var output_node = _graph.get_node_or_null("OutputNode")
-	if output_node:
-		output_node.set_shader_type(idx)
-	_mesh_row.visible = idx == 0
-	_vpc_3d.visible = idx == 0
-	_vpc_2d.visible = idx == 1
+	if idx == 2:
+		_ensure_particle_sinks()
+	else:
+		var output_node = _graph.get_node_or_null("OutputNode")
+		if output_node:
+			output_node.set_shader_type(idx)
+	_update_sink_visibility()
+	# Rebuild per-node previews for the new mode. Particle mode has no per-node
+	# previews (the values are per-particle, not per-pixel), so just tear them down.
 	for child in _graph.get_children():
 		if child is GraphNode and child.has_meta("_preview_material"):
 			if child.has_meta("_preview_viewport"):
 				(child.get_meta("_preview_viewport") as Node).queue_free()
 				child.remove_meta("_preview_viewport")
 			child.remove_meta("_preview_material")
-			_open_node_preview(child)
+			if idx != 2:
+				_open_node_preview(child)
 	_last_shader_code = ""
 	_request_compile()
 
 
+func _ensure_particle_sinks() -> void:
+	if not _graph.get_node_or_null("ParticleStartNode"):
+		_add_node(ParticleStartNode.new(), Vector2(440, 120), "ParticleStartNode")
+	if not _graph.get_node_or_null("ParticleProcessNode"):
+		_add_node(ParticleProcessNode.new(), Vector2(440, 360), "ParticleProcessNode")
+
+
+func _update_sink_visibility() -> void:
+	var output_node = _graph.get_node_or_null("OutputNode")
+	if output_node:
+		output_node.visible = _shader_type != 2
+	var start_node = _graph.get_node_or_null("ParticleStartNode")
+	if start_node:
+		start_node.visible = _shader_type == 2
+	var process_node = _graph.get_node_or_null("ParticleProcessNode")
+	if process_node:
+		process_node.visible = _shader_type == 2
+	if _preview_mesh:
+		_preview_mesh.visible = _shader_type == 0
+	if _particles:
+		_particles.visible = _shader_type == 2
+		_particles.emitting = _shader_type == 2
+	_mesh_row.visible = _shader_type == 0
+	_vpc_3d.visible = _shader_type == 0 or _shader_type == 2  # particles reuse the 3D viewport
+	_vpc_2d.visible = _shader_type == 1
+	for child in _graph.get_children():
+		if child is GraphNode and child.has_method("set_preview_chevron_visible"):
+			child.set_preview_chevron_visible(_shader_type != 2)
+
+
 func _get_active_material() -> ShaderMaterial:
+	if _shader_type == 2:
+		return _shader_material_particle
 	return _shader_material_2d if _shader_type == 1 else _shader_material
 
 
 func _apply_texture_uniforms() -> void:
 	var mat := _get_active_material()
+	if mat == null:
+		return
 	for child in _graph.get_children():
 		if child.has_method("get_uniform_name") and child.has_method("get_texture"):
 			var tex = child.get_texture()
@@ -950,13 +1142,20 @@ func _apply_texture_uniforms() -> void:
 
 
 func _compile_shader() -> void:
-	if _graph.get_node_or_null("OutputNode"):
+	if _graph.get_node_or_null("OutputNode") or _shader_type == 2:
 		var code := _build_shader_code()
 		if code != _last_shader_code:
 			_last_shader_code = code
-			_get_active_material().shader.code = code
+			var mat := _get_active_material()
+			if mat:
+				mat.shader.code = code
+			# Restart so start() changes apply to live particles immediately.
+			if _shader_type == 2 and _particles:
+				_particles.restart()
 		_apply_texture_uniforms()
-	_refresh_all_node_previews()
+	# Per-node previews are pixel-shaded; they don't exist in particle mode.
+	if _shader_type != 2:
+		_refresh_all_node_previews()
 
 
 func _on_texture_pick_requested(node: Node) -> void:
@@ -1070,7 +1269,13 @@ func _get_snippet_typed(to_node: String, to_port: int, connections: Array, defau
 
 
 func _get_snippet_for(to_node: String, to_port: int, connections: Array, default_val: String) -> String:
+	# Heuristic default type from the literal — fine for float/vec3 defaults, but
+	# can't tell vec3 from vec4. Use _get_typed_snippet_for when the slot is vec4.
 	var default_type: int = 1 if not default_val.begins_with("vec") else 0
+	return _get_typed_snippet_for(to_node, to_port, connections, default_val, default_type)
+
+
+func _get_typed_snippet_for(to_node: String, to_port: int, connections: Array, default_val: String, default_type: int) -> String:
 	var result := _get_snippet_typed(to_node, to_port, connections, default_val, default_type)
 	var snippet: String = result[0]
 	if snippet.is_empty():
@@ -1457,6 +1662,20 @@ func _on_context_menu_selected(id: int) -> void:
 		49: _add_node(SpriteTextureNode.new(), _spawn_position, "SpriteTexture")
 		50: _add_node(VertexColorNode.new(), _spawn_position, "VertexColor")
 		51: _add_node(TexturePixelSizeNode.new(), _spawn_position, "PixelSize")
+		55:
+			if not _graph.get_node_or_null("ParticleStartNode"):
+				_add_node(ParticleStartNode.new(), _spawn_position, "ParticleStartNode")
+				_update_sink_visibility()
+		56:
+			if not _graph.get_node_or_null("ParticleProcessNode"):
+				_add_node(ParticleProcessNode.new(), _spawn_position, "ParticleProcessNode")
+				_update_sink_visibility()
+		57: _add_node(ParticleAgeNode.new(), _spawn_position, "ParticleAge")
+		58: _add_node(ParticleVelocityNode.new(), _spawn_position, "ParticleVelocity")
+		59: _add_node(ParticlePositionNode.new(), _spawn_position, "ParticlePosition")
+		60: _add_node(ParticleDeltaNode.new(), _spawn_position, "ParticleDelta")
+		61: _add_node(ParticleRandomNode.new(), _spawn_position, "ParticleRandom")
+		62: _add_node(ParticleIndexNode.new(), _spawn_position, "ParticleIndex")
 
 
 func _build_graph_toolbar() -> HBoxContainer:
@@ -1491,6 +1710,7 @@ func _build_graph_toolbar() -> HBoxContainer:
 	_type_btn = OptionButton.new()
 	_type_btn.add_item("Spatial")
 	_type_btn.add_item("Canvas Item")
+	_type_btn.add_item("Particles")
 	_type_btn.item_selected.connect(_on_shader_type_changed)
 	toolbar.add_child(_type_btn)
 
@@ -1542,15 +1762,10 @@ func _deserialize_graph(data: Dictionary) -> void:
 		child.free()
 
 	var saved_type: int = data.get("shader_type", 0)
-	if saved_type != _shader_type:
-		_shader_type = saved_type
-		_type_btn.selected = saved_type
-		var output_node = _graph.get_node_or_null("OutputNode")
-		if output_node:
-			output_node.set_shader_type(saved_type)
-		_mesh_row.visible = saved_type == 0
-		_vpc_3d.visible = saved_type == 0
-		_vpc_2d.visible = saved_type == 1
+	_shader_type = saved_type
+	_type_btn.selected = saved_type
+	# OutputNode restores its own slot config via set_state (which calls
+	# set_shader_type); sink visibility is updated after recreation below.
 
 	var name_map := {}
 	for node_data in data.get("nodes", []):
@@ -1573,6 +1788,9 @@ func _deserialize_graph(data: Dictionary) -> void:
 		var to: String = name_map.get(conn["to_node"], conn["to_node"])
 		_graph.connect_node(from, conn["from_port"], to, conn["to_port"])
 
+	if _shader_type == 2:
+		_ensure_particle_sinks()
+	_update_sink_visibility()
 	_request_compile()
 
 
@@ -1751,6 +1969,17 @@ func _open_search_popup() -> void:
 
 
 func _is_node_unavailable(entry: Dictionary) -> bool:
+	if _shader_type == 2:
+		# Particle mode: only particle nodes plus nodes that operate on plain
+		# values. Anything fragment/UV/screen/canvas-bound is meaningless here.
+		if entry.get("particle_only", false):
+			return false
+		return entry.get("particle_unsafe", false) \
+			or entry.get("spatial_only", false) \
+			or entry.get("canvas_only", false)
+	# Spatial / canvas modes: particle nodes are never available.
+	if entry.get("particle_only", false):
+		return true
 	return (entry.get("spatial_only", false) and _shader_type == 1) or \
 		   (entry.get("canvas_only", false) and _shader_type == 0)
 
