@@ -4,6 +4,8 @@ extends EditorPlugin
 var _main_screen: Control
 var _editor_main_screen: Control
 var _reload_button: Button
+var _context_menu: EditorContextMenuPlugin
+var _tooltip_plugin: EditorResourceTooltipPlugin
 
 
 func _get_plugin_name() -> String:
@@ -36,6 +38,23 @@ func _enter_tree() -> void:
 	_reload_button.pressed.connect(_reload)
 	add_control_to_container(EditorPlugin.CONTAINER_TOOLBAR, _reload_button)
 
+	# Navigation: artifact → Nyx (gated on the provenance stamp).
+	_context_menu = preload("res://addons/nyx/core/open_in_nyx_context_menu.gd").new()
+	_context_menu.open_callback = _open_in_nyx
+	add_context_menu_plugin(EditorContextMenuPlugin.CONTEXT_SLOT_FILESYSTEM, _context_menu)
+
+	_tooltip_plugin = preload("res://addons/nyx/core/nyx_tooltip_plugin.gd").new()
+	EditorInterface.get_file_system_dock().add_resource_tooltip_plugin(_tooltip_plugin)
+
+
+func _open_in_nyx(nyx_path: String) -> void:
+	if not FileAccess.file_exists(nyx_path):
+		push_warning("Nyx: source graph not found — %s" % nyx_path)
+		return
+	EditorInterface.set_main_screen_editor("Nyx")
+	if _main_screen and _main_screen.has_method("load_nyx"):
+		_main_screen.load_nyx(nyx_path)
+
 
 func _reload() -> void:
 	if _main_screen:
@@ -64,3 +83,7 @@ func _exit_tree() -> void:
 	if _reload_button:
 		remove_control_from_container(EditorPlugin.CONTAINER_TOOLBAR, _reload_button)
 		_reload_button.queue_free()
+	if _context_menu:
+		remove_context_menu_plugin(_context_menu)
+	if _tooltip_plugin:
+		EditorInterface.get_file_system_dock().remove_resource_tooltip_plugin(_tooltip_plugin)

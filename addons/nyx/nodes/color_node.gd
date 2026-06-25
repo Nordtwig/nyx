@@ -4,7 +4,7 @@ extends "res://addons/nyx/nodes/nyx_node.gd"
 var _color := Color.WHITE
 var _param_mode: bool = false
 var _param_name: String = ""
-var _popup: Popup
+var _popup: PopupPanel
 var _picker: ColorPicker
 var _param_btn: Button
 var _param_name_edit: LineEdit
@@ -29,12 +29,20 @@ func _ready() -> void:
 	_param_name_edit.text_changed.connect(_on_param_name_changed)
 	add_child(_param_name_edit)
 
-	_popup = Popup.new()
-	_popup.size = Vector2(400, 300)
+	# PopupPanel (not bare Popup): the bare Popup dismissed inconsistently in the
+	# embedded editor — it took two clicks to close. PopupPanel matches every other
+	# popup in Nyx (search/doc/relay) and closes on the first outside click.
+	_popup = PopupPanel.new()
 	add_child(_popup)
 
 	_picker = ColorPicker.new()
 	_picker.color = _color
+	_picker.custom_minimum_size = Vector2(240, 0)
+	# Trim the bulky sections — keep the picker square, sliders and hex field.
+	_picker.presets_visible = false
+	_picker.can_add_swatches = false
+	_picker.sampler_visible = false
+	_picker.color_modes_visible = false
 	_picker.color_changed.connect(_on_color_changed)
 	_popup.add_child(_picker)
 
@@ -85,8 +93,13 @@ func _update_param_button() -> void:
 
 func _on_clicked(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _popup.visible:
+			_popup.hide()
+			return
 		emit_signal("edit_started")
-		_popup.popup_centered()
+		_popup.reset_size()  # shrink to the trimmed picker's content
+		var pos := get_screen_position() + Vector2(0, size.y)
+		_popup.popup(Rect2(pos, _popup.size))
 
 
 func _on_color_changed(color: Color) -> void:

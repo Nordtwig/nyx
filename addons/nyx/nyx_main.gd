@@ -541,6 +541,15 @@ var _texture_dialog: EditorFileDialog
 var _texture_target: Node = null
 var _spawn_position: Vector2
 var _last_shader_code: String
+# Live link / linked artifact state.
+const NyxCharon = preload("res://addons/nyx/core/charon.gd")
+var _export_mode: String = "full"         # "full" | "shader_only" (drives _on_export_file_selected)
+var _current_nyx_path: String = ""        # working .nyx file on disk ("" = unsaved)
+var _linked_shader_path: String = ""      # linked exported .gdshader ("" = unlinked)
+var _live_link_on: bool = false
+var _export_btn: Button                   # contextual Export… / Update
+var _export_menu: MenuButton              # caret dropdown (new material / shader only / re-link / unlink)
+var _live_btn: CheckButton
 var _undo_stack: Array = []
 var _redo_stack: Array = []
 var _pre_drag_snapshot = null
@@ -622,6 +631,7 @@ func _ready() -> void:
 
 	_preview_panel = _build_preview_panel()
 	add_child(_preview_panel)
+	_update_link_ui()  # unlinked: "Export…", Live disabled
 
 	_type_legend = _build_type_legend()
 	_type_legend.visible = false
@@ -660,10 +670,28 @@ func _build_preview_panel() -> Panel:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 
-	var export_btn := Button.new()
-	export_btn.text = "Export"
-	export_btn.pressed.connect(func(): _export_dialog.popup_centered_ratio(0.5))
-	header.add_child(export_btn)
+	_export_btn = Button.new()
+	_export_btn.text = "Export…"
+	_export_btn.pressed.connect(_on_export_pressed)
+	header.add_child(_export_btn)
+
+	_export_menu = MenuButton.new()
+	_export_menu.flat = false
+	_export_menu.text = "▾"
+	var pm := _export_menu.get_popup()
+	pm.add_item("Export new material", 0)
+	pm.add_item("Export shader only", 1)
+	pm.add_separator()
+	pm.add_item("Export as… (re-link)", 2)
+	pm.add_item("Unlink", 3)
+	pm.id_pressed.connect(_on_export_menu_id)
+	header.add_child(_export_menu)
+
+	_live_btn = CheckButton.new()
+	_live_btn.text = "Live"
+	_live_btn.tooltip_text = "Live link: push shader changes into the linked artifact in the scene in real time (in-memory, no save)."
+	_live_btn.toggled.connect(_on_live_toggled)
+	header.add_child(_live_btn)
 
 	var toggle := Button.new()
 	toggle.text = "×"
@@ -1149,6 +1177,10 @@ func _compile_shader() -> void:
 			var mat := _get_active_material()
 			if mat:
 				mat.shader.code = code
+				# Live link: push the new code into the linked artifact's loaded
+				# resource so the scene viewport updates in-memory (no disk write).
+				if _live_link_on and not _linked_shader_path.is_empty():
+					NyxCharon.notify_shader_updated(_linked_shader_path, mat)
 			# Restart so start() changes apply to live particles immediately.
 			if _shader_type == 2 and _particles:
 				_particles.restart()
@@ -1173,18 +1205,108 @@ func _on_texture_file_selected(path: String) -> void:
 	_texture_target = null
 
 
-func _on_export_file_selected(path: String) -> void:
-	if not path.ends_with(".gdshader"):
-		path += ".gdshader"
+# --- Linked-artifact export / live link ---
 
-	var shader_code := _build_shader_code()
+# Contextual primary button: Export… when unlinked, Update when linked.
+func _on_export_pressed() -> void:
+	if _linked_shader_path.is_empty():
+		_export_mode = "full"
+		_popup_export_dialog()
+	else:
+		_do_update()
+
+
+# Caret dropdown: rarer export ops.
+func _on_export_menu_id(id: int) -> void:
+	match id:
+		0:  # Export new material (resets material parameters)
+			if _linked_shader_path.is_empty():
+				push_warning("Nyx: link a shader first (Export…) before writing a material.")
+				return
+			if _write_material_file(_linked_shader_path):
+				EditorInterface.get_resource_filesystem().scan()
+				print("Nyx: wrote material (parameters reset) → %s" % (_linked_shader_path.get_basename() + ".tres"))
+		1:  # Export shader only
+			if _linked_shader_path.is_empty():
+				_export_mode = "shader_only"
+				_popup_export_dialog()
+			else:
+				_do_update()
+		2:  # Export as… (re-link to a new path)
+			_export_mode = "full"
+			_popup_export_dialog()
+		3:  # Unlink
+			_set_linked("")
+			print("Nyx: unlinked")
+
+
+func _on_live_toggled(on: bool) -> void:
+	_live_link_on = on
+	# Toggling on immediately reflects the current graph state in the scene.
+	if on and not _linked_shader_path.is_empty():
+		NyxCharon.notify_shader_updated(_linked_shader_path, _get_active_material())
+
+
+func _popup_export_dialog() -> void:
+	# Co-locate: default the artifact to the working file's folder when we have one.
+	if not _current_nyx_path.is_empty():
+		_export_dialog.current_dir = _current_nyx_path.get_base_dir()
+	_export_dialog.popup_centered_ratio(0.5)
+
+
+# Update the linked shader in place (no dialog, no material rewrite — material
+# values are the user's to keep). Persists the .nyx too, the way Ctrl+S does.
+func _do_update() -> void:
+	if _linked_shader_path.is_empty():
+		return
+	var code := _build_shader_code()
+	if not _write_shader_file(_linked_shader_path, code):
+		return
+	if not _current_nyx_path.is_empty():
+		_write_nyx_file(_current_nyx_path)
+	NyxCharon.notify_shader_updated(_linked_shader_path, _get_active_material())
+	EditorInterface.get_resource_filesystem().scan()
+	print("Nyx: updated shader → %s" % _linked_shader_path)
+
+
+func _set_linked(path: String) -> void:
+	_linked_shader_path = path
+	_update_link_ui()
+	# Linking implies you want to see it live — default the toggle on. (The toggle
+	# stays for the rarer "edit without disturbing the scene" case.)
+	if not path.is_empty():
+		_live_btn.button_pressed = true
+
+
+func _update_link_ui() -> void:
+	if not _export_btn:
+		return
+	var linked := not _linked_shader_path.is_empty()
+	_export_btn.text = "Update" if linked else "Export…"
+	_export_btn.tooltip_text = ("Rewrite linked shader: %s" % _linked_shader_path) if linked else "Export shader + material, then link"
+	_live_btn.disabled = not linked
+	if not linked and _live_btn.button_pressed:
+		_live_btn.button_pressed = false  # fires toggled → live off
+
+
+# Writes the .gdshader with a provenance stamp (gates artifact → Nyx navigation).
+func _write_shader_file(path: String, code: String) -> bool:
+	var out := code
+	if not _current_nyx_path.is_empty():
+		out = "%s%s\n%s" % [NyxCharon.PROVENANCE_PREFIX, _current_nyx_path, code]
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if not f:
 		push_error("Nyx: could not write shader to %s" % path)
-		return
-	f.store_string(shader_code)
+		return false
+	f.store_string(out)
 	f.close()
+	return true
 
+
+# Writes the companion .tres ShaderMaterial next to the shader. Bakes texture/
+# sub-resource/float-param values — overwrites any existing material values.
+func _write_material_file(shader_path: String) -> bool:
+	var path := shader_path
 	# Collect nodes by export type
 	var file_tex_nodes := []
 	var sub_nodes := []
@@ -1250,13 +1372,28 @@ func _on_export_file_selected(path: String) -> void:
 	var tf := FileAccess.open(tres_path, FileAccess.WRITE)
 	if not tf:
 		push_error("Nyx: could not write material to %s" % tres_path)
-		return
+		return false
 	tf.store_string("\n".join(lines))
 	tf.close()
+	return true
 
+
+# Dialog callback: full export (shader + material) or shader-only, then link.
+func _on_export_file_selected(path: String) -> void:
+	if not path.ends_with(".gdshader"):
+		path += ".gdshader"
+	var code := _build_shader_code()
+	if not _write_shader_file(path, code):
+		return
+	if _export_mode != "shader_only":
+		_write_material_file(path)
+	_set_linked(path)
+	NyxCharon.notify_shader_updated(path, _get_active_material())
 	EditorInterface.get_resource_filesystem().scan()
-	print("Nyx: exported\n  shader  → %s\n  material → %s" % [path, tres_path])
-
+	if _export_mode == "shader_only":
+		print("Nyx: exported shader → %s (linked)" % path)
+	else:
+		print("Nyx: exported\n  shader  → %s\n  material → %s (linked)" % [path, path.get_basename() + ".tres"])
 
 
 func _get_snippet_typed(to_node: String, to_port: int, connections: Array, default_val: String, default_type: int) -> Array:
@@ -1683,7 +1820,7 @@ func _build_graph_toolbar() -> HBoxContainer:
 
 	var save_btn := Button.new()
 	save_btn.text = "Save"
-	save_btn.pressed.connect(func(): _save_dialog.popup_centered_ratio(0.5))
+	save_btn.pressed.connect(_popup_save_dialog)
 	toolbar.add_child(save_btn)
 
 	var load_btn := Button.new()
@@ -1748,7 +1885,12 @@ func _serialize_graph() -> Dictionary:
 			"to_port": conn["to_port"],
 		})
 
-	return {"nodes": nodes, "connections": connections, "shader_type": _shader_type}
+	return {
+		"nodes": nodes,
+		"connections": connections,
+		"shader_type": _shader_type,
+		"linked_shader_path": _linked_shader_path,
+	}
 
 
 func _deserialize_graph(data: Dictionary) -> void:
@@ -1764,6 +1906,10 @@ func _deserialize_graph(data: Dictionary) -> void:
 	var saved_type: int = data.get("shader_type", 0)
 	_shader_type = saved_type
 	_type_btn.selected = saved_type
+	# Restore the artifact link. Lazy: store the path only; the Shader resource is
+	# re-resolved (ResourceLoader.load) on first Update / live-link use, not now.
+	_linked_shader_path = data.get("linked_shader_path", "")
+	_update_link_ui()
 	# OutputNode restores its own slot config via set_state (which calls
 	# set_shader_type); sink visibility is updated after recreation below.
 
@@ -1794,16 +1940,35 @@ func _deserialize_graph(data: Dictionary) -> void:
 	_request_compile()
 
 
+func _popup_save_dialog() -> void:
+	# Co-locate: default the .nyx next to its linked artifact when there is one.
+	if _current_nyx_path.is_empty() and not _linked_shader_path.is_empty():
+		_save_dialog.current_dir = _linked_shader_path.get_base_dir()
+	_save_dialog.popup_centered_ratio(0.5)
+
+
 func _on_save_file_selected(path: String) -> void:
 	if not path.ends_with(".nyx"):
 		path += ".nyx"
+	_current_nyx_path = path
+	if _write_nyx_file(path):
+		print("Nyx: saved graph → %s" % path)
+
+
+# Serializes the graph to JSON and writes it to disk. Returns success.
+func _write_nyx_file(path: String) -> bool:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if not f:
 		push_error("Nyx: could not write graph to %s" % path)
-		return
+		return false
 	f.store_string(JSON.stringify(_serialize_graph(), "\t"))
 	f.close()
-	print("Nyx: saved graph → %s" % path)
+	return true
+
+
+# Public entry point for "Open in Nyx" navigation (plugin.gd routes here).
+func load_nyx(path: String) -> void:
+	_on_load_file_selected(path)
 
 
 func _on_load_file_selected(path: String) -> void:
@@ -1816,7 +1981,11 @@ func _on_load_file_selected(path: String) -> void:
 	if not result is Dictionary:
 		push_error("Nyx: invalid graph file %s" % path)
 		return
+	_current_nyx_path = path
 	_deserialize_graph(result)
+	# A loaded linked graph goes live by default (same as just-linked).
+	if not _linked_shader_path.is_empty():
+		_live_btn.button_pressed = true
 	print("Nyx: loaded graph ← %s" % path)
 
 
