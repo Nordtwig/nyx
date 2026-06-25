@@ -70,3 +70,25 @@ static func notify_shader_updated(shader_path: String, material: Material) -> bo
 	if target.code != src_shader.code:
 		target.code = src_shader.code
 	return true
+
+
+## Editor layout focus — reclaim screen space while an Olympus main-screen tool is
+## visible by collapsing Godot's docks + bottom panel via distraction-free mode.
+## Distraction-free is the only clean public API for this (all-or-nothing — there's
+## no public per-dock control; hiding individual docks means walking the editor's
+## internal tree, which is fragile). Non-destructive: capture the prior state on
+## enter, restore it on leave. Stateless — the caller holds the returned token and
+## passes it back to exit_focus_layout() so this stays free of shared state.
+
+## Enter focus layout. Returns the prior distraction-free state for later restore.
+static func enter_focus_layout() -> bool:
+	var was_on := EditorInterface.is_distraction_free_mode_enabled()
+	if not was_on:
+		EditorInterface.set_distraction_free_mode(true)
+	return was_on
+
+
+## Restore the layout captured by enter_focus_layout(). Pass the value it returned.
+static func exit_focus_layout(prior_distraction_free: bool) -> void:
+	if EditorInterface.is_distraction_free_mode_enabled() != prior_distraction_free:
+		EditorInterface.set_distraction_free_mode(prior_distraction_free)

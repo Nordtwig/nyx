@@ -538,6 +538,7 @@ var _export_dialog: EditorFileDialog
 var _save_dialog: EditorFileDialog
 var _load_dialog: EditorFileDialog
 var _texture_dialog: EditorFileDialog
+var _new_confirm: ConfirmationDialog
 var _texture_target: Node = null
 var _spawn_position: Vector2
 var _last_shader_code: String
@@ -628,6 +629,13 @@ func _ready() -> void:
 	_texture_dialog.add_filter("*.png,*.jpg,*.jpeg,*.bmp,*.webp,*.tga,*.exr,*.hdr", "Image Files")
 	_texture_dialog.file_selected.connect(_on_texture_file_selected)
 	add_child(_texture_dialog)
+
+	_new_confirm = ConfirmationDialog.new()
+	_new_confirm.title = "New Graph"
+	_new_confirm.dialog_text = "Start a new graph? Unsaved changes will be lost."
+	_new_confirm.ok_button_text = "New Graph"
+	_new_confirm.confirmed.connect(_new_graph)
+	add_child(_new_confirm)
 
 	_preview_panel = _build_preview_panel()
 	add_child(_preview_panel)
@@ -1818,6 +1826,11 @@ func _on_context_menu_selected(id: int) -> void:
 func _build_graph_toolbar() -> HBoxContainer:
 	var toolbar := HBoxContainer.new()
 
+	var new_btn := Button.new()
+	new_btn.text = "New"
+	new_btn.pressed.connect(_on_new_pressed)
+	toolbar.add_child(new_btn)
+
 	var save_btn := Button.new()
 	save_btn.text = "Save"
 	save_btn.pressed.connect(_popup_save_dialog)
@@ -1893,7 +1906,7 @@ func _serialize_graph() -> Dictionary:
 	}
 
 
-func _deserialize_graph(data: Dictionary) -> void:
+func _clear_graph_nodes() -> void:
 	_graph.clear_connections()
 	var to_remove: Array[Node] = []
 	for child in _graph.get_children():
@@ -1902,6 +1915,10 @@ func _deserialize_graph(data: Dictionary) -> void:
 	for child in to_remove:
 		_graph.remove_child(child)
 		child.free()
+
+
+func _deserialize_graph(data: Dictionary) -> void:
+	_clear_graph_nodes()
 
 	var saved_type: int = data.get("shader_type", 0)
 	_shader_type = saved_type
@@ -1936,6 +1953,27 @@ func _deserialize_graph(data: Dictionary) -> void:
 
 	if _shader_type == 2:
 		_ensure_particle_sinks()
+	_update_sink_visibility()
+	_request_compile()
+
+
+func _on_new_pressed() -> void:
+	_new_confirm.popup_centered()
+
+
+# Reset to a fresh editor state (mirrors the initial _ready setup): empty graph,
+# default starting nodes, spatial mode, unlinked, no working-file path.
+func _new_graph() -> void:
+	_clear_graph_nodes()
+	_shader_type = 0
+	_type_btn.selected = 0
+	_current_nyx_path = ""
+	_set_linked("")
+	_last_shader_code = ""
+	_undo_stack.clear()
+	_redo_stack.clear()
+	_add_node(OutputNode.new(), Vector2(400, 200), "OutputNode")
+	_add_node(ColorNode.new(), Vector2(150, 200))
 	_update_sink_visibility()
 	_request_compile()
 

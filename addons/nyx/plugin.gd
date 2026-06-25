@@ -1,11 +1,16 @@
 @tool
 extends EditorPlugin
 
+const NyxCharon = preload("res://addons/nyx/core/charon.gd")
+
 var _main_screen: Control
 var _editor_main_screen: Control
 var _reload_button: Button
 var _context_menu: EditorContextMenuPlugin
 var _tooltip_plugin: EditorResourceTooltipPlugin
+# Focus layout: collapse Godot's docks while Nyx is the visible main screen.
+var _focus_active: bool = false
+var _prior_distraction_free: bool = false
 
 
 func _get_plugin_name() -> String:
@@ -23,6 +28,16 @@ func _has_main_screen() -> bool:
 func _make_visible(visible: bool) -> void:
 	if _main_screen:
 		_main_screen.visible = visible
+	# Collapse the editor docks while Nyx is up; restore on leave. Guarded so the
+	# initial _make_visible(false) in _enter_tree can't clobber a user who already
+	# has distraction-free on, and so re-entry keeps the original captured value.
+	if visible:
+		if not _focus_active:
+			_prior_distraction_free = NyxCharon.enter_focus_layout()
+			_focus_active = true
+	elif _focus_active:
+		NyxCharon.exit_focus_layout(_prior_distraction_free)
+		_focus_active = false
 
 
 func _enter_tree() -> void:
@@ -76,6 +91,9 @@ func _sync_size() -> void:
 
 
 func _exit_tree() -> void:
+	if _focus_active:
+		NyxCharon.exit_focus_layout(_prior_distraction_free)
+		_focus_active = false
 	if _editor_main_screen and _editor_main_screen.resized.is_connected(_sync_size):
 		_editor_main_screen.resized.disconnect(_sync_size)
 	if _main_screen:
