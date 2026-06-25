@@ -539,11 +539,19 @@ var _save_dialog: EditorFileDialog
 var _load_dialog: EditorFileDialog
 var _texture_dialog: EditorFileDialog
 var _new_confirm: ConfirmationDialog
+var _load_confirm: ConfirmationDialog
+var _save_btn: Button
+var _dirty: bool = false              # unsaved changes to the .nyx working file
+var _loading: bool = false            # suppresses dirty-marking during load/new
+var _pending_load_path: String = ""   # path awaiting the discard-changes confirm
+var _pending_after_save: Callable = Callable()  # run after a "Save & …" completes
 var _texture_target: Node = null
 var _spawn_position: Vector2
 var _last_shader_code: String
 # Live link / linked artifact state.
 const NyxCharon = preload("res://addons/nyx/core/charon.gd")
+const NyxGraphRes = preload("res://addons/nyx/core/nyx_graph.gd")
+const NyxNodeDataRes = preload("res://addons/nyx/core/nyx_node_data.gd")
 var _export_mode: String = "full"         # "full" | "shader_only" (drives _on_export_file_selected)
 var _current_nyx_path: String = ""        # working .nyx file on disk ("" = unsaved)
 var _linked_shader_path: String = ""      # linked exported .gdshader ("" = unlinked)
@@ -614,13 +622,16 @@ func _ready() -> void:
 	_save_dialog.access = EditorFileDialog.ACCESS_RESOURCES
 	_save_dialog.add_filter("*.nyx", "Nyx Graph")
 	_save_dialog.file_selected.connect(_on_save_file_selected)
+	# Cancelling the save drops any pending "Save & New/Load" so a later plain
+	# Save can't accidentally trigger the stale follow-up action.
+	_save_dialog.canceled.connect(func(): _pending_after_save = Callable())
 	add_child(_save_dialog)
 
 	_load_dialog = EditorFileDialog.new()
 	_load_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
 	_load_dialog.access = EditorFileDialog.ACCESS_RESOURCES
 	_load_dialog.add_filter("*.nyx", "Nyx Graph")
-	_load_dialog.file_selected.connect(_on_load_file_selected)
+	_load_dialog.file_selected.connect(load_nyx)
 	add_child(_load_dialog)
 
 	_texture_dialog = EditorFileDialog.new()
@@ -630,12 +641,35 @@ func _ready() -> void:
 	_texture_dialog.file_selected.connect(_on_texture_file_selected)
 	add_child(_texture_dialog)
 
+	# OK button = the safe "Save & …" action, so the default/highlighted/Enter
+	# choice is never the destructive Discard. Order forced to [Save | Discard | Cancel].
 	_new_confirm = ConfirmationDialog.new()
 	_new_confirm.title = "New Graph"
-	_new_confirm.dialog_text = "Start a new graph? Unsaved changes will be lost."
-	_new_confirm.ok_button_text = "New Graph"
-	_new_confirm.confirmed.connect(_new_graph)
+	_new_confirm.dialog_text = "You have unsaved changes."
+	_new_confirm.ok_button_text = "Save & New"
+	var discard_new := _new_confirm.add_button("Discard & New", false, "discard")
+	_new_confirm.confirmed.connect(func(): _save_then(_new_graph))
+	_new_confirm.custom_action.connect(func(action: StringName):
+		if action == &"discard":
+			_new_confirm.hide()
+			_new_graph()
+	)
+	_order_dialog_buttons(_new_confirm, discard_new)
 	add_child(_new_confirm)
+
+	_load_confirm = ConfirmationDialog.new()
+	_load_confirm.title = "Load Graph"
+	_load_confirm.dialog_text = "You have unsaved changes."
+	_load_confirm.ok_button_text = "Save & Load"
+	var discard_load := _load_confirm.add_button("Discard & Load", false, "discard")
+	_load_confirm.confirmed.connect(func(): _save_then(func(): _do_load(_pending_load_path)))
+	_load_confirm.custom_action.connect(func(action: StringName):
+		if action == &"discard":
+			_load_confirm.hide()
+			_do_load(_pending_load_path)
+	)
+	_order_dialog_buttons(_load_confirm, discard_load)
+	add_child(_load_confirm)
 
 	_preview_panel = _build_preview_panel()
 	add_child(_preview_panel)
@@ -649,7 +683,7 @@ func _ready() -> void:
 	call_deferred("_reposition_legend")
 
 	_add_node(OutputNode.new(), Vector2(400, 200), "OutputNode")
-	_add_node(ColorNode.new(), Vector2(150, 200))
+	_add_node(ColorNode.new(), Vector2(150, 200), "Color")
 
 
 func _build_preview_panel() -> Panel:
@@ -820,6 +854,7 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	_graph.add_child(node)
 	if node.has_signal("value_changed"):
 		node.value_changed.connect(_request_compile)
+		node.value_changed.connect(_mark_dirty)
 	if node.has_signal("edit_started"):
 		node.edit_started.connect(_push_undo_state)
 	if node.has_signal("texture_pick_requested"):
@@ -845,6 +880,7 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 					_undo_stack.pop_front()
 				_redo_stack.clear()
 				_pre_drag_snapshot = null
+				_mark_dirty()
 		)
 	# Nodes spawned while in particle mode shouldn't carry a preview chevron.
 	if _shader_type == 2 and node.has_method("set_preview_chevron_visible"):
@@ -1301,7 +1337,9 @@ func _update_link_ui() -> void:
 func _write_shader_file(path: String, code: String) -> bool:
 	var out := code
 	if not _current_nyx_path.is_empty():
-		out = "%s%s\n%s" % [NyxCharon.PROVENANCE_PREFIX, _current_nyx_path, code]
+		# Line 1 is the machine-read provenance stamp (read_nyx_source parses it);
+		# line 2 is a human warning. Keep them on separate lines.
+		out = "%s%s\n// Generated by Nyx — do not hand-edit; overwritten on Update.\n%s" % [NyxCharon.PROVENANCE_PREFIX, _current_nyx_path, code]
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if not f:
 		push_error("Nyx: could not write shader to %s" % path)
@@ -1625,6 +1663,26 @@ func _push_undo_state() -> void:
 	if _undo_stack.size() > 50:
 		_undo_stack.pop_front()
 	_redo_stack.clear()
+	_mark_dirty()
+
+
+# --- Dirty tracking (unsaved .nyx working-file changes) ---
+
+func _mark_dirty() -> void:
+	if _loading or _dirty:
+		return
+	_dirty = true
+	_update_save_button()
+
+
+func _set_clean() -> void:
+	_dirty = false
+	_update_save_button()
+
+
+func _update_save_button() -> void:
+	if _save_btn:
+		_save_btn.text = "Save*" if _dirty else "Save"
 
 
 func _undo() -> void:
@@ -1833,8 +1891,9 @@ func _build_graph_toolbar() -> HBoxContainer:
 
 	var save_btn := Button.new()
 	save_btn.text = "Save"
-	save_btn.pressed.connect(_popup_save_dialog)
+	save_btn.pressed.connect(_on_save_pressed)
 	toolbar.add_child(save_btn)
+	_save_btn = save_btn
 
 	var load_btn := Button.new()
 	load_btn.text = "Load"
@@ -1918,6 +1977,9 @@ func _clear_graph_nodes() -> void:
 
 
 func _deserialize_graph(data: Dictionary) -> void:
+	# Reconstruction (and undo/redo) must not mark the graph dirty; the caller
+	# decides cleanliness (load/new = clean, undo = leaves dirty unchanged).
+	_loading = true
 	_clear_graph_nodes()
 
 	var saved_type: int = data.get("shader_type", 0)
@@ -1955,15 +2017,33 @@ func _deserialize_graph(data: Dictionary) -> void:
 		_ensure_particle_sinks()
 	_update_sink_visibility()
 	_request_compile()
+	_loading = false
 
 
 func _on_new_pressed() -> void:
-	_new_confirm.popup_centered()
+	# Skip the confirm when there's nothing to lose.
+	if _dirty:
+		_new_confirm.popup_centered()
+	else:
+		_new_graph()
+
+
+# Force a 3-button confirm to read [OK | mid_btn | Cancel], right-aligned: move
+# each to the end of the button row in turn (any leading spacer stays put, so
+# alignment is preserved). OK is the safe "Save & …" action.
+func _order_dialog_buttons(dialog: AcceptDialog, mid_btn: Button) -> void:
+	var ok: Button = dialog.get_ok_button()
+	var cancel: Button = dialog.get_cancel_button()
+	var row := ok.get_parent()
+	row.move_child(ok, row.get_child_count() - 1)
+	row.move_child(mid_btn, row.get_child_count() - 1)
+	row.move_child(cancel, row.get_child_count() - 1)
 
 
 # Reset to a fresh editor state (mirrors the initial _ready setup): empty graph,
 # default starting nodes, spatial mode, unlinked, no working-file path.
 func _new_graph() -> void:
+	_loading = true
 	_clear_graph_nodes()
 	_shader_type = 0
 	_type_btn.selected = 0
@@ -1973,9 +2053,21 @@ func _new_graph() -> void:
 	_undo_stack.clear()
 	_redo_stack.clear()
 	_add_node(OutputNode.new(), Vector2(400, 200), "OutputNode")
-	_add_node(ColorNode.new(), Vector2(150, 200))
+	_add_node(ColorNode.new(), Vector2(150, 200), "Color")
 	_update_sink_visibility()
 	_request_compile()
+	_loading = false
+	_set_clean()  # fresh editor = nothing unsaved
+
+
+# Direct save to the current file; only pops the dialog for a never-saved graph.
+# (Save As / fork-to-new-file arrives with the File menu.)
+func _on_save_pressed() -> void:
+	if _current_nyx_path.is_empty():
+		_popup_save_dialog()
+	elif _write_nyx_file(_current_nyx_path):
+		_set_clean()
+		print("Nyx: saved graph → %s" % _current_nyx_path)
 
 
 func _popup_save_dialog() -> void:
@@ -1985,42 +2077,98 @@ func _popup_save_dialog() -> void:
 	_save_dialog.popup_centered_ratio(0.5)
 
 
+# Save the current graph, then run `after` once the save succeeds. If there's no
+# path yet, open the save dialog first and continue once the user picks one.
+func _save_then(after: Callable) -> void:
+	if _current_nyx_path.is_empty():
+		_pending_after_save = after
+		_popup_save_dialog()
+	elif _write_nyx_file(_current_nyx_path):
+		_set_clean()
+		after.call()
+
+
 func _on_save_file_selected(path: String) -> void:
 	if not path.ends_with(".nyx"):
 		path += ".nyx"
 	_current_nyx_path = path
 	if _write_nyx_file(path):
+		_set_clean()
 		print("Nyx: saved graph → %s" % path)
+		# Continue a pending "Save & New / Load" once the save succeeded.
+		if _pending_after_save.is_valid():
+			var after := _pending_after_save
+			_pending_after_save = Callable()
+			after.call()
 
 
-# Serializes the graph to JSON and writes it to disk. Returns success.
+# Writes the graph to disk as a native NyxGraph resource (`.nyx`). Returns success.
 func _write_nyx_file(path: String) -> bool:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if not f:
-		push_error("Nyx: could not write graph to %s" % path)
+	var graph := _dict_to_resource(_serialize_graph())
+	var err := ResourceSaver.save(graph, path)
+	if err != OK:
+		push_error("Nyx: could not write graph to %s (err %d)" % [path, err])
 		return false
-	f.store_string(JSON.stringify(_serialize_graph(), "\t"))
-	f.close()
+	if path.begins_with("res://"):
+		EditorInterface.get_resource_filesystem().update_file(path)
 	return true
 
 
-# Public entry point for "Open in Nyx" navigation (plugin.gd routes here).
+# --- NyxGraph resource <-> serialize-dict translation ---
+# Save/load go through the resource; undo/redo keep using the dict directly. The
+# dict is the single source of truth; these just wrap/unwrap it.
+
+func _dict_to_resource(d: Dictionary) -> NyxGraphRes:
+	var graph := NyxGraphRes.new()
+	graph.shader_type = d.get("shader_type", 0)
+	graph.linked_shader_path = d.get("linked_shader_path", "")
+	for nd in d.get("nodes", []):
+		var data := NyxNodeDataRes.new()
+		data.type = nd.get("type", "")
+		data.node_name = nd.get("name", "")
+		var pos: Array = nd.get("position", [0.0, 0.0])
+		data.position = Vector2(pos[0], pos[1])
+		data.state = nd.get("state", {})
+		graph.nodes.append(data)
+	graph.connections = d.get("connections", [])
+	return graph
+
+
+func _resource_to_dict(graph: NyxGraphRes) -> Dictionary:
+	var nodes := []
+	for data in graph.nodes:
+		nodes.append({
+			"type": data.type,
+			"name": data.node_name,
+			"position": [data.position.x, data.position.y],
+			"state": data.state,
+		})
+	return {
+		"nodes": nodes,
+		"connections": graph.connections,
+		"shader_type": graph.shader_type,
+		"linked_shader_path": graph.linked_shader_path,
+	}
+
+
+# Public, guarded entry point: the Load dialog, "Open in Nyx" navigation, and
+# double-click-to-open all route here. Confirms before discarding unsaved work.
 func load_nyx(path: String) -> void:
-	_on_load_file_selected(path)
+	if _dirty:
+		_pending_load_path = path
+		_load_confirm.popup_centered()
+	else:
+		_do_load(path)
 
 
-func _on_load_file_selected(path: String) -> void:
-	var f := FileAccess.open(path, FileAccess.READ)
-	if not f:
+func _do_load(path: String) -> void:
+	var graph = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if graph == null or not graph is NyxGraphRes:
 		push_error("Nyx: could not read graph from %s" % path)
 		return
-	var result := JSON.parse_string(f.get_as_text())
-	f.close()
-	if not result is Dictionary:
-		push_error("Nyx: invalid graph file %s" % path)
-		return
 	_current_nyx_path = path
-	_deserialize_graph(result)
+	_deserialize_graph(_resource_to_dict(graph))
+	_set_clean()  # freshly loaded from disk
 	# A loaded linked graph goes live by default (same as just-linked).
 	if not _linked_shader_path.is_empty():
 		_live_btn.button_pressed = true
