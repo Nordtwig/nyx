@@ -10,7 +10,7 @@ var _input_labels: Array = []
 var _count_spin: SpinBox
 var _chevron: Button
 var _code_spacer: Control
-var _code_edit: TextEdit
+var _code_edit: CodeEdit
 var _name_label: Label
 var _name_edit_field: LineEdit
 
@@ -53,11 +53,20 @@ func _add_preview_controls() -> void:
 	_code_spacer.custom_minimum_size = Vector2(0, 4)
 	add_child(_code_spacer)
 
-	_code_edit = TextEdit.new()
+	_code_edit = CodeEdit.new()
 	_code_edit.text = _code
 	_code_edit.custom_minimum_size = Vector2(200, 120)
 	_code_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_code_edit.wrap_mode = TextEdit.LINE_WRAPPING_NONE
+	_code_edit.syntax_highlighter = _make_glsl_highlighter()
+	# Note: CodeEdit's breakpoint + fold gutters reserve ~50px around the line numbers and
+	# Godot auto-recomputes their width every update — there's no clean way to collapse them
+	# (only a per-frame re-pin hack), so we live with the built-in gutter padding.
+	_code_edit.gutters_draw_line_numbers = true
+	_code_edit.auto_brace_completion_enabled = true
+	_code_edit.indent_automatic = true
+	_code_edit.add_theme_color_override("font_color", Color("#D4D4DC"))
+	_code_edit.add_theme_color_override("line_number_color", Color(1, 1, 1, 0.28))
 	_code_edit.text_changed.connect(_on_code_changed)
 	add_child(_code_edit)
 
@@ -65,6 +74,47 @@ func _add_preview_controls() -> void:
 	_code_edit.visible = _code_open
 	_update_slots()
 	super._add_preview_controls()
+
+
+# GLSL syntax highlighting for the inline code editor. Types and control/qualifier
+# keywords get explicit colors; any other word followed by "(" is treated as a function
+# call (covers builtins like sin/mix/texture and the user's own helpers) via function_color.
+func _make_glsl_highlighter() -> CodeHighlighter:
+	var h := CodeHighlighter.new()
+	h.number_color = Color("#A5D6A2")
+	h.symbol_color = Color("#C0C0CC")
+	h.function_color = Color("#E8C07D")
+	h.member_variable_color = Color("#C8C8D2")
+
+	var keyword_color := Color("#FF7085")  # control flow + qualifiers
+	for k in ["if", "else", "for", "while", "do", "return", "break", "continue",
+			"discard", "switch", "case", "default", "struct", "const", "in", "out",
+			"inout", "uniform", "varying", "attribute", "flat", "smooth", "precision",
+			"lowp", "mediump", "highp", "true", "false"]:
+		h.add_keyword_color(k, keyword_color)
+
+	var type_color := Color("#7FD6C2")  # data types (also as constructors)
+	for t in ["void", "bool", "int", "uint", "float", "double",
+			"vec2", "vec3", "vec4", "ivec2", "ivec3", "ivec4", "uvec2", "uvec3", "uvec4",
+			"bvec2", "bvec3", "bvec4", "mat2", "mat3", "mat4",
+			"sampler2D", "sampler3D", "samplerCube", "sampler2DArray",
+			"isampler2D", "usampler2D"]:
+		h.add_keyword_color(t, type_color)
+
+	var comment_color := Color("#6F8C5C")
+	h.add_color_region("//", "", comment_color, true)
+	h.add_color_region("/*", "*/", comment_color, false)
+	return h
+
+
+# Tighter side padding than the base input style — the code editor wants every pixel of
+# width it can get (line-number gutter + code), so drop the L/R content margins to 0.
+func _style_textedit(te: TextEdit) -> void:
+	var style := _make_input_style()
+	style.content_margin_left = 0
+	style.content_margin_right = 0
+	te.add_theme_stylebox_override("normal", style)
+	te.add_theme_stylebox_override("focus", style)
 
 
 func _on_count_changed(val: float) -> void:

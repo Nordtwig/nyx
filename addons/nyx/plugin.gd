@@ -6,7 +6,6 @@ const NyxGraphRes = preload("res://addons/nyx/core/nyx_graph.gd")
 
 var _main_screen: Control
 var _editor_main_screen: Control
-var _reload_button: Button
 var _context_menu: EditorContextMenuPlugin
 var _tooltip_plugin: EditorResourceTooltipPlugin
 var _nyx_saver: ResourceFormatSaver
@@ -62,11 +61,7 @@ func _enter_tree() -> void:
 	_editor_main_screen.resized.connect(_sync_size)
 	_sync_size.call_deferred()
 	_make_visible(false)
-
-	_reload_button = Button.new()
-	_reload_button.text = "Reload Nyx"
-	_reload_button.pressed.connect(_reload)
-	add_control_to_container(EditorPlugin.CONTAINER_TOOLBAR, _reload_button)
+	_main_screen.reload_requested.connect(_reload)
 
 	# Navigation: artifact → Nyx (gated on the provenance stamp).
 	_context_menu = preload("res://addons/nyx/core/open_in_nyx_context_menu.gd").new()
@@ -119,6 +114,7 @@ func _finish_reload() -> void:
 	_register_nyx_format()
 	_main_screen = preload("res://addons/nyx/nyx_main.gd").new()
 	_editor_main_screen.add_child(_main_screen)
+	_main_screen.reload_requested.connect(_reload)
 	_sync_size.call_deferred()
 	_make_visible(true)
 
@@ -136,9 +132,6 @@ func _exit_tree() -> void:
 		_editor_main_screen.resized.disconnect(_sync_size)
 	if _main_screen:
 		_main_screen.queue_free()
-	if _reload_button:
-		remove_control_from_container(EditorPlugin.CONTAINER_TOOLBAR, _reload_button)
-		_reload_button.queue_free()
 	if _context_menu:
 		remove_context_menu_plugin(_context_menu)
 	if _tooltip_plugin:

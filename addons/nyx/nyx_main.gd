@@ -503,6 +503,8 @@ const NODE_CLASSES := {
 	"ParticleIndexNode": ParticleIndexNode,
 }
 
+signal reload_requested
+
 var _graph_container: VBoxContainer
 var _graph: GraphEdit
 var _shader_type: int = 0
@@ -515,8 +517,15 @@ var _shader_material_2d: ShaderMaterial
 var _preview_panel: Panel
 var _type_legend: PanelContainer
 var _legend_toggle: Button
+var _minimap_toggle: Button
+var _help_toggle: Button
+var _shortcuts_overlay: PanelContainer
 var _preview_dragging: bool = false
 var _preview_resizing: bool = false
+var _panning: bool = false
+var _pan_moved: bool = false  # did the cursor move during the current empty-canvas drag?
+var _preview_right_offset: float = 20.0
+var _preview_top_offset: float = -1.0  # -1 = not yet placed
 var _preview_positioned: bool = false
 var _viewport: SubViewport
 var _preview_mesh: MeshInstance3D
@@ -526,11 +535,12 @@ var _shader_material: ShaderMaterial
 var _shader_material_particle: ShaderMaterial
 var _particles: GPUParticles3D
 var _compile_timer: Timer
-var _search_popup: PopupPanel
+var _search_overlay: Control       # full-graph overlay (click-catcher + cards)
+var _search_cards: HBoxContainer    # the floating [search | doc] cards, positioned at cursor
 var _search_input: LineEdit
 var _search_list: ItemList
 var _search_item_ids: Array = []
-var _doc_popup: PopupPanel
+var _doc_panel: PanelContainer
 var _doc_label: RichTextLabel
 var _doc_hover_timer: Timer
 var _doc_pending_id: int = -1
@@ -577,6 +587,8 @@ func _ready() -> void:
 	_graph.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_graph.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
+	_graph.minimap_enabled = false
+	_graph.show_minimap_button = false
 	var graph_bg := StyleBoxFlat.new()
 	graph_bg.bg_color = Color("#0C1018")
 	_graph.add_theme_stylebox_override("panel", graph_bg)
@@ -681,6 +693,13 @@ func _ready() -> void:
 	_legend_toggle = _build_legend_toggle()
 	add_child(_legend_toggle)
 	call_deferred("_reposition_legend")
+	_minimap_toggle = _build_minimap_toggle()
+	add_child(_minimap_toggle)
+	_help_toggle = _build_help_toggle()
+	add_child(_help_toggle)
+	call_deferred("_reposition_minimap_toggle")
+	_shortcuts_overlay = _build_shortcuts_overlay()
+	add_child(_shortcuts_overlay)
 
 	_add_node(OutputNode.new(), Vector2(400, 200), "OutputNode")
 	_add_node(ColorNode.new(), Vector2(150, 200), "Color")
@@ -1543,11 +1562,28 @@ func sync_size(new_size: Vector2) -> void:
 	if not _preview_positioned and _preview_panel:
 		_preview_positioned = true
 		call_deferred("_position_preview_default")
+	elif _preview_panel and _preview_top_offset >= 0.0:
+		_preview_panel.position = Vector2(
+			_graph_container.size.x - _preview_panel.size.x - _preview_right_offset,
+			_preview_top_offset
+		).clamp(Vector2.ZERO, _graph_container.size - _preview_panel.size)
 	_reposition_legend()
+	_reposition_minimap_toggle()
+	if _search_overlay and _search_overlay.visible:
+		_search_overlay.size = _graph_container.size
 
 
 func _position_preview_default() -> void:
-	_preview_panel.position = Vector2(_graph_container.size.x - _preview_panel.size.x - 20, 20)
+	# Place just below the graph toolbar, not overlapping it.
+	var toolbar_h := 0.0
+	if _graph_container.get_child_count() > 0:
+		toolbar_h = _graph_container.get_child(0).get_combined_minimum_size().y
+	_preview_top_offset = toolbar_h + 12.0
+	_preview_right_offset = 20.0
+	_preview_panel.position = Vector2(
+		_graph_container.size.x - _preview_panel.size.x - _preview_right_offset,
+		_preview_top_offset
+	)
 
 
 # Static key in the bottom-left corner of the graph mapping the four data-type
@@ -1560,14 +1596,14 @@ func _build_type_legend() -> PanelContainer:
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.047, 0.063, 0.094, 0.85)
 	bg.set_corner_radius_all(6)
-	bg.set_content_margin_all(8)
+	bg.set_content_margin_all(5)
 	bg.set_border_width_all(1)
 	bg.border_color = Color(1, 1, 1, 0.08)
 	panel.add_theme_stylebox_override("panel", bg)
 
 	var vbox := VBoxContainer.new()
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_theme_constant_override("separation", 4)
+	vbox.add_theme_constant_override("separation", 2)
 	panel.add_child(vbox)
 
 	# [type_id, friendly_name, glsl_name]
@@ -1585,7 +1621,7 @@ func _build_type_legend() -> PanelContainer:
 		var sw := ColorRect.new()
 		sw.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		sw.color = _type_color(e[0])
-		sw.custom_minimum_size = Vector2(12, 12)
+		sw.custom_minimum_size = Vector2(9, 9)
 		sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(sw)
 
@@ -1593,7 +1629,7 @@ func _build_type_legend() -> PanelContainer:
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		lbl.text = "%s  (%s)" % [e[1], e[2]]
 		lbl.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 10)
 		row.add_child(lbl)
 
 		vbox.add_child(row)
@@ -1605,13 +1641,13 @@ func _build_legend_toggle() -> Button:
 	var btn := Button.new()
 	btn.text = "Types  ▴"
 	btn.focus_mode = Control.FOCUS_NONE
-	btn.add_theme_font_size_override("font_size", 12)
+	btn.add_theme_font_size_override("font_size", 10)
 	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
 
 	var chip := StyleBoxFlat.new()
 	chip.bg_color = Color(0.047, 0.063, 0.094, 0.85)
 	chip.set_corner_radius_all(6)
-	chip.set_content_margin_all(6)
+	chip.set_content_margin_all(4)
 	chip.set_border_width_all(1)
 	chip.border_color = Color(1, 1, 1, 0.08)
 	btn.add_theme_stylebox_override("normal", chip)
@@ -1641,11 +1677,133 @@ func _reposition_legend() -> void:
 		_type_legend.position = Vector2(20, _legend_toggle.position.y - ph - 6)
 
 
+func _build_minimap_toggle() -> Button:
+	var btn := Button.new()
+	btn.text = "Map  ▴"
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.add_theme_font_size_override("font_size", 10)
+	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
+	var chip := StyleBoxFlat.new()
+	chip.bg_color = Color(0.047, 0.063, 0.094, 0.85)
+	chip.set_corner_radius_all(6)
+	chip.set_content_margin_all(4)
+	chip.set_border_width_all(1)
+	chip.border_color = Color(1, 1, 1, 0.08)
+	btn.add_theme_stylebox_override("normal", chip)
+	var chip_hover := chip.duplicate() as StyleBoxFlat
+	chip_hover.bg_color = Color(0.09, 0.11, 0.15, 0.9)
+	btn.add_theme_stylebox_override("hover", chip_hover)
+	btn.add_theme_stylebox_override("pressed", chip_hover)
+	btn.pressed.connect(_on_minimap_toggle)
+	return btn
+
+
+func _on_minimap_toggle() -> void:
+	_graph.minimap_enabled = not _graph.minimap_enabled
+	_minimap_toggle.text = "Map  ▾" if _graph.minimap_enabled else "Map  ▴"
+
+
+func _build_help_toggle() -> Button:
+	var btn := Button.new()
+	btn.text = "?"
+	btn.tooltip_text = "Keyboard shortcuts (?)"
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.add_theme_font_size_override("font_size", 10)
+	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
+	var chip := StyleBoxFlat.new()
+	chip.bg_color = Color(0.047, 0.063, 0.094, 0.85)
+	chip.set_corner_radius_all(6)
+	chip.set_content_margin_all(4)
+	chip.content_margin_left = 8
+	chip.content_margin_right = 8
+	chip.set_border_width_all(1)
+	chip.border_color = Color(1, 1, 1, 0.08)
+	btn.add_theme_stylebox_override("normal", chip)
+	var chip_hover := chip.duplicate() as StyleBoxFlat
+	chip_hover.bg_color = Color(0.09, 0.11, 0.15, 0.9)
+	btn.add_theme_stylebox_override("hover", chip_hover)
+	btn.add_theme_stylebox_override("pressed", chip_hover)
+	btn.pressed.connect(_toggle_shortcuts_overlay)
+	return btn
+
+
+# Positions both bottom-right chips: [?] [Map] anchored to the bottom-right corner.
+func _reposition_minimap_toggle() -> void:
+	if not _minimap_toggle or not _graph_container:
+		return
+	var mw: float = _minimap_toggle.get_combined_minimum_size().x
+	var mh: float = _minimap_toggle.get_combined_minimum_size().y
+	_minimap_toggle.position = Vector2(_graph_container.size.x - mw - 20, _graph_container.size.y - mh - 20)
+	if _help_toggle:
+		var hw: float = _help_toggle.get_combined_minimum_size().x
+		var hh: float = _help_toggle.get_combined_minimum_size().y
+		_help_toggle.position = Vector2(_minimap_toggle.position.x - hw - 6, _graph_container.size.y - hh - 20)
+
+
+func _build_shortcuts_overlay() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.visible = false
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.08, 0.09, 0.12, 0.93)
+	bg.set_corner_radius_all(8)
+	bg.set_content_margin_all(14)
+	bg.set_border_width_all(1)
+	bg.border_color = Color(1, 1, 1, 0.1)
+	panel.add_theme_stylebox_override("panel", bg)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 3)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Shortcuts"
+	title.add_theme_font_size_override("font_size", 11)
+	title.add_theme_color_override("font_color", Color(0.6, 0.7, 0.65))
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_constant_override("separation", 4)
+	vbox.add_child(sep)
+
+	var entries := [
+		["Right-click / A", "Add node"],
+		["X", "Delete selected"],
+		["R", "Add Reroute"],
+		["Left-drag", "Pan canvas"],
+		["Shift+Left-drag", "Box select"],
+		["Ctrl+N", "New graph"],
+		["Ctrl+O", "Open graph"],
+		["Ctrl+S", "Save (+ Update if linked)"],
+		["Ctrl+Shift+S", "Save As"],
+		["Ctrl+U", "Reload Nyx"],
+		["?", "Toggle this chart"],
+	]
+	for e in entries:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var key_lbl := Label.new()
+		key_lbl.text = e[0]
+		key_lbl.custom_minimum_size.x = 150
+		key_lbl.add_theme_font_size_override("font_size", 11)
+		key_lbl.add_theme_color_override("font_color", Color(0.85, 0.9, 0.88))
+		var desc_lbl := Label.new()
+		desc_lbl.text = e[1]
+		desc_lbl.add_theme_font_size_override("font_size", 11)
+		desc_lbl.add_theme_color_override("font_color", Color(0.55, 0.58, 0.62))
+		row.add_child(key_lbl)
+		row.add_child(desc_lbl)
+		vbox.add_child(row)
+
+	return panel
+
+
 func _on_preview_header_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		_preview_dragging = event.pressed
 	elif event is InputEventMouseMotion and _preview_dragging:
 		_preview_panel.position += event.relative
+		_preview_right_offset = _graph_container.size.x - _preview_panel.position.x - _preview_panel.size.x
+		_preview_top_offset = _preview_panel.position.y
 
 
 func _on_preview_resize_input(event: InputEvent) -> void:
@@ -1785,26 +1943,132 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 	_request_compile()
 
 
+# True when the mouse is over any node (body or its port dots). GraphEdit's gui_input
+# fires for presses over nodes too — it manages node drag/connection centrally — so we
+# must NOT pan there or we'd steal the press from node-dragging. The rect is grown to
+# cover the port dots that overhang the node edge (the connection grab zone).
+func _is_mouse_over_node() -> bool:
+	var m := get_global_mouse_position()
+	for child in _graph.get_children():
+		if child is GraphNode and (child as GraphNode).get_global_rect().grow(12.0).has_point(m):
+			return true
+	return false
+
+
+func _deselect_all_nodes() -> void:
+	for child in _graph.get_children():
+		if child is GraphNode:
+			child.selected = false
+
+
+func _shortcut_input(event: InputEvent) -> void:
+	if not is_visible_in_tree():
+		return
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+	var ctrl: bool = event.ctrl_pressed
+	var shift: bool = event.shift_pressed
+	if not ctrl:
+		return
+	match event.keycode:
+		KEY_U:
+			if not shift:
+				emit_signal("reload_requested")
+				accept_event()
+		KEY_N:
+			if not shift:
+				_on_new_pressed()
+				accept_event()
+		KEY_S:
+			if shift:
+				_popup_save_dialog()
+			else:
+				_on_save_pressed()
+				if not _linked_shader_path.is_empty():
+					_do_update()
+			accept_event()
+		KEY_O:
+			if not shift:
+				_load_dialog.popup_centered_ratio(0.5)
+				accept_event()
+
+
 func _on_graph_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			_spawn_position = event.position / _graph.zoom + _graph.scroll_offset
 			_open_search_popup()
-	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_X:
+		elif event.button_index == MOUSE_BUTTON_LEFT:
+			# Plain left-drag on EMPTY canvas pans. Over a node (body or dots) we do nothing
+			# so GraphEdit's own node-drag / connection-drag runs. Shift also defers (native
+			# box-select). The whole pan lifecycle lives here: GraphEdit captures mouse focus
+			# on the press, so the drag motion and release come back even over nodes.
+			if event.pressed:
+				if not event.shift_pressed and not _is_mouse_over_node():
+					_panning = true
+					_pan_moved = false
+					accept_event()
+			else:
+				if _panning:
+					_panning = false
+					# A clean click on empty canvas (no drag) deselects all nodes — the
+					# pan intercept means GraphEdit never gets to do this itself.
+					if not _pan_moved:
+						_deselect_all_nodes()
+					accept_event()
+	elif event is InputEventMouseMotion and _panning:
+		_pan_moved = true
+		_graph.scroll_offset -= event.relative / _graph.zoom
+		accept_event()
+
+
+# Bare graph shortcuts (A / R / X / ?). Handled here rather than in the graph's gui_input
+# so they fire without first clicking to focus GraphEdit — _unhandled_key_input runs for
+# any key the focused control didn't consume. Gated on the cursor being over the graph
+# (so they don't fire while editing elsewhere) and Ctrl/Cmd-free (those belong to
+# _shortcut_input). A focused field consumes its own keys, so typing is unaffected.
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not is_visible_in_tree():
+		return
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+	if event.ctrl_pressed or event.meta_pressed:
+		return
+	if _search_overlay and _search_overlay.visible:
+		return
+	if not _graph.get_global_rect().has_point(get_global_mouse_position()):
+		return
+	if event.keycode == KEY_SLASH and event.shift_pressed:
+		_toggle_shortcuts_overlay()
+		accept_event()
+		return
+	match event.keycode:
+		KEY_X:
 			var selected: Array[StringName] = []
 			for child in _graph.get_children():
 				if child is GraphNode and child.selected:
 					selected.append(child.name)
 			if not selected.is_empty():
 				_on_delete_nodes_request(selected)
-		elif event.keycode == KEY_R:
+				accept_event()
+		KEY_R:
 			_push_undo_state()
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
 			_add_node(RerouteNode.new(), _spawn_position, "Reroute")
-		elif event.keycode == KEY_A:
+			accept_event()
+		KEY_A:
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
 			_open_search_popup()
+			accept_event()
+
+
+func _toggle_shortcuts_overlay() -> void:
+	_shortcuts_overlay.visible = not _shortcuts_overlay.visible
+	if _shortcuts_overlay.visible:
+		_shortcuts_overlay.move_to_front()
+		_shortcuts_overlay.reset_size()
+		var sz := _shortcuts_overlay.get_combined_minimum_size()
+		_shortcuts_overlay.position = ((_graph_container.size - sz) * 0.5).max(Vector2.ZERO)
 
 
 func _on_context_menu_selected(id: int) -> void:
@@ -2178,26 +2442,50 @@ func _do_load(path: String) -> void:
 # --- Node search popup ---
 
 func _build_search_popup() -> void:
-	# --- Search popup (compact) ---
-	_search_popup = PopupPanel.new()
-	_search_popup.min_size = Vector2i(260, 360)
-	_search_popup.transparent = true
+	# Rendered as plain Control overlays in the main viewport (NOT a popup window) so the
+	# live graph shows through everywhere the cards don't draw — the gap between the search
+	# and doc cards is genuinely the graph below. An embedded popup window can't do this
+	# (no per-pixel transparency → opaque gap).
+	#
+	# Structure: an IGNORE overlay container holding [backdrop, cards]. The backdrop is a
+	# full-rect STOP control (child 0) whose only job is to dismiss on a press in the empty
+	# surround. The cards (child 1) render on top, so a click on the search list reaches the
+	# list first and the backdrop only catches clicks that miss the cards. There is no global
+	# _input handler — panning lives entirely in the graph's gui_input.
+	_search_overlay = Control.new()
+	_search_overlay.visible = false
+	_search_overlay.position = Vector2.ZERO
+	_search_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.14, 0.14, 0.18)
-	panel_style.border_color = Color(0.28, 0.28, 0.38)
-	panel_style.set_border_width_all(1)
-	panel_style.set_corner_radius_all(8)
-	_search_popup.add_theme_stylebox_override("panel", panel_style)
+	var backdrop := Control.new()
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	backdrop.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed:
+			_close_search())
+	_search_overlay.add_child(backdrop)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
+	# HBox: [search card | doc card (hidden until hover)]. No background — the gap and
+	# surround show the graph through.
+	var hbox := HBoxContainer.new()
+	_search_cards = hbox
+	hbox.add_theme_constant_override("separation", 10)
+
+	# --- Search card ---
+	var card_style := StyleBoxFlat.new()
+	card_style.bg_color = Color(0.14, 0.14, 0.18)
+	card_style.border_color = Color(0.28, 0.28, 0.38)
+	card_style.set_border_width_all(1)
+	card_style.set_corner_radius_all(8)
+	card_style.set_content_margin_all(8)
+
+	var search_card := PanelContainer.new()
+	search_card.custom_minimum_size = Vector2(260, 360)
+	search_card.add_theme_stylebox_override("panel", card_style)
 
 	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 6)
 
 	_search_input = LineEdit.new()
@@ -2239,56 +2527,44 @@ func _build_search_popup() -> void:
 	list_bg.set_border_width_all(0)
 	_search_list.add_theme_stylebox_override("panel", list_bg)
 
-	var selected_style := StyleBoxFlat.new()
-	selected_style.bg_color = Color(0.15, 0.61, 0.36)
-	selected_style.set_corner_radius_all(3)
-	selected_style.content_margin_left = 4
-	selected_style.content_margin_right = 4
-	_search_list.add_theme_stylebox_override("selected", selected_style)
-	_search_list.add_theme_stylebox_override("selected_focus", selected_style)
-
-	var hover_style := StyleBoxFlat.new()
-	hover_style.bg_color = Color(0.15, 0.61, 0.36, 0.25)
-	hover_style.set_corner_radius_all(3)
-	hover_style.content_margin_left = 4
-	hover_style.content_margin_right = 4
-	_search_list.add_theme_stylebox_override("hovered", hover_style)
+	# Hovering an item auto-selects it (see _on_search_list_hover), so the visible
+	# style for a hovered row is actually "hovered_selected" — all selection/hover
+	# states must be overridden to Hunter green or the editor's muddy default bleeds
+	# through. One shared green stylebox covers every highlighted state.
+	var highlight := StyleBoxFlat.new()
+	highlight.bg_color = Color("#31614F")
+	highlight.set_corner_radius_all(3)
+	highlight.content_margin_left = 4
+	highlight.content_margin_right = 4
+	for state in ["selected", "selected_focus", "hovered", "hovered_selected", "hovered_selected_focus"]:
+		_search_list.add_theme_stylebox_override(state, highlight)
 
 	_search_list.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
 	_search_list.add_theme_color_override("font_selected_color", Color.WHITE)
+	_search_list.add_theme_color_override("font_hovered_color", Color.WHITE)
 	_search_list.add_theme_color_override("font_disabled_color", Color(0.45, 0.45, 0.55))
 
 	_search_list.item_selected.connect(_on_search_item_selected_by_mouse)
 	_search_list.gui_input.connect(_on_search_list_hover)
 	vbox.add_child(_search_list)
 
-	margin.add_child(vbox)
-	_search_popup.add_child(margin)
-	_search_popup.popup_hide.connect(func():
-		_doc_popup.hide()
-		_doc_hover_timer.stop()
-	)
-	add_child(_search_popup)
+	search_card.add_child(vbox)
+	hbox.add_child(search_card)
 
-	_doc_hover_timer = Timer.new()
-	_doc_hover_timer.one_shot = true
-	_doc_hover_timer.wait_time = 0.4
-	_doc_hover_timer.timeout.connect(_on_doc_hover_timeout)
-	add_child(_doc_hover_timer)
-
-	# --- Doc popup (floats alongside, child of search popup so it doesn't close it) ---
-	_doc_popup = PopupPanel.new()
-	_doc_popup.min_size = Vector2i(260, 0)
-	_doc_popup.transparent = true
-	_doc_popup.unfocusable = true
-	_doc_popup.visible = false
+	# Doc panel — plain PanelContainer, not a Popup. Sits beside the search list in
+	# the same window so it never participates in the popup stack and never eats clicks.
+	_doc_panel = PanelContainer.new()
+	_doc_panel.custom_minimum_size = Vector2(260, 0)
+	_doc_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_doc_panel.visible = false
+	_doc_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var doc_panel_style := StyleBoxFlat.new()
 	doc_panel_style.bg_color = Color(0.14, 0.14, 0.18)
 	doc_panel_style.border_color = Color(0.28, 0.28, 0.38)
 	doc_panel_style.set_border_width_all(1)
 	doc_panel_style.set_corner_radius_all(8)
-	_doc_popup.add_theme_stylebox_override("panel", doc_panel_style)
+	_doc_panel.add_theme_stylebox_override("panel", doc_panel_style)
 
 	var doc_margin := MarginContainer.new()
 	doc_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -2310,17 +2586,40 @@ func _build_search_popup() -> void:
 	_doc_label.add_theme_stylebox_override("normal", doc_bg)
 
 	doc_margin.add_child(_doc_label)
-	_doc_popup.add_child(doc_margin)
-	_search_popup.add_child(_doc_popup)
+	_doc_panel.add_child(doc_margin)
+	hbox.add_child(_doc_panel)
+
+	_search_overlay.add_child(hbox)
+	add_child(_search_overlay)
+
+	_doc_hover_timer = Timer.new()
+	_doc_hover_timer.one_shot = true
+	_doc_hover_timer.wait_time = 0.4
+	_doc_hover_timer.timeout.connect(_on_doc_hover_timeout)
+	add_child(_doc_hover_timer)
 
 
 func _open_search_popup() -> void:
 	_search_input.text = ""
 	_populate_search_grouped()
 	_doc_label.clear()
-	_doc_popup.hide()
-	_search_popup.popup(Rect2(get_global_mouse_position(), Vector2(260, 360)))
+	_doc_panel.hide()
+	# Cover the whole graph area so the catcher can dismiss on any outside click.
+	_search_overlay.size = _graph_container.size
+	_search_overlay.visible = true
+	_search_overlay.move_to_front()
+	_search_cards.reset_size()
+	# Anchor the cards at the cursor, clamped so they stay on-screen.
+	var local_mouse := _graph_container.get_local_mouse_position()
+	var max_pos := _graph_container.size - _search_cards.size
+	_search_cards.position = local_mouse.clamp(Vector2.ZERO, max_pos.max(Vector2.ZERO))
 	_search_input.call_deferred("grab_focus")
+
+
+func _close_search() -> void:
+	_search_overlay.visible = false
+	_doc_panel.hide()
+	_doc_hover_timer.stop()
 
 
 func _is_node_unavailable(entry: Dictionary) -> bool:
@@ -2402,7 +2701,7 @@ func _confirm_search_selection() -> void:
 	var id: int = _search_item_ids[sel[0]]
 	if id < 0:
 		return
-	_search_popup.hide()
+	_close_search()
 	_push_undo_state()
 	_on_context_menu_selected(id)
 
@@ -2428,7 +2727,7 @@ func _on_search_input_key(event: InputEvent) -> void:
 			_confirm_search_selection()
 			_search_input.accept_event()
 		KEY_ESCAPE:
-			_search_popup.hide()
+			_close_search()
 			_search_input.accept_event()
 
 
@@ -2447,14 +2746,14 @@ func _on_search_list_hover(event: InputEvent) -> void:
 		if idx >= 0 and not _search_list.is_item_disabled(idx):
 			var id: int = _search_item_ids[idx]
 			if id >= 0:
-				_search_popup.hide()
+				_close_search()
 				_push_undo_state()
 				_on_context_menu_selected(id)
 				get_viewport().set_input_as_handled()
 
 
 func _show_doc_for(id: int) -> void:
-	if _doc_popup.visible:
+	if _doc_panel.visible:
 		_update_doc_panel(id)
 	else:
 		_doc_pending_id = id
@@ -2487,11 +2786,15 @@ func _get_node_entry(id: int) -> Dictionary:
 func _update_doc_panel(id: int) -> void:
 	_doc_label.clear()
 	if id < 0:
-		_doc_popup.hide()
+		if _doc_panel.visible:
+			_doc_panel.hide()
+			_search_cards.reset_size()
 		return
 	var entry := _get_node_entry(id)
 	if entry.is_empty():
-		_doc_popup.hide()
+		if _doc_panel.visible:
+			_doc_panel.hide()
+			_search_cards.reset_size()
 		return
 
 	_doc_label.append_text("[b]" + entry["label"] + "[/b]\n")
@@ -2508,11 +2811,10 @@ func _update_doc_panel(id: int) -> void:
 		for use in entry["uses"]:
 			_doc_label.append_text("  • " + use + "\n")
 
-	var h := _estimate_doc_height(entry)
-	var x := _search_popup.position.x + _search_popup.size.x + 10
-	var y := _search_popup.position.y
-	_doc_popup.position = Vector2i(x, y)
-	_doc_popup.size = Vector2i(260, h)
-	if not _doc_popup.visible:
-		_doc_popup.show()
+	if not _doc_panel.visible:
+		_doc_panel.show()
+		_search_cards.reset_size()
+		# Keep the widened cards on-screen (doc opens to the right).
+		var max_x := _graph_container.size.x - _search_cards.size.x
+		_search_cards.position.x = minf(_search_cards.position.x, maxf(max_x, 0.0))
 	_search_input.grab_focus()
