@@ -524,6 +524,7 @@ var _preview_dragging: bool = false
 var _preview_resizing: bool = false
 var _panning: bool = false
 var _pan_moved: bool = false  # did the cursor move during the current empty-canvas drag?
+var _clipboard: Dictionary = {}  # {nodes, connections} from the last copy
 var _preview_right_offset: float = 20.0
 var _preview_top_offset: float = -1.0  # -1 = not yet placed
 var _preview_positioned: bool = false
@@ -598,6 +599,13 @@ func _ready() -> void:
 	_graph.connection_request.connect(_on_connection_request)
 	_graph.disconnection_request.connect(_on_disconnection_request)
 	_graph.delete_nodes_request.connect(_on_delete_nodes_request)
+	# GraphEdit owns Ctrl+C/V/D when focused (it intercepts them in its own gui_input and
+	# emits these signals), so handling them in _shortcut_input never fires. Wire the
+	# signals instead — a focused text field consumes the keys first, so node copy/paste
+	# only triggers when the graph itself has focus. No manual text-field guard needed.
+	_graph.copy_nodes_request.connect(_copy_selected_nodes)
+	_graph.paste_nodes_request.connect(_paste_clipboard)
+	_graph.duplicate_nodes_request.connect(_duplicate_selected_nodes)
 	_graph.gui_input.connect(_on_graph_gui_input)
 	# Type IDs: 0 = vec3, 1 = float, 2 = vec2, 3 = vec4.
 	# Same-type connections:
@@ -1769,6 +1777,9 @@ func _build_shortcuts_overlay() -> PanelContainer:
 		["Right-click / A", "Add node"],
 		["X", "Delete selected"],
 		["R", "Add Reroute"],
+		["Ctrl+C", "Copy selected"],
+		["Ctrl+V", "Paste"],
+		["Ctrl+D", "Duplicate selected"],
 		["Left-drag", "Pan canvas"],
 		["Shift+Left-drag", "Box select"],
 		["Ctrl+N", "New graph"],
@@ -1874,6 +1885,118 @@ func _on_delete_nodes_request(nodes: Array[StringName]) -> void:
 	_request_compile()
 
 
+# --- Copy / paste / duplicate ---
+
+# The singleton sink nodes (Output / particle Start+Process) are fixed-name and must
+# never be copied or duplicated.
+func _is_sink_node(node: Node) -> bool:
+	var n := str(node.name)
+	return n == "OutputNode" or n == "ParticleStartNode" or n == "ParticleProcessNode"
+
+
+# Serialize the currently-selected (non-sink) nodes plus the connections wholly between
+# them, into a {nodes, connections} buffer — the shared payload for copy and duplicate.
+func _serialize_selected_nodes() -> Dictionary:
+	var selected := {}
+	var nodes := []
+	for child in _graph.get_children():
+		if not child is GraphNode or not child.selected or _is_sink_node(child):
+			continue
+		var type := _get_node_type(child)
+		if type == "":
+			continue
+		selected[str(child.name)] = true
+		nodes.append({
+			"type": type,
+			"name": str(child.name),
+			"position": [child.position_offset.x, child.position_offset.y],
+			"state": child.get_state(),
+		})
+	var connections := []
+	for conn in _graph.get_connection_list():
+		if selected.has(str(conn["from_node"])) and selected.has(str(conn["to_node"])):
+			connections.append({
+				"from_node": str(conn["from_node"]),
+				"from_port": conn["from_port"],
+				"to_node": str(conn["to_node"]),
+				"to_port": conn["to_port"],
+			})
+	return {"nodes": nodes, "connections": connections}
+
+
+# Recreate a {nodes, connections} buffer into the graph, offset from the originals, and
+# leave the new nodes selected (so they can be dragged immediately). Used by paste and
+# duplicate; new names auto-uniquify on add_child, captured into name_map for the conns.
+func _paste_buffer(buf: Dictionary, offset: Vector2 = Vector2(30, 30)) -> void:
+	# NOTE: paste does NOT gate on shader mode. The clipboard is per-session and persists
+	# across load/new, so you can paste a node that's invalid for the current mode (e.g. a
+	# spatial Fresnel into a particle graph). This can't crash — it's a soft failure: an
+	# off-mode node only produces bad GLSL if it's actually wired into the output chain
+	# (the compiler walks from the sink), and that's recoverable by deleting it. A precise
+	# gate would need a parallel type→mode-flags table (the registry is keyed by id, not
+	# type), which we deliberately avoid. Same non-enforcement already exists for load.
+	var src: Array = buf.get("nodes", [])
+	if src.is_empty():
+		return
+	_push_undo_state()
+	_deselect_all_nodes()
+	var name_map := {}
+	var new_nodes: Array[Node] = []
+	for nd in src:
+		var type: String = nd["type"]
+		if not NODE_CLASSES.has(type):
+			continue
+		var node = NODE_CLASSES[type].new()
+		var pos: Array = nd["position"]
+		var base: String = nd["name"]
+		if base.begins_with("@"):
+			base = type.trim_suffix("Node")
+		_add_node(node, Vector2(pos[0], pos[1]) + offset, base)
+		name_map[nd["name"]] = str(node.name)
+		var state: Dictionary = nd.get("state", {})
+		if not state.is_empty():
+			node.set_state(state)
+		new_nodes.append(node)
+	for conn in buf.get("connections", []):
+		var from = name_map.get(conn["from_node"])
+		var to = name_map.get(conn["to_node"])
+		if from != null and to != null:
+			_graph.connect_node(from, conn["from_port"], to, conn["to_port"])
+	for node in new_nodes:
+		node.selected = true
+	_update_all_polymorphic_ports()
+	_request_compile()
+	_mark_dirty()
+
+
+func _copy_selected_nodes() -> void:
+	var buf := _serialize_selected_nodes()
+	if not (buf["nodes"] as Array).is_empty():
+		_clipboard = buf
+
+
+func _paste_clipboard() -> void:
+	# Paste anchors the copied group's top-left at the mouse cursor (in graph space), so it
+	# lands where you're pointing rather than back at the originals' (maybe scrolled-away)
+	# location. Relative layout between the pasted nodes is preserved.
+	var src: Array = _clipboard.get("nodes", [])
+	if src.is_empty():
+		return
+	var min_pos := Vector2(INF, INF)
+	for nd in src:
+		var p: Array = nd["position"]
+		min_pos = min_pos.min(Vector2(p[0], p[1]))
+	var mouse_graph := _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
+	_paste_buffer(_clipboard, mouse_graph - min_pos)
+
+
+func _duplicate_selected_nodes() -> void:
+	# Duplicate stays a small offset from the originals (the cursor is usually right on the
+	# node you just selected, so cursor-anchoring would stack the copy on top). Uses its own
+	# buffer so it never clobbers the copy/paste clipboard.
+	_paste_buffer(_serialize_selected_nodes())
+
+
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
 	var from := _graph.get_node_or_null(str(from_node))
 	var to := _graph.get_node_or_null(str(to_node))
@@ -1970,6 +2093,8 @@ func _shortcut_input(event: InputEvent) -> void:
 	var shift: bool = event.shift_pressed
 	if not ctrl:
 		return
+	# NB: Ctrl+C/V/D are NOT here — GraphEdit consumes them when focused, so they're wired
+	# via its copy_nodes_request / paste_nodes_request / duplicate_nodes_request signals.
 	match event.keycode:
 		KEY_U:
 			if not shift:
