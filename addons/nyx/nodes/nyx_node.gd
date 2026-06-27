@@ -6,6 +6,7 @@ signal edit_started
 signal preview_toggled
 
 var _node_color: Color = Color("#2E8266")
+var _category: String = ""
 var _preview_open: bool = false
 var _preview_slot: TextureRect
 var _preview_wrapper: Panel

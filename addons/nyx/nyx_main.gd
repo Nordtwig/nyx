@@ -504,8 +504,39 @@ const NODE_CLASSES := {
 	"ParticleIndexNode": ParticleIndexNode,
 }
 
+const _TYPE_CATEGORY := {
+	"ColorNode": "Inputs",    "FloatNode": "Inputs",     "Vector3Node": "Inputs",
+	"UVNode": "Inputs",       "VertexNode": "Inputs",    "TimeNode": "Inputs",
+	"FresnelNode": "Inputs",
+	"AddNode": "Math",        "SubtractNode": "Math",    "MultiplyNode": "Math",
+	"DivideNode": "Math",     "MixNode": "Math",         "ClampNode": "Math",
+	"PowerNode": "Math",      "MinMaxNode": "Math",      "ModNode": "Math",
+	"AbsNode": "Math",        "CeilNode": "Math",        "FloorNode": "Math",
+	"FractNode": "Math",      "NegateNode": "Math",      "OneMinusNode": "Math",
+	"RoundNode": "Math",      "SqrtNode": "Math",        "SinNode": "Math",
+	"CosNode": "Math",        "StepNode": "Math",        "SmoothstepNode": "Math",
+	"NormalizeNode": "Vector", "LengthNode": "Vector",   "DotNode": "Vector",
+	"SplitNode": "Vector",    "CombineNode": "Vector",   "ScaleNode": "Vector",
+	"NoiseNode": "Noise",     "FBMNode": "Noise",
+	"TextureSampleNode": "Texture", "NormalMapNode": "Texture",
+	"GradientNode": "Texture", "CurveNode": "Texture",
+	"TilingOffsetNode": "UV", "RotateUVNode": "UV",      "WarpNode": "UV",
+	"NormalFromHeightNode": "UV", "BlendNormalsNode": "UV",
+	"ScreenUVNode": "Screen", "ScreenTextureNode": "Screen", "DepthFadeNode": "Screen",
+	"SpriteTextureNode": "Canvas", "VertexColorNode": "Canvas",
+	"TexturePixelSizeNode": "Canvas",
+	"ParticleStartNode": "Particles",   "ParticleProcessNode": "Particles",
+	"ParticleAgeNode": "Particles",     "ParticleVelocityNode": "Particles",
+	"ParticlePositionNode": "Particles","ParticleDeltaNode": "Particles",
+	"ParticleRandomNode": "Particles",  "ParticleIndexNode": "Particles",
+	"RerouteNode": "Organisation",      "RelayNode": "Organisation",
+	"PreviewRelayNode": "Organisation",
+	"CustomGLSLNode": "Advanced",
+}
+
 signal reload_requested
 
+var _category_icons: Dictionary = {}
 var _graph_container: VBoxContainer
 var _graph: GraphEdit
 var _shader_type: int = 0
@@ -631,6 +662,7 @@ func _ready() -> void:
 	_graph_container.add_child(_graph)
 	add_child(_graph_container)
 
+	_load_category_icons()
 	_build_search_popup()
 
 	_export_dialog = EditorFileDialog.new()
@@ -878,6 +910,7 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	var type_name := _get_node_type(node)
 	if _TYPE_COLORS.has(type_name):
 		node._node_color = _TYPE_COLORS[type_name]
+	node._category = _TYPE_CATEGORY.get(type_name, "")
 	node.position_offset = offset
 	_graph.add_child(node)
 	if node.has_signal("value_changed"):
@@ -2291,6 +2324,32 @@ func _style_toolbar_button(b: Button) -> void:
 	b.add_theme_stylebox_override("focus", _make_toolbar_btn_style(0))
 
 
+func _load_category_icons() -> void:
+	for category in _NODE_REGISTRY:
+		var cat_name: String = category["category"]
+		if _category_icons.has(cat_name):
+			continue
+		var path := "res://addons/nyx/icons/categories/%s.svg" % cat_name.to_lower()
+		if not ResourceLoader.exists(path):
+			continue
+		var tex := load(path) as Texture2D
+		if not tex:
+			continue
+		var img := tex.get_image()
+		if not img:
+			continue
+		img.resize(14, 14, Image.INTERPOLATE_LANCZOS)
+		for y in img.get_height():
+			for x in img.get_width():
+				var px := img.get_pixel(x, y)
+				if px.a > 0.0:
+					img.set_pixel(x, y, Color(1.0, 1.0, 1.0, px.a))
+		# Add 2 transparent rows at bottom — shifts visual content up when ItemList centers the icon.
+		var padded := Image.create(14, 20, false, Image.FORMAT_RGBA8)
+		padded.blit_rect(img, Rect2i(0, 0, 14, 14), Vector2i(0, 2))
+		_category_icons[cat_name] = ImageTexture.create_from_image(padded)
+
+
 func _style_graph_toolbar() -> void:
 	for child in _graph.get_menu_hbox().get_children():
 		if child is Button:
@@ -2755,6 +2814,7 @@ func _build_search_popup() -> void:
 
 	_search_list = ItemList.new()
 	_search_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_search_list.add_theme_constant_override("icon_max_width", 12)
 
 	var list_bg := StyleBoxFlat.new()
 	list_bg.bg_color = Color(0.0, 0.0, 0.0, 0.0)
@@ -2780,7 +2840,7 @@ func _build_search_popup() -> void:
 	_search_list.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
 	_search_list.add_theme_color_override("font_selected_color", Color.WHITE)
 	_search_list.add_theme_color_override("font_hovered_color", Color.WHITE)
-	_search_list.add_theme_color_override("font_disabled_color", Color(0.45, 0.45, 0.55))
+	_search_list.add_theme_color_override("font_disabled_color", Color("#6BCF96"))
 
 	_search_list.item_selected.connect(_on_search_item_selected_by_mouse)
 	_search_list.gui_input.connect(_on_search_list_hover)
@@ -2885,9 +2945,14 @@ func _populate_search_grouped() -> void:
 	_search_list.clear()
 	_search_item_ids.clear()
 	for category in _NODE_REGISTRY:
+		var cat_name: String = category["category"]
 		var header_idx: int = _search_list.add_item(category["category"])
 		_search_list.set_item_disabled(header_idx, true)
 		_search_item_ids.append(-1)
+		_search_list.set_item_custom_fg_color(header_idx, Color("#6BCF96"))
+		if _category_icons.has(cat_name):
+			_search_list.set_item_icon(header_idx, _category_icons[cat_name])
+			_search_list.set_item_icon_modulate(header_idx, Color("#6BCF96"))
 		for entry in category["nodes"]:
 			var item_idx := _search_list.add_item("  " + entry["label"])
 			_search_item_ids.append(entry["id"])
@@ -2901,6 +2966,7 @@ func _populate_search_filtered(query: String) -> void:
 	_search_item_ids.clear()
 	for category in _NODE_REGISTRY:
 		var category_matches := _fuzzy_match(query, category["category"])
+		var cat_name: String = category["category"]
 		for entry in category["nodes"]:
 			if category_matches or _fuzzy_match(query, entry["label"]):
 				var item_idx := _search_list.add_item(entry["label"])
