@@ -542,7 +542,7 @@ var _graph: GraphEdit
 var _shader_type: int = 0
 var _type_btn: Button
 var _type_popup: PopupMenu
-var _mesh_row: HBoxContainer
+var _mesh_row: Control
 var _vpc_3d: SubViewportContainer
 var _vpc_2d: SubViewportContainer
 var _viewport_2d: SubViewport
@@ -768,51 +768,78 @@ func _build_preview_panel() -> Panel:
 	vbox.add_child(header)
 
 	var title := Label.new()
+	var _header_pad := Control.new()
+	_header_pad.custom_minimum_size = Vector2(2, 0)
+	_header_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(_header_pad)
 	title.text = "Preview"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 
-	_export_btn = Button.new()
-	_export_btn.text = "Export…"
-	_export_btn.pressed.connect(_on_export_pressed)
-	header.add_child(_export_btn)
-
-	_export_menu = MenuButton.new()
-	_export_menu.flat = false
-	_export_menu.text = "▾"
-	var pm := _export_menu.get_popup()
-	pm.add_item("Export new material", 0)
-	pm.add_item("Export shader only", 1)
-	pm.add_separator()
-	pm.add_item("Export as… (re-link)", 2)
-	pm.add_item("Unlink", 3)
-	pm.id_pressed.connect(_on_export_menu_id)
-	header.add_child(_export_menu)
-
-	_live_btn = CheckButton.new()
-	_live_btn.text = "Live"
-	_live_btn.tooltip_text = "Live link: push shader changes into the linked artifact in the scene in real time (in-memory, no save)."
-	_live_btn.toggled.connect(_on_live_toggled)
-	header.add_child(_live_btn)
-
 	var toggle := Button.new()
 	toggle.text = "×"
+	toggle.focus_mode = Control.FOCUS_NONE
+	toggle.add_theme_font_size_override("font_size", 16)
+	toggle.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
+	toggle.add_theme_color_override("font_hover_color", Color("#4AAF78"))
+	var _t_empty := StyleBoxEmpty.new()
+	toggle.add_theme_stylebox_override("normal", _t_empty)
+	toggle.add_theme_stylebox_override("hover", _t_empty)
+	toggle.add_theme_stylebox_override("pressed", _t_empty)
+	toggle.add_theme_stylebox_override("focus", _t_empty)
 	toggle.pressed.connect(_toggle_preview)
 	header.add_child(toggle)
+	var _close_pad := Control.new()
+	_close_pad.custom_minimum_size = Vector2(2, 0)
+	_close_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(_close_pad)
 
-	var mesh_row := HBoxContainer.new()
-	mesh_row.add_theme_constant_override("separation", 2)
-	vbox.add_child(mesh_row)
-	_mesh_row = mesh_row
+	# Floating mesh-switcher icon stack — anchored to the bottom-right of the panel.
+	var mesh_stack := VBoxContainer.new()
+	mesh_stack.add_theme_constant_override("separation", 2)
+	mesh_stack.set_anchor(SIDE_RIGHT, 1.0)
+	mesh_stack.set_anchor(SIDE_BOTTOM, 1.0)
+	mesh_stack.set_anchor(SIDE_LEFT, 1.0)
+	mesh_stack.set_anchor(SIDE_TOP, 1.0)
+	mesh_stack.set_offset(SIDE_RIGHT, -8)
+	mesh_stack.set_offset(SIDE_BOTTOM, -4)
+	mesh_stack.set_offset(SIDE_LEFT, -32)
+	mesh_stack.set_offset(SIDE_TOP, -82)
+	mesh_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	floating.add_child(mesh_stack)
+	_mesh_row = mesh_stack
 
-	for pair in [["Sphere", SphereMesh.new(), Vector3.ZERO, 1.2], ["Plane", QuadMesh.new(), Vector3.ZERO, 1.2], ["Cube", BoxMesh.new(), Vector3(20, 40, 20), 1.8]]:
+	var icon_names := ["sphere", "plane", "cube"]
+	for pair in [["sphere", SphereMesh.new(), Vector3.ZERO, 1.2], ["plane", QuadMesh.new(), Vector3.ZERO, 1.2], ["cube", BoxMesh.new(), Vector3(20, 40, 20), 1.8]]:
 		var btn := Button.new()
-		btn.text = pair[0]
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(24, 24)
 		btn.toggle_mode = true
-		btn.button_pressed = pair[0] == "Sphere"
+		btn.button_pressed = pair[0] == "sphere"
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.mouse_filter = Control.MOUSE_FILTER_STOP
+		var icon_path := "res://addons/nyx/icons/preview/%s.svg" % pair[0]
+		if ResourceLoader.exists(icon_path):
+			var tex := load(icon_path) as Texture2D
+			if tex:
+				var img := tex.get_image()
+				img.resize(16, 16, Image.INTERPOLATE_LANCZOS)
+				for y in img.get_height():
+					for x in img.get_width():
+						var px := img.get_pixel(x, y)
+						if px.a > 0.0:
+							img.set_pixel(x, y, Color(1.0, 1.0, 1.0, px.a))
+				btn.icon = ImageTexture.create_from_image(img)
+		btn.add_theme_color_override("icon_normal_color", Color(0.55, 0.55, 0.65))
+		btn.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
+		btn.add_theme_color_override("icon_hover_color", Color(0.9, 0.9, 0.95))
+		btn.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
+		var _s := StyleBoxEmpty.new()
+		btn.add_theme_stylebox_override("normal", _s)
+		btn.add_theme_stylebox_override("hover", _s)
+		btn.add_theme_stylebox_override("pressed", _s)
+		btn.add_theme_stylebox_override("focus", _s)
 		btn.pressed.connect(_on_mesh_btn_pressed.bind(btn, pair[1], pair[2], pair[3]))
-		mesh_row.add_child(btn)
+		mesh_stack.add_child(btn)
 		_preview_mesh_buttons.append(btn)
 
 	var vpc := SubViewportContainer.new()
@@ -2439,10 +2466,46 @@ func _build_graph_toolbar() -> PanelContainer:
 	_style_toolbar_button(_type_btn)
 	toolbar.add_child(_type_btn)
 
-	# Spacer pushes the shortcuts button to the right edge of the toolbar.
+	# Spacer pushes export/live + shortcuts to the right edge of the toolbar.
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	toolbar.add_child(spacer)
+
+	var sep3 := VSeparator.new()
+	_style_toolbar_separator(sep3)
+	toolbar.add_child(sep3)
+
+	_export_btn = Button.new()
+	_export_btn.text = "Export…"
+	_export_btn.pressed.connect(_on_export_pressed)
+	_style_toolbar_button(_export_btn)
+	toolbar.add_child(_export_btn)
+
+	_export_menu = MenuButton.new()
+	_export_menu.flat = true
+	_export_menu.text = "▾"
+	_style_toolbar_button(_export_menu)
+	var pm := _export_menu.get_popup()
+	pm.add_item("Export new material", 0)
+	pm.add_item("Export shader only", 1)
+	pm.add_separator()
+	pm.add_item("Export as… (re-link)", 2)
+	pm.add_item("Unlink", 3)
+	pm.id_pressed.connect(_on_export_menu_id)
+	toolbar.add_child(_export_menu)
+
+	_live_btn = CheckButton.new()
+	_live_btn.text = "Live"
+	_live_btn.tooltip_text = "Push shader changes into the linked artifact in real time."
+	_live_btn.toggled.connect(_on_live_toggled)
+	_style_toolbar_button(_live_btn)
+	_live_btn.add_theme_color_override("font_pressed_color", Color("#4AAF78"))
+	_live_btn.add_theme_color_override("font_hover_color", Color.WHITE)
+	toolbar.add_child(_live_btn)
+
+	var sep4 := VSeparator.new()
+	_style_toolbar_separator(sep4)
+	toolbar.add_child(sep4)
 
 	var help_btn := Button.new()
 	help_btn.text = "?"
