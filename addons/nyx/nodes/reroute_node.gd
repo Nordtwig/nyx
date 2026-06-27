@@ -10,7 +10,7 @@ func _ready() -> void:
 	spacer.custom_minimum_size = Vector2(24, 0)
 	add_child(spacer)
 
-	var vec3_color := Color.WHITE
+	var vec3_color := _type_color(0)
 	set_slot(0, true, 0, vec3_color, true, 0, vec3_color)
 
 

@@ -10,7 +10,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Gradient"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	_gradient = Gradient.new()
 	_gradient_texture = GradientTexture1D.new()
@@ -38,7 +38,7 @@ func _ready() -> void:
 	_gradient_rect.gui_input.connect(_on_gradient_rect_input)
 	add_child(_gradient_rect)
 
-	set_slot(0, true, 1, float_color, true, 0, Color.WHITE)
+	set_slot(0, true, 1, float_color, true, 0, _type_color(0))
 
 
 func _on_gradient_rect_input(event: InputEvent) -> void:

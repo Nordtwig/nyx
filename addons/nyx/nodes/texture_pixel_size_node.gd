@@ -10,7 +10,7 @@ func _ready() -> void:
 	label.text = "Size"
 	add_child(label)
 
-	set_slot(0, false, -1, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, false, -1, _type_color(0), true, 0, _type_color(0))
 
 
 func _add_preview_controls() -> void:

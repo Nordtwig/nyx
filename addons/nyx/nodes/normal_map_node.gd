@@ -45,8 +45,8 @@ func _ready() -> void:
 	name_row.add_child(_name_edit)
 	add_child(name_row)
 
-	set_slot(0, true, 0, Color.WHITE, false, -1, Color.WHITE)
-	set_slot(1, false, -1, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, true, 0, _type_color(0), false, -1, _type_color(0))
+	set_slot(1, false, -1, _type_color(0), true, 0, _type_color(0))
 
 
 func _on_name_changed(new_name: String) -> void:

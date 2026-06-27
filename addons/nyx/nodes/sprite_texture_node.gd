@@ -14,8 +14,8 @@ func _ready() -> void:
 	color_label.text = "Color"
 	add_child(color_label)
 
-	set_slot(0, true, 0, Color.WHITE, false, -1, Color.WHITE)
-	set_slot(1, false, -1, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, true, 0, _type_color(0), false, -1, _type_color(0))
+	set_slot(1, false, -1, _type_color(0), true, 0, _type_color(0))
 
 
 func _add_preview_controls() -> void:

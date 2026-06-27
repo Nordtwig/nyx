@@ -10,7 +10,7 @@ func _ready() -> void:
 	out_lbl.text = "Screen UV"
 	add_child(out_lbl)
 
-	set_slot(0, false, -1, Color.WHITE, true, 2, Color("#A99BFF"))
+	set_slot(0, false, -1, _type_color(0), true, 2, _type_color(2))
 
 
 func _add_preview_controls() -> void:

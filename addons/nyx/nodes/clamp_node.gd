@@ -18,10 +18,10 @@ func _ready() -> void:
 	label_max.text = "Max"
 	add_child(label_max)
 
-	var float_color := Color(0.35, 0.9, 0.85)
-	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
-	set_slot(1, true, 1, float_color, false, -1, Color.WHITE)
-	set_slot(2, true, 1, float_color, false, -1, Color.WHITE)
+	var float_color := _type_color(1)
+	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
+	set_slot(1, true, 1, float_color, false, -1, _type_color(0))
+	set_slot(2, true, 1, float_color, false, -1, _type_color(0))
 
 
 func is_polymorphic() -> bool:

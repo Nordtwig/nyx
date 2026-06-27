@@ -6,7 +6,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Time"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	var label_time := Label.new()
 	label_time.text = "Time"
@@ -20,9 +20,9 @@ func _ready() -> void:
 	label_cos.text = "Cos"
 	add_child(label_cos)
 
-	set_slot(0, false, -1, Color.WHITE, true, 1, float_color)
-	set_slot(1, false, -1, Color.WHITE, true, 1, float_color)
-	set_slot(2, false, -1, Color.WHITE, true, 1, float_color)
+	set_slot(0, false, -1, _type_color(0), true, 1, float_color)
+	set_slot(1, false, -1, _type_color(0), true, 1, float_color)
+	set_slot(2, false, -1, _type_color(0), true, 1, float_color)
 
 
 func _add_preview_controls() -> void:

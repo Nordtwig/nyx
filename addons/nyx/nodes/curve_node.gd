@@ -12,7 +12,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Curve"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	_curve = Curve.new()
 	_curve.add_point(Vector2(0.0, 0.0))

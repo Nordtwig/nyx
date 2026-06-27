@@ -8,7 +8,7 @@ var _scale_slider: EditorSpinSlider
 func _ready() -> void:
 	super._ready()
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	var row0 := HBoxContainer.new()
 	var uv_lbl := Label.new()
@@ -31,7 +31,7 @@ func _ready() -> void:
 	_scale_slider.value_changed.connect(_on_scale_changed)
 	add_child(_scale_slider)
 
-	set_slot(0, true, 0, Color.WHITE, true, 1, float_color)
+	set_slot(0, true, 0, _type_color(0), true, 1, float_color)
 	set_slot(1, true, 1, float_color, false, -1, float_color)
 
 

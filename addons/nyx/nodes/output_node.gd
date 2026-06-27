@@ -20,8 +20,8 @@ func _add_preview_controls() -> void:
 func _ready() -> void:
 	super._ready()
 	title = "Output"
-	var vec3_color := Color.WHITE
-	var float_color := Color(0.35, 0.9, 0.85)
+	var vec3_color := _type_color(0)
+	var float_color := _type_color(1)
 
 	set_slot(0, true, 0, vec3_color, false, -1, vec3_color)
 	set_slot(1, true, 1, float_color, false, -1, float_color)
@@ -54,8 +54,8 @@ func _on_mode_selected(idx: int) -> void:
 func set_shader_type(type: int) -> void:
 	_shader_type = type
 	_mode = 0
-	var vec3_color := Color.WHITE
-	var float_color := Color(0.35, 0.9, 0.85)
+	var vec3_color := _type_color(0)
+	var float_color := _type_color(1)
 
 	if type == 0:
 		# Spatial

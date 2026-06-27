@@ -9,7 +9,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Fresnel"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	_slider = EditorSpinSlider.new()
 	_slider.label = "Power"

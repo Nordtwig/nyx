@@ -12,13 +12,56 @@ var _preview_wrapper: Panel
 var _preview_spacer: Control
 var _preview_chevron: Button
 var _body_style: StyleBoxFlat
+var _titlebar_style: StyleBoxFlat
+var _halo_style: StyleBoxFlat
 
 
 func _ready() -> void:
 	_apply_style()
+	_build_halo_style()
 	call_deferred("_add_preview_controls")
 	call_deferred("_apply_input_styles")
 	resized.connect(_update_body_for_preview)
+	if not is_connected("node_selected", Callable(self, "_on_selected")):
+		connect("node_selected", Callable(self, "_on_selected"))
+		connect("node_deselected", Callable(self, "_on_deselected"))
+
+
+# Selection halo — a rounded green outline drawn just OUTSIDE the node rect in
+# _draw() (see below), against the dark canvas. Unlike a stylebox border (which
+# always sits inside its box and would shift the visible body), this is a pure
+# overlay: no layout or body-region change, and it reads on any body color — the
+# Color node especially, where a body-edge border can blend into the picked hue.
+func _build_halo_style() -> void:
+	_halo_style = StyleBoxFlat.new()
+	_halo_style.draw_center = false
+	_halo_style.bg_color = Color(0, 0, 0, 0)
+	_halo_style.border_width_left = 1
+	_halo_style.border_width_right = 1
+	_halo_style.border_width_top = 1
+	_halo_style.border_width_bottom = 1
+	_halo_style.border_color = Color("#4AAF78")
+	# Wraps the whole node (titlebar + body); radii ~ node corners + the offset.
+	_halo_style.corner_radius_top_left = 7
+	_halo_style.corner_radius_top_right = 13
+	_halo_style.corner_radius_bottom_left = 13
+	_halo_style.corner_radius_bottom_right = 7
+
+
+func _draw() -> void:
+	if not (selected and _halo_style):
+		return
+	var e := 1.0
+	draw_style_box(_halo_style, Rect2(Vector2(-e, -e), size + Vector2(e * 2.0, e * 2.0)))
+	# The halo draws on top of GraphNode's content, so re-stamp the port dots over
+	# it — they overhang the node edge and the ring would otherwise cross them.
+	var tex := get_theme_icon("port")
+	if tex:
+		var half := tex.get_size() * 0.5
+		for i in range(get_input_port_count()):
+			draw_texture(tex, get_input_port_position(i) - half, get_input_port_color(i))
+		for i in range(get_output_port_count()):
+			draw_texture(tex, get_output_port_position(i) - half, get_output_port_color(i))
 
 
 func _add_preview_controls() -> void:
@@ -81,10 +124,6 @@ func _update_body_for_preview() -> void:
 		body.corner_radius_bottom_left = 12
 		body.corner_radius_bottom_right = 6
 
-	var body_sel := get_theme_stylebox("panel_selected") as StyleBoxFlat
-	if body_sel:
-		body_sel.expand_margin_bottom = -108 if _preview_open else 5
-
 
 func get_preview_slot() -> TextureRect:
 	return _preview_slot
@@ -108,6 +147,14 @@ func set_preview_chevron_visible(v: bool) -> void:
 		call_deferred("reset_size")
 
 
+static func _type_color(type: int) -> Color:
+	match type:
+		1: return Color("#4BB896")  # float — sage-teal
+		2: return Color("#5CC96A")  # vec2  — muted green
+		3: return Color("#C0E030")  # vec4  — earthy chartreuse
+	return Color("#90D640")         # vec3  — earthy lime
+
+
 func _apply_style() -> void:
 	var color := _node_color
 
@@ -121,6 +168,10 @@ func _apply_style() -> void:
 	_body_style.content_margin_left = 2
 	_body_style.content_margin_right = 2
 	_body_style.content_margin_bottom = 6
+	_body_style.border_width_left = 1
+	_body_style.border_width_right = 1
+	_body_style.border_width_bottom = 1
+	_body_style.border_color = Color("#1A1A26")
 	add_theme_stylebox_override("panel", _body_style)
 	add_theme_constant_override("separation", 4)
 
@@ -132,29 +183,57 @@ func _apply_style() -> void:
 	titlebar.corner_radius_bottom_right = 0
 	titlebar.content_margin_bottom = -1
 	titlebar.content_margin_left = 6
+	titlebar.border_width_top = 1
+	titlebar.border_width_left = 1
+	titlebar.border_width_right = 1
+	titlebar.border_color = Color("#1A1A26")
 	add_theme_stylebox_override("titlebar", titlebar)
+	_titlebar_style = titlebar
+	if not mouse_entered.is_connected(_on_hover_enter):
+		mouse_entered.connect(_on_hover_enter)
+		mouse_exited.connect(_on_hover_exit)
 
-	_apply_selection_style(_body_style, titlebar)
+	add_theme_stylebox_override("panel_selected", _body_style)
+	add_theme_stylebox_override("titlebar_selected", _titlebar_style)
 	add_theme_icon_override("port", _create_port_texture(10, 1))
 	call_deferred("_center_title")
 
 
 func _apply_selection_style(body: StyleBoxFlat, titlebar: StyleBoxFlat) -> void:
-	var sel := Color(1, 1, 1, 0.95)
+	_body_style = body
+	_titlebar_style = titlebar
+	add_theme_stylebox_override("panel_selected", body)
+	add_theme_stylebox_override("titlebar_selected", titlebar)
 
-	var body_sel := body.duplicate() as StyleBoxFlat
-	body_sel.border_width_left = 1
-	body_sel.border_width_right = 1
-	body_sel.border_width_bottom = 1
-	body_sel.border_color = sel
-	add_theme_stylebox_override("panel_selected", body_sel)
 
-	var title_sel := titlebar.duplicate() as StyleBoxFlat
-	title_sel.border_width_top = 1
-	title_sel.border_width_left = 1
-	title_sel.border_width_right = 1
-	title_sel.border_color = sel
-	add_theme_stylebox_override("titlebar_selected", title_sel)
+func _on_selected() -> void:
+	# Selection is shown by the halo (see _draw) — keep the body border neutral so
+	# we don't stack a second green ring. Reset off the hover-green from the click.
+	_body_style.border_color = Color("#1A1A26")
+	_titlebar_style.border_color = Color("#1A1A26")
+	queue_redraw()
+
+
+func _on_deselected() -> void:
+	var hovered := get_global_rect().has_point(get_global_mouse_position())
+	var c := Color("#31614F") if hovered else Color("#1A1A26")
+	_body_style.border_color = c
+	_titlebar_style.border_color = c
+	queue_redraw()
+
+
+func _on_hover_enter() -> void:
+	if selected:
+		return
+	_body_style.border_color = Color("#31614F")
+	_titlebar_style.border_color = Color("#31614F")
+
+
+func _on_hover_exit() -> void:
+	if selected:
+		return
+	_body_style.border_color = Color("#1A1A26")
+	_titlebar_style.border_color = Color("#1A1A26")
 
 
 func _center_title() -> void:

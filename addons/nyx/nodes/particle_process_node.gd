@@ -13,8 +13,8 @@ const _LABELS := ["Velocity", "Color", "Position"]
 func _ready() -> void:
 	super._ready()
 	title = "Particle Process"
-	var vec3_color := Color.WHITE
-	var vec4_color := Color("#FF8FC0")
+	var vec3_color := _type_color(0)
+	var vec4_color := _type_color(3)
 
 	# Type IDs: 0 = vec3, 3 = vec4.
 	set_slot(0, true, 0, vec3_color, false, -1, vec3_color)  # Velocity

@@ -6,7 +6,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Scale"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	var label_v := Label.new()
 	label_v.text = "V"
@@ -16,8 +16,8 @@ func _ready() -> void:
 	label_t.text = "T"
 	add_child(label_t)
 
-	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
-	set_slot(1, true, 1, float_color, false, -1, Color.WHITE)
+	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
+	set_slot(1, true, 1, float_color, false, -1, _type_color(0))
 
 
 func get_shader_snippet(inputs: Array = []) -> String:

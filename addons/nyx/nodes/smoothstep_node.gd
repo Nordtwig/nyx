@@ -11,7 +11,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Smoothstep"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	_edge0_slider = EditorSpinSlider.new()
 	_edge0_slider.label = "Edge0"

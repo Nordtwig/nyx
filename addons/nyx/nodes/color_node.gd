@@ -46,7 +46,7 @@ func _ready() -> void:
 	_picker.color_changed.connect(_on_color_changed)
 	_popup.add_child(_picker)
 
-	set_slot(0, false, -1, Color.WHITE, true, 3, Color("#FF8FC0"))
+	set_slot(0, false, -1, _type_color(0), true, 3, _type_color(3))
 	_apply_node_color()
 
 	call_deferred("_init_default_param_name")
@@ -86,7 +86,7 @@ func _update_param_button() -> void:
 	var luminance := _color.r * 0.299 + _color.g * 0.587 + _color.b * 0.114
 	var base_color := Color.BLACK if luminance > 0.5 else Color.WHITE
 	if _param_mode:
-		_param_btn.add_theme_color_override("font_color", Color(0.35, 0.9, 0.85))
+		_param_btn.add_theme_color_override("font_color", _type_color(1))
 	else:
 		_param_btn.add_theme_color_override("font_color", Color(base_color.r, base_color.g, base_color.b, 0.4))
 

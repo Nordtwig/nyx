@@ -19,7 +19,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Depth Fade"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	var row0 := HBoxContainer.new()
 	var dist_lbl := Label.new()

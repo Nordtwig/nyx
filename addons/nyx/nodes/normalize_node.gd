@@ -10,7 +10,7 @@ func _ready() -> void:
 	label.text = "V"
 	add_child(label)
 
-	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
 
 
 func get_shader_snippet(inputs: Array = []) -> String:

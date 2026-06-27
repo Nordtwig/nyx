@@ -59,7 +59,7 @@ func _ready() -> void:
 	_spin_max.value_changed.connect(func(_v): _on_value_changed())
 
 	# Output port on the dropdown row (child 0); type set per mode in _apply_mode.
-	set_slot(0, false, -1, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, false, -1, _type_color(0), true, 0, _type_color(0))
 	_apply_mode()
 
 
@@ -85,7 +85,7 @@ func _apply_mode() -> void:
 	# vec3 (id 0, white) in Vector mode; float (id 1, teal) in Scalar mode.
 	var is_vec := _mode == 0
 	var t: int = 0 if is_vec else 1
-	var col := Color.WHITE if is_vec else Color(0.35, 0.9, 0.85)
+	var col := _type_color(0) if is_vec else _type_color(1)
 	set_slot(0, false, -1, col, true, t, col)
 	call_deferred("reset_size")
 

@@ -13,7 +13,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Float"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	_spinbox = SpinBox.new()
 	_spinbox.min_value = -1e9
@@ -32,7 +32,7 @@ func _ready() -> void:
 	_param_name_edit.text_changed.connect(_on_param_name_changed)
 	add_child(_param_name_edit)
 
-	set_slot(0, false, -1, Color.WHITE, true, 1, float_color)
+	set_slot(0, false, -1, _type_color(0), true, 1, float_color)
 
 	call_deferred("_init_default_param_name")
 	call_deferred("_setup_param_button")
@@ -69,7 +69,7 @@ func _update_param_button() -> void:
 	if not _param_btn:
 		return
 	if _param_mode:
-		_param_btn.add_theme_color_override("font_color", Color(0.35, 0.9, 0.85))
+		_param_btn.add_theme_color_override("font_color", _type_color(1))
 	else:
 		_param_btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.35))
 

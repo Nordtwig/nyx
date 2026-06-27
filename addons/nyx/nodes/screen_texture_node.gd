@@ -16,7 +16,7 @@ func _ready() -> void:
 	row0.add_child(out_lbl)
 	add_child(row0)
 
-	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
 
 
 func _add_preview_controls() -> void:

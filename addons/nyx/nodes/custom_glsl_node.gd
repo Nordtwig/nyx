@@ -200,7 +200,7 @@ func _on_name_submitted(new_name: String, name_edit: LineEdit, lbl: Label) -> vo
 
 
 func _update_slots() -> void:
-	var vec3_color := Color.WHITE
+	var vec3_color := _type_color(0)
 	for i in range(4):
 		var has_input := i < _input_count
 		if i < _input_labels.size():

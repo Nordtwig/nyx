@@ -14,8 +14,8 @@ func _ready() -> void:
 	label_b.text = "B"
 	add_child(label_b)
 
-	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
-	set_slot(1, true, 0, Color.WHITE, false, -1, Color.WHITE)
+	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
+	set_slot(1, true, 0, _type_color(0), false, -1, _type_color(0))
 
 
 func is_polymorphic() -> bool:

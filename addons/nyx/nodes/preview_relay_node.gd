@@ -21,7 +21,7 @@ func _ready() -> void:
 	port_row.custom_minimum_size = Vector2(140, 0)
 	add_child(port_row)
 
-	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
 
 	var bottom_row := HBoxContainer.new()
 	var bottom_spacer := Control.new()
@@ -66,7 +66,7 @@ func _add_preview_controls() -> void:
 	if bottom_row and bottom_row.get_parent() == self:
 		move_child(bottom_row, get_child_count() - 1)
 
-	set_slot(get_children().find(_embedded_preview), false, -1, Color.WHITE, false, -1, Color.WHITE)
+	set_slot(get_children().find(_embedded_preview), false, -1, _type_color(0), false, -1, _type_color(0))
 
 	call_deferred("_request_preview_open")
 

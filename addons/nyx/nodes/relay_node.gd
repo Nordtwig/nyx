@@ -116,11 +116,11 @@ func _on_remove_pair(idx: int) -> void:
 
 
 func _update_slots() -> void:
-	var vec3_color := Color.WHITE
+	var vec3_color := _type_color(0)
 	for i in range(_pair_rows.size()):
 		set_slot(i, true, 0, vec3_color, true, 0, vec3_color)
 	var n := _pair_rows.size()
-	set_slot(n, false, -1, Color.WHITE, false, -1, Color.WHITE)
+	set_slot(n, false, -1, _type_color(0), false, -1, _type_color(0))
 
 
 func _center_title() -> void:

@@ -17,7 +17,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Tiling & Offset"
 
-	var float_color := Color(0.35, 0.9, 0.85)
+	var float_color := _type_color(1)
 
 	var row0 := HBoxContainer.new()
 	var uv_lbl := Label.new()
@@ -37,12 +37,12 @@ func _ready() -> void:
 	_offset_x_slider = _make_slider("Offset X", -10.0, 10.0, 0.001, _offset_x, _on_offset_x_changed)
 	_offset_y_slider = _make_slider("Offset Y", -10.0, 10.0, 0.001, _offset_y, _on_offset_y_changed)
 
-	set_slot(0, true, 0, Color.WHITE, true, 0, Color.WHITE)
+	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
 	# row 1 = master tiling slider, no port
-	set_slot(2, true, 1, float_color, false, -1, Color.WHITE)
-	set_slot(3, true, 1, float_color, false, -1, Color.WHITE)
-	set_slot(4, true, 1, float_color, false, -1, Color.WHITE)
-	set_slot(5, true, 1, float_color, false, -1, Color.WHITE)
+	set_slot(2, true, 1, float_color, false, -1, _type_color(0))
+	set_slot(3, true, 1, float_color, false, -1, _type_color(0))
+	set_slot(4, true, 1, float_color, false, -1, _type_color(0))
+	set_slot(5, true, 1, float_color, false, -1, _type_color(0))
 
 
 func _make_slider(lbl: String, min_v: float, max_v: float, step: float, default: float, callback: Callable) -> EditorSpinSlider:

@@ -1,6 +1,7 @@
 @tool
 extends Control
 
+const NyxNodeBase = preload("res://addons/nyx/nodes/nyx_node.gd")
 const OutputNode = preload("res://addons/nyx/nodes/output_node.gd")
 const ColorNode = preload("res://addons/nyx/nodes/color_node.gd")
 const AddNode = preload("res://addons/nyx/nodes/add_node.gd")
@@ -355,11 +356,11 @@ const _NODE_REGISTRY := [
 # Twilight palette — cooler, muted category accents that sit clearly above the
 # dark abyss background without competing with the bright connection lines.
 # Tune a whole category by editing one constant here.
-const _CAT_INPUTS  := Color("#A85A5E")  # dusty rose (was coral #CC5B4F)
-const _CAT_MATH    := Color("#2E8266")  # deep sea-green (was green #269B5B)
-const _CAT_VECTOR  := Color("#4A6BC4")  # indigo (was blue #3B82F6)
-const _CAT_TEXTURE := Color("#B8893C")  # antique gold (was yellow #E79D13)
-const _CAT_OUTPUT  := Color("#3C4655")  # cool slate (unchanged)
+const _CAT_INPUTS  := Color(0.14, 0.14, 0.18)
+const _CAT_MATH    := Color(0.14, 0.14, 0.18)
+const _CAT_VECTOR  := Color(0.14, 0.14, 0.18)
+const _CAT_TEXTURE := Color(0.14, 0.14, 0.18)
+const _CAT_OUTPUT  := Color(0.14, 0.14, 0.18)
 
 const _TYPE_COLORS := {
 	# Inputs
@@ -1558,7 +1559,7 @@ func _update_all_polymorphic_ports() -> void:
 			var resolved_type := _resolve_output_type(child, port)
 			if child.get_output_port_type(port) == resolved_type:
 				continue
-			var port_color := _type_color(resolved_type)
+			var port_color := NyxNodeBase._type_color(resolved_type)
 			child.set_slot(port,
 				child.is_slot_enabled_left(port), child.get_slot_type_left(port), child.get_slot_color_left(port),
 				child.is_slot_enabled_right(port), resolved_type, port_color)
@@ -1628,7 +1629,7 @@ func _build_type_legend() -> PanelContainer:
 
 		var sw := ColorRect.new()
 		sw.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sw.color = _type_color(e[0])
+		sw.color = NyxNodeBase._type_color(e[0])
 		sw.custom_minimum_size = Vector2(9, 9)
 		sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(sw)
@@ -2050,13 +2051,6 @@ func _to_vec3_display(snippet: String, type: int) -> String:
 		3: return "(%s).rgb" % snippet
 	return snippet
 
-
-func _type_color(type: int) -> Color:
-	match type:
-		1: return Color(0.35, 0.9, 0.85)  # float — teal
-		2: return Color("#A99BFF")        # vec2  — lavender
-		3: return Color("#FF8FC0")        # vec4  — magenta
-	return Color.WHITE                    # vec3  — white
 
 
 func _on_disconnection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:

@@ -17,7 +17,7 @@ func _ready() -> void:
 	super._ready()
 	title = "Vector3"
 
-	var vec3_color := Color.WHITE
+	var vec3_color := _type_color(0)
 
 	for axis in [["X", "_spin_x"], ["Y", "_spin_y"], ["Z", "_spin_z"]]:
 		var row := HBoxContainer.new()
@@ -83,7 +83,7 @@ func _update_param_button() -> void:
 	if not _param_btn:
 		return
 	if _param_mode:
-		_param_btn.add_theme_color_override("font_color", Color(0.35, 0.9, 0.85))
+		_param_btn.add_theme_color_override("font_color", _type_color(1))
 	else:
 		_param_btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.35))
 
