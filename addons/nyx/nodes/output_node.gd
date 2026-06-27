@@ -118,9 +118,24 @@ func set_state(state: Dictionary) -> void:
 	_option_btn.selected = _mode
 
 
+func _on_hover_exit() -> void:
+	if selected:
+		return
+	_body_style.border_color = Color("#1A1A26")
+	_titlebar_style.border_color = Color("#1A1A26")
+
+
+func _on_deselected() -> void:
+	var hovered := get_global_rect().has_point(get_global_mouse_position())
+	var c := Color("#31614F") if hovered else Color("#1A1A26")
+	_body_style.border_color = c
+	_titlebar_style.border_color = c
+	queue_redraw()
+
+
 func _apply_style() -> void:
-	var color := Color("#3C4655")
-	var border := Color(1, 1, 1, 0.1)
+	var color := Color(0.14, 0.14, 0.18)
+	var border := Color("#1A1A26")
 
 	var body := StyleBoxFlat.new()
 	body.bg_color = color
@@ -156,4 +171,7 @@ func _apply_style() -> void:
 
 	_apply_selection_style(body, titlebar)
 	add_theme_icon_override("port", _create_port_texture(10, 1))
+	if not mouse_entered.is_connected(_on_hover_enter):
+		mouse_entered.connect(_on_hover_enter)
+		mouse_exited.connect(_on_hover_exit)
 	call_deferred("_center_title")

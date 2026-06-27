@@ -509,7 +509,8 @@ signal reload_requested
 var _graph_container: VBoxContainer
 var _graph: GraphEdit
 var _shader_type: int = 0
-var _type_btn: OptionButton
+var _type_btn: Button
+var _type_popup: PopupMenu
 var _mesh_row: HBoxContainer
 var _vpc_3d: SubViewportContainer
 var _vpc_2d: SubViewportContainer
@@ -519,7 +520,6 @@ var _preview_panel: Panel
 var _type_legend: PanelContainer
 var _legend_toggle: Button
 var _minimap_toggle: Button
-var _help_toggle: Button
 var _shortcuts_overlay: PanelContainer
 var _preview_dragging: bool = false
 var _preview_resizing: bool = false
@@ -591,6 +591,7 @@ func _ready() -> void:
 	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
 	_graph.minimap_enabled = false
 	_graph.show_minimap_button = false
+	call_deferred("_style_graph_toolbar")
 	var graph_bg := StyleBoxFlat.new()
 	graph_bg.bg_color = Color("#0C1018")
 	_graph.add_theme_stylebox_override("panel", graph_bg)
@@ -625,6 +626,7 @@ func _ready() -> void:
 	_graph.add_valid_connection_type(3, 0)  # vec4  → vec3
 
 	_graph_container = VBoxContainer.new()
+	_graph_container.add_theme_constant_override("separation", 0)
 	_graph_container.add_child(_build_graph_toolbar())
 	_graph_container.add_child(_graph)
 	add_child(_graph_container)
@@ -704,8 +706,6 @@ func _ready() -> void:
 	call_deferred("_reposition_legend")
 	_minimap_toggle = _build_minimap_toggle()
 	add_child(_minimap_toggle)
-	_help_toggle = _build_help_toggle()
-	add_child(_help_toggle)
 	call_deferred("_reposition_minimap_toggle")
 	_shortcuts_overlay = _build_shortcuts_overlay()
 	add_child(_shortcuts_overlay)
@@ -1598,16 +1598,41 @@ func _position_preview_default() -> void:
 # Static key in the bottom-left corner of the graph mapping the four data-type
 # dot colors to plain-language names. The dot color is the real type encoding;
 # this just reinforces it without any per-port hover machinery.
+# Shared brand styling for the floating corner chips (Types / Map / ?). Monochrome
+# dark body + grey border at rest; hunter-green border on hover (the same hover
+# language as nodes). `hpad` widens narrow chips like the "?" button.
+func _make_chip_style(hover: bool, hpad: float = 4.0) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0.20, 0.20, 0.26, 0.97) if hover else Color(0.14, 0.14, 0.18, 0.95)
+	s.set_corner_radius_all(6)
+	s.set_content_margin_all(4)
+	s.content_margin_left = hpad
+	s.content_margin_right = hpad
+	s.set_border_width_all(1)
+	s.border_color = Color("#31614F") if hover else Color(0.24, 0.24, 0.30)
+	return s
+
+
+func _style_chip(btn: Button, hpad: float = 4.0) -> void:
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.add_theme_font_size_override("font_size", 10)
+	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
+	btn.add_theme_stylebox_override("normal", _make_chip_style(false, hpad))
+	var hover := _make_chip_style(true, hpad)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", hover)
+
+
 func _build_type_legend() -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.047, 0.063, 0.094, 0.85)
+	bg.bg_color = Color(0.14, 0.14, 0.18, 0.96)
 	bg.set_corner_radius_all(6)
-	bg.set_content_margin_all(5)
+	bg.set_content_margin_all(6)
 	bg.set_border_width_all(1)
-	bg.border_color = Color(1, 1, 1, 0.08)
+	bg.border_color = Color(0.24, 0.24, 0.30)
 	panel.add_theme_stylebox_override("panel", bg)
 
 	var vbox := VBoxContainer.new()
@@ -1649,23 +1674,7 @@ func _build_type_legend() -> PanelContainer:
 func _build_legend_toggle() -> Button:
 	var btn := Button.new()
 	btn.text = "Types  ▴"
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.add_theme_font_size_override("font_size", 10)
-	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
-
-	var chip := StyleBoxFlat.new()
-	chip.bg_color = Color(0.047, 0.063, 0.094, 0.85)
-	chip.set_corner_radius_all(6)
-	chip.set_content_margin_all(4)
-	chip.set_border_width_all(1)
-	chip.border_color = Color(1, 1, 1, 0.08)
-	btn.add_theme_stylebox_override("normal", chip)
-
-	var chip_hover := chip.duplicate() as StyleBoxFlat
-	chip_hover.bg_color = Color(0.09, 0.11, 0.15, 0.9)
-	btn.add_theme_stylebox_override("hover", chip_hover)
-	btn.add_theme_stylebox_override("pressed", chip_hover)
-
+	_style_chip(btn)
 	btn.pressed.connect(_on_legend_toggle)
 	return btn
 
@@ -1689,20 +1698,7 @@ func _reposition_legend() -> void:
 func _build_minimap_toggle() -> Button:
 	var btn := Button.new()
 	btn.text = "Map  ▴"
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.add_theme_font_size_override("font_size", 10)
-	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
-	var chip := StyleBoxFlat.new()
-	chip.bg_color = Color(0.047, 0.063, 0.094, 0.85)
-	chip.set_corner_radius_all(6)
-	chip.set_content_margin_all(4)
-	chip.set_border_width_all(1)
-	chip.border_color = Color(1, 1, 1, 0.08)
-	btn.add_theme_stylebox_override("normal", chip)
-	var chip_hover := chip.duplicate() as StyleBoxFlat
-	chip_hover.bg_color = Color(0.09, 0.11, 0.15, 0.9)
-	btn.add_theme_stylebox_override("hover", chip_hover)
-	btn.add_theme_stylebox_override("pressed", chip_hover)
+	_style_chip(btn)
 	btn.pressed.connect(_on_minimap_toggle)
 	return btn
 
@@ -1712,66 +1708,64 @@ func _on_minimap_toggle() -> void:
 	_minimap_toggle.text = "Map  ▾" if _graph.minimap_enabled else "Map  ▴"
 
 
-func _build_help_toggle() -> Button:
-	var btn := Button.new()
-	btn.text = "?"
-	btn.tooltip_text = "Keyboard shortcuts (?)"
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.add_theme_font_size_override("font_size", 10)
-	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
-	var chip := StyleBoxFlat.new()
-	chip.bg_color = Color(0.047, 0.063, 0.094, 0.85)
-	chip.set_corner_radius_all(6)
-	chip.set_content_margin_all(4)
-	chip.content_margin_left = 8
-	chip.content_margin_right = 8
-	chip.set_border_width_all(1)
-	chip.border_color = Color(1, 1, 1, 0.08)
-	btn.add_theme_stylebox_override("normal", chip)
-	var chip_hover := chip.duplicate() as StyleBoxFlat
-	chip_hover.bg_color = Color(0.09, 0.11, 0.15, 0.9)
-	btn.add_theme_stylebox_override("hover", chip_hover)
-	btn.add_theme_stylebox_override("pressed", chip_hover)
-	btn.pressed.connect(_toggle_shortcuts_overlay)
-	return btn
-
-
-# Positions both bottom-right chips: [?] [Map] anchored to the bottom-right corner.
+# Positions the [Map] chip anchored to the bottom-right corner.
 func _reposition_minimap_toggle() -> void:
 	if not _minimap_toggle or not _graph_container:
 		return
 	var mw: float = _minimap_toggle.get_combined_minimum_size().x
 	var mh: float = _minimap_toggle.get_combined_minimum_size().y
 	_minimap_toggle.position = Vector2(_graph_container.size.x - mw - 20, _graph_container.size.y - mh - 20)
-	if _help_toggle:
-		var hw: float = _help_toggle.get_combined_minimum_size().x
-		var hh: float = _help_toggle.get_combined_minimum_size().y
-		_help_toggle.position = Vector2(_minimap_toggle.position.x - hw - 6, _graph_container.size.y - hh - 20)
 
 
 func _build_shortcuts_overlay() -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.visible = false
 	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.08, 0.09, 0.12, 0.93)
+	bg.bg_color = Color(0.14, 0.14, 0.18, 0.96)
 	bg.set_corner_radius_all(8)
 	bg.set_content_margin_all(14)
 	bg.set_border_width_all(1)
-	bg.border_color = Color(1, 1, 1, 0.1)
+	bg.border_color = Color(0.24, 0.24, 0.30)
 	panel.add_theme_stylebox_override("panel", bg)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 3)
 	panel.add_child(vbox)
 
+	var title_row := HBoxContainer.new()
+	title_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(title_row)
+
 	var title := Label.new()
 	title.text = "Shortcuts"
 	title.add_theme_font_size_override("font_size", 11)
-	title.add_theme_color_override("font_color", Color(0.6, 0.7, 0.65))
-	vbox.add_child(title)
+	title.add_theme_color_override("font_color", Color("#4AAF78"))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title)
+
+	var close_btn := Button.new()
+	close_btn.text = "✕"
+	close_btn.tooltip_text = "Close"
+	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.add_theme_font_size_override("font_size", 13)
+	close_btn.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
+	close_btn.add_theme_color_override("font_hover_color", Color.WHITE)
+	close_btn.add_theme_color_override("font_pressed_color", Color.WHITE)
+	close_btn.add_theme_color_override("font_focus_color", Color(0.55, 0.55, 0.65))
+	var _cb_empty := StyleBoxEmpty.new()
+	close_btn.add_theme_stylebox_override("normal", _cb_empty)
+	close_btn.add_theme_stylebox_override("hover", _cb_empty)
+	close_btn.add_theme_stylebox_override("pressed", _cb_empty)
+	close_btn.add_theme_stylebox_override("focus", _cb_empty)
+	close_btn.pressed.connect(_toggle_shortcuts_overlay)
+	title_row.add_child(close_btn)
 
 	var sep := HSeparator.new()
 	sep.add_theme_constant_override("separation", 4)
+	var sep_line := StyleBoxLine.new()
+	sep_line.color = Color(0.24, 0.24, 0.30)
+	sep_line.thickness = 1
+	sep.add_theme_stylebox_override("separator", sep_line)
 	vbox.add_child(sep)
 
 	var entries := [
@@ -2264,49 +2258,156 @@ func _on_context_menu_selected(id: int) -> void:
 		62: _add_node(ParticleIndexNode.new(), _spawn_position, "ParticleIndex")
 
 
-func _build_graph_toolbar() -> HBoxContainer:
+# Brand styling for the top toolbar buttons: flat at rest, hunter-green border on
+# hover (the node/chip hover language), subtle green-tinted press.
+func _make_toolbar_btn_style(state: int) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	match state:
+		1: s.bg_color = Color(0.20, 0.20, 0.26)   # hover
+		2: s.bg_color = Color(0.16, 0.32, 0.26)   # pressed (hunter-tinted)
+		_: s.bg_color = Color(0, 0, 0, 0)         # normal (flat)
+	s.set_corner_radius_all(4)
+	s.content_margin_left = 8
+	s.content_margin_right = 8
+	s.content_margin_top = 0
+	s.content_margin_bottom = 0
+	if state == 1:
+		s.set_border_width_all(1)
+		s.border_color = Color("#31614F")
+	return s
+
+
+func _style_toolbar_button(b: Button) -> void:
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 0)
+	b.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
+	b.add_theme_color_override("font_hover_color", Color.WHITE)
+	b.add_theme_color_override("font_pressed_color", Color.WHITE)
+	b.add_theme_color_override("font_focus_color", Color(0.85, 0.87, 0.92))
+	b.add_theme_stylebox_override("normal", _make_toolbar_btn_style(0))
+	b.add_theme_stylebox_override("hover", _make_toolbar_btn_style(1))
+	b.add_theme_stylebox_override("pressed", _make_toolbar_btn_style(2))
+	b.add_theme_stylebox_override("hover_pressed", _make_toolbar_btn_style(1))
+	b.add_theme_stylebox_override("focus", _make_toolbar_btn_style(0))
+
+
+func _style_graph_toolbar() -> void:
+	for child in _graph.get_menu_hbox().get_children():
+		if child is Button:
+			child.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
+			child.add_theme_color_override("font_pressed_color", Color("#4AAF78"))
+			child.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
+
+
+func _style_toolbar_separator(s: VSeparator) -> void:
+	var line := StyleBoxLine.new()
+	line.color = Color(0.24, 0.24, 0.30)
+	line.thickness = 1
+	line.grow_begin = 2
+	line.grow_end = 2
+	s.add_theme_stylebox_override("separator", line)
+
+
+func _build_graph_toolbar() -> PanelContainer:
+	var wrap := PanelContainer.new()
+	var bar_bg := StyleBoxFlat.new()
+	var editor_base := get_theme_color("base_color", "Editor")
+	bar_bg.bg_color = editor_base
+	bar_bg.expand_margin_top = 4
+	bar_bg.expand_margin_bottom = 2
+	wrap.add_theme_stylebox_override("panel", bar_bg)
+
 	var toolbar := HBoxContainer.new()
+	toolbar.add_theme_constant_override("separation", 4)
+	wrap.add_child(toolbar)
 
 	var new_btn := Button.new()
 	new_btn.text = "New"
 	new_btn.pressed.connect(_on_new_pressed)
+	_style_toolbar_button(new_btn)
 	toolbar.add_child(new_btn)
 
 	var save_btn := Button.new()
 	save_btn.text = "Save"
 	save_btn.pressed.connect(_on_save_pressed)
+	_style_toolbar_button(save_btn)
 	toolbar.add_child(save_btn)
 	_save_btn = save_btn
 
 	var load_btn := Button.new()
 	load_btn.text = "Load"
 	load_btn.pressed.connect(func(): _load_dialog.popup_centered_ratio(0.5))
+	_style_toolbar_button(load_btn)
 	toolbar.add_child(load_btn)
 
 	var sep := VSeparator.new()
+	_style_toolbar_separator(sep)
 	toolbar.add_child(sep)
 
 	var undo_btn := Button.new()
 	undo_btn.text = "Undo"
 	undo_btn.pressed.connect(_undo)
+	_style_toolbar_button(undo_btn)
 	toolbar.add_child(undo_btn)
 
 	var redo_btn := Button.new()
 	redo_btn.text = "Redo"
 	redo_btn.pressed.connect(_redo)
+	_style_toolbar_button(redo_btn)
 	toolbar.add_child(redo_btn)
 
 	var sep2 := VSeparator.new()
+	_style_toolbar_separator(sep2)
 	toolbar.add_child(sep2)
 
-	_type_btn = OptionButton.new()
-	_type_btn.add_item("Spatial")
-	_type_btn.add_item("Canvas Item")
-	_type_btn.add_item("Particles")
-	_type_btn.item_selected.connect(_on_shader_type_changed)
+	_type_popup = PopupMenu.new()
+	_type_popup.add_item("Spatial", 0)
+	_type_popup.add_item("Canvas Item", 1)
+	_type_popup.add_item("Particles", 2)
+	_type_popup.id_pressed.connect(func(id: int) -> void:
+		_type_btn.text = _type_popup.get_item_text(id) + "  ▾"
+		_on_shader_type_changed(id)
+	)
+	_type_btn = Button.new()
+	_type_btn.text = "Spatial  ▾"
+	_type_btn.add_child(_type_popup)
+	_type_btn.pressed.connect(func() -> void:
+		var r := _type_btn.get_screen_position()
+		var h := _type_btn.size.y
+		_type_popup.reset_size()
+		_type_popup.popup(Rect2(Vector2(r.x, r.y + h), Vector2(_type_btn.size.x, 0)))
+	)
+	_style_toolbar_button(_type_btn)
 	toolbar.add_child(_type_btn)
 
-	return toolbar
+	# Spacer pushes the shortcuts button to the right edge of the toolbar.
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	toolbar.add_child(spacer)
+
+	var help_btn := Button.new()
+	help_btn.text = "?"
+	help_btn.tooltip_text = "Keyboard shortcuts (?)"
+	help_btn.focus_mode = Control.FOCUS_NONE
+	help_btn.add_theme_font_size_override("font_size", 14)
+	help_btn.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
+	help_btn.add_theme_color_override("font_hover_color", Color.WHITE)
+	help_btn.add_theme_color_override("font_pressed_color", Color.WHITE)
+	help_btn.add_theme_color_override("font_focus_color", Color(0.55, 0.55, 0.65))
+	var _hb_empty := StyleBoxEmpty.new()
+	help_btn.add_theme_stylebox_override("normal", _hb_empty)
+	help_btn.add_theme_stylebox_override("hover", _hb_empty)
+	help_btn.add_theme_stylebox_override("pressed", _hb_empty)
+	help_btn.add_theme_stylebox_override("focus", _hb_empty)
+	help_btn.pressed.connect(_toggle_shortcuts_overlay)
+	toolbar.add_child(help_btn)
+
+	var edge_pad := Control.new()
+	edge_pad.custom_minimum_size = Vector2(4, 0)
+	edge_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toolbar.add_child(edge_pad)
+
+	return wrap
 
 
 func _get_node_type(node: Node) -> String:
@@ -2367,7 +2468,7 @@ func _deserialize_graph(data: Dictionary) -> void:
 
 	var saved_type: int = data.get("shader_type", 0)
 	_shader_type = saved_type
-	_type_btn.selected = saved_type
+	_type_btn.text = _type_popup.get_item_text(saved_type) + "  ▾"
 	# Restore the artifact link. Lazy: store the path only; the Shader resource is
 	# re-resolved (ResourceLoader.load) on first Update / live-link use, not now.
 	_linked_shader_path = data.get("linked_shader_path", "")
@@ -2429,7 +2530,7 @@ func _new_graph() -> void:
 	_loading = true
 	_clear_graph_nodes()
 	_shader_type = 0
-	_type_btn.selected = 0
+	_type_btn.text = _type_popup.get_item_text(0) + "  ▾"
 	_current_nyx_path = ""
 	_set_linked("")
 	_last_shader_code = ""
@@ -2591,11 +2692,19 @@ func _build_search_popup() -> void:
 	hbox.add_theme_constant_override("separation", 10)
 
 	# --- Search card ---
+	# Styled to read like a node: monochrome dark body, the node asymmetric corners
+	# (TL6/TR12/BL12/BR6), a hunter-green border accent (the card is the active thing
+	# while open), and a titlebar-style "Add Node" header with a hunter-green divider.
 	var card_style := StyleBoxFlat.new()
 	card_style.bg_color = Color(0.14, 0.14, 0.18)
-	card_style.border_color = Color(0.28, 0.28, 0.38)
+	card_style.border_color = Color(0.24, 0.24, 0.30)
 	card_style.set_border_width_all(1)
-	card_style.set_corner_radius_all(8)
+	# The search card sits on the LEFT — round its outer (left) corners hard, keep the
+	# inner (right) corners tight so the pair reads as one unit opening outward.
+	card_style.corner_radius_top_left = 18
+	card_style.corner_radius_top_right = 3
+	card_style.corner_radius_bottom_left = 18
+	card_style.corner_radius_bottom_right = 3
 	card_style.set_content_margin_all(8)
 
 	var search_card := PanelContainer.new()
@@ -2606,6 +2715,12 @@ func _build_search_popup() -> void:
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 6)
+
+	var header := Label.new()
+	header.text = "Add Node"
+	header.add_theme_color_override("font_color", Color.WHITE)
+	header.add_theme_font_size_override("font_size", 13)
+	vbox.add_child(header)
 
 	_search_input = LineEdit.new()
 	_search_input.placeholder_text = "Search nodes..."
@@ -2622,7 +2737,7 @@ func _build_search_popup() -> void:
 
 	var input_focus := StyleBoxFlat.new()
 	input_focus.bg_color = Color(0.20, 0.20, 0.26)
-	input_focus.border_color = Color(0.15, 0.61, 0.36)
+	input_focus.border_color = Color("#31614F")
 	input_focus.set_border_width_all(1)
 	input_focus.set_corner_radius_all(4)
 	input_focus.content_margin_left = 8
@@ -2655,8 +2770,12 @@ func _build_search_popup() -> void:
 	highlight.set_corner_radius_all(3)
 	highlight.content_margin_left = 4
 	highlight.content_margin_right = 4
-	for state in ["selected", "selected_focus", "hovered", "hovered_selected", "hovered_selected_focus"]:
+	for state in ["selected", "selected_focus", "hovered_selected", "hovered_selected_focus"]:
 		_search_list.add_theme_stylebox_override(state, highlight)
+	# Plain "hovered" (mouse over a row that ISN'T selected) only ever applies to the
+	# disabled category headers — real node rows auto-select on hover (→ hovered_selected,
+	# above). Keep it empty so categories don't get the green fill.
+	_search_list.add_theme_stylebox_override("hovered", StyleBoxEmpty.new())
 
 	_search_list.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
 	_search_list.add_theme_color_override("font_selected_color", Color.WHITE)
@@ -2680,9 +2799,14 @@ func _build_search_popup() -> void:
 
 	var doc_panel_style := StyleBoxFlat.new()
 	doc_panel_style.bg_color = Color(0.14, 0.14, 0.18)
-	doc_panel_style.border_color = Color(0.28, 0.28, 0.38)
+	doc_panel_style.border_color = Color(0.24, 0.24, 0.30)
 	doc_panel_style.set_border_width_all(1)
-	doc_panel_style.set_corner_radius_all(8)
+	# The doc card sits on the RIGHT — mirror of the search card: round its outer
+	# (right) corners hard, keep the inner (left) corners tight.
+	doc_panel_style.corner_radius_top_left = 3
+	doc_panel_style.corner_radius_top_right = 18
+	doc_panel_style.corner_radius_bottom_left = 3
+	doc_panel_style.corner_radius_bottom_right = 18
 	_doc_panel.add_theme_stylebox_override("panel", doc_panel_style)
 
 	var doc_margin := MarginContainer.new()
@@ -2918,7 +3042,7 @@ func _update_doc_panel(id: int) -> void:
 
 	_doc_label.append_text("[b]" + entry["label"] + "[/b]\n")
 	if entry.has("summary"):
-		_doc_label.append_text("[color=#8888bb]" + entry["summary"] + "[/color]\n")
+		_doc_label.append_text("\n[color=#4AAF78]" + entry["summary"] + "[/color]\n")
 	if entry.has("description"):
 		_doc_label.append_text("\n" + entry["description"] + "\n")
 	if entry.has("ports") and not (entry["ports"] as Array).is_empty():
