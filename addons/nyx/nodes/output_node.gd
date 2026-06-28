@@ -40,6 +40,7 @@ func _ready() -> void:
 	_option_btn = OptionButton.new()
 	_option_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_option_btn.item_selected.connect(_on_mode_selected)
+	_option_btn.visible = false  # Blackboard owns the render mode UI
 	add_child(_option_btn)
 
 	_rebuild_mode_options()
@@ -96,6 +97,17 @@ func _rebuild_mode_options() -> void:
 		for label in ["Default", "Unshaded", "Light Only", "Blend Add", "Blend Premult"]:
 			_option_btn.add_item(label)
 	_option_btn.selected = _mode
+
+
+func get_mode() -> int:
+	return _mode
+
+
+func set_mode(idx: int) -> void:
+	emit_signal("edit_started")
+	_mode = idx
+	_option_btn.selected = idx
+	emit_signal("value_changed")
 
 
 func get_render_mode() -> String:

@@ -135,3 +135,32 @@ func set_state(state: Dictionary) -> void:
 	_param_name_edit.visible = _param_mode
 	_update_param_button()
 	_update_param_tooltip()
+
+
+func is_param_mode() -> bool:
+	return _param_mode
+
+
+func get_param_name() -> String:
+	return _param_name
+
+
+func set_value_external(v: float) -> void:
+	_value = v
+	_spinbox.value = v
+	emit_signal("value_changed")
+
+
+func get_blackboard_control() -> Control:
+	var sb := SpinBox.new()
+	sb.min_value = -1e9
+	sb.max_value = 1e9
+	sb.step = 0.001
+	sb.value = _value
+	sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sb.value_changed.connect(func(v: float) -> void: set_value_external(v))
+	value_changed.connect(func() -> void:
+		if sb.value != _value:
+			sb.set_value_no_signal(_value)
+	)
+	return sb

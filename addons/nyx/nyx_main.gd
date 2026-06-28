@@ -537,11 +537,18 @@ const _TYPE_CATEGORY := {
 signal reload_requested
 
 var _category_icons: Dictionary = {}
+var _outer_vbox: VBoxContainer
 var _graph_container: VBoxContainer
 var _graph: GraphEdit
 var _shader_type: int = 0
 var _type_btn: Button
 var _type_popup: PopupMenu
+var _render_mode_btn: Button
+var _render_mode_popup: PopupMenu
+var _properties_panel: Panel
+var _properties_vbox: VBoxContainer
+var _properties_detail_vbox: VBoxContainer
+var _selected_param_row: Control = null
 var _mesh_row: Control
 var _vpc_3d: SubViewportContainer
 var _vpc_2d: SubViewportContainer
@@ -560,6 +567,7 @@ var _clipboard: Dictionary = {}  # {nodes, connections} from the last copy
 var _preview_right_offset: float = 20.0
 var _preview_top_offset: float = -1.0  # -1 = not yet placed
 var _preview_positioned: bool = false
+var _properties_positioned: bool = false
 var _viewport: SubViewport
 var _preview_mesh: MeshInstance3D
 var _preview_camera: Camera3D
@@ -623,14 +631,13 @@ func _ready() -> void:
 	_graph.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_graph.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
+	_graph.snapping_enabled = false
 	_graph.minimap_enabled = false
 	_graph.show_minimap_button = false
 	call_deferred("_style_graph_toolbar")
 	var graph_bg := StyleBoxFlat.new()
-	graph_bg.bg_color = Color("#0C1018")
+	graph_bg.bg_color = Color("#0D0D0F")
 	_graph.add_theme_stylebox_override("panel", graph_bg)
-	_graph.add_theme_color_override("grid_minor", Color(1, 1, 1, 0.07))
-	_graph.add_theme_color_override("grid_major", Color(1, 1, 1, 0.12))
 	_graph.right_disconnects = true
 	_graph.connection_request.connect(_on_connection_request)
 	_graph.disconnection_request.connect(_on_disconnection_request)
@@ -660,10 +667,16 @@ func _ready() -> void:
 	_graph.add_valid_connection_type(3, 0)  # vec4  → vec3
 
 	_graph_container = VBoxContainer.new()
+	_graph_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_graph_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_graph_container.add_theme_constant_override("separation", 0)
-	_graph_container.add_child(_build_graph_toolbar())
 	_graph_container.add_child(_graph)
-	add_child(_graph_container)
+
+	_outer_vbox = VBoxContainer.new()
+	_outer_vbox.add_theme_constant_override("separation", 0)
+	_outer_vbox.add_child(_build_graph_toolbar())
+	_outer_vbox.add_child(_graph_container)
+	add_child(_outer_vbox)
 
 	_load_category_icons()
 	_build_search_popup()
@@ -731,6 +744,8 @@ func _ready() -> void:
 
 	_preview_panel = _build_preview_panel()
 	add_child(_preview_panel)
+	_properties_panel = _build_properties_panel()
+	add_child(_properties_panel)
 	_update_link_ui()  # unlinked: "Export…", Live disabled
 
 	_type_legend = _build_type_legend()
@@ -765,10 +780,19 @@ func _build_preview_panel() -> Panel:
 	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	floating.add_child(vbox)
 
+	var header_wrap := PanelContainer.new()
+	var header_bg := StyleBoxFlat.new()
+	header_bg.bg_color = get_theme_color("base_color", "Editor")
+	header_bg.corner_radius_top_left = 6
+	header_bg.corner_radius_top_right = 6
+	header_bg.border_width_bottom = 2
+	header_bg.border_color = Color(0.12, 0.12, 0.16)
+	header_wrap.add_theme_stylebox_override("panel", header_bg)
+	vbox.add_child(header_wrap)
 	var header := HBoxContainer.new()
 	header.mouse_default_cursor_shape = Control.CURSOR_MOVE
 	header.gui_input.connect(_on_preview_header_input)
-	vbox.add_child(header)
+	header_wrap.add_child(header)
 
 	var title := Label.new()
 	var _header_pad := Control.new()
@@ -946,6 +970,10 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	if node.has_signal("value_changed"):
 		node.value_changed.connect(_request_compile)
 		node.value_changed.connect(_mark_dirty)
+		node.value_changed.connect(func():
+			if _properties_panel and _properties_panel.visible:
+				_rebuild_properties_list()
+		)
 	if node.has_signal("edit_started"):
 		node.edit_started.connect(_push_undo_state)
 	if node.has_signal("texture_pick_requested"):
@@ -1232,8 +1260,16 @@ func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
 	_request_compile()
 
 
+func _sync_shader_type_ui(idx: int) -> void:
+	if _type_btn and _type_popup:
+		_type_btn.text = _type_popup.get_item_text(idx) + "  ▾"
+	_rebuild_render_mode_options()
+	_rebuild_properties_list()
+
+
 func _on_shader_type_changed(idx: int) -> void:
 	_shader_type = idx
+	_sync_shader_type_ui(idx)
 	if idx == 2:
 		_ensure_particle_sinks()
 	else:
@@ -1679,32 +1715,44 @@ func _update_all_polymorphic_ports() -> void:
 
 
 func sync_size(new_size: Vector2) -> void:
-	if _graph_container:
-		_graph_container.size = new_size
+	if _outer_vbox:
+		_outer_vbox.size = new_size
 	if not _preview_positioned and _preview_panel:
 		_preview_positioned = true
 		call_deferred("_position_preview_default")
+	if not _properties_positioned and _properties_panel:
+		_properties_positioned = true
+		call_deferred("_position_properties_default")
 	elif _preview_panel and _preview_top_offset >= 0.0:
+		var top := _graph_top()
 		_preview_panel.position = Vector2(
 			_graph_container.size.x - _preview_panel.size.x - _preview_right_offset,
 			_preview_top_offset
-		).clamp(Vector2.ZERO, _graph_container.size - _preview_panel.size)
+		).clamp(Vector2(0, top), Vector2(_outer_vbox.size.x, top + _graph_container.size.y) - _preview_panel.size)
 	_reposition_legend()
 	_reposition_minimap_toggle()
 	if _search_overlay and _search_overlay.visible:
 		_search_overlay.size = _graph_container.size
 
 
+func _graph_top() -> float:
+	return _graph_container.position.y if _graph_container else 0.0
+
+
 func _position_preview_default() -> void:
-	# Place just below the graph toolbar, not overlapping it.
-	var toolbar_h := 0.0
-	if _graph_container.get_child_count() > 0:
-		toolbar_h = _graph_container.get_child(0).get_combined_minimum_size().y
-	_preview_top_offset = toolbar_h + 12.0
+	_preview_top_offset = _graph_top() + 12.0
 	_preview_right_offset = 20.0
 	_preview_panel.position = Vector2(
 		_graph_container.size.x - _preview_panel.size.x - _preview_right_offset,
 		_preview_top_offset
+	)
+
+
+func _position_properties_default() -> void:
+	var top := _graph_top() + 12.0 + _preview_panel.size.y + 8.0
+	_properties_panel.position = Vector2(
+		_graph_container.size.x - _properties_panel.size.x - 20.0,
+		top
 	)
 
 
@@ -1799,10 +1847,16 @@ func _on_legend_toggle() -> void:
 
 
 func _reposition_legend() -> void:
-	if not _legend_toggle or not _graph_container:
+	if not _legend_toggle or not _outer_vbox:
+		return
+	call_deferred("_do_reposition_legend")
+
+
+func _do_reposition_legend() -> void:
+	if not _legend_toggle:
 		return
 	var bh: float = _legend_toggle.get_combined_minimum_size().y
-	_legend_toggle.position = Vector2(20, _graph_container.size.y - bh - 20)
+	_legend_toggle.position = Vector2(20, _outer_vbox.size.y - bh - 20)
 	if _type_legend:
 		var ph: float = _type_legend.get_combined_minimum_size().y
 		_type_legend.position = Vector2(20, _legend_toggle.position.y - ph - 6)
@@ -1823,11 +1877,17 @@ func _on_minimap_toggle() -> void:
 
 # Positions the [Map] chip anchored to the bottom-right corner.
 func _reposition_minimap_toggle() -> void:
+	if not _minimap_toggle or not _outer_vbox:
+		return
+	call_deferred("_do_reposition_minimap_toggle")
+
+
+func _do_reposition_minimap_toggle() -> void:
 	if not _minimap_toggle or not _graph_container:
 		return
 	var mw: float = _minimap_toggle.get_combined_minimum_size().x
 	var mh: float = _minimap_toggle.get_combined_minimum_size().y
-	_minimap_toggle.position = Vector2(_graph_container.size.x - mw - 20, _graph_container.size.y - mh - 20)
+	_minimap_toggle.position = Vector2(_graph_container.size.x - mw - 20, _outer_vbox.size.y - mh - 20)
 
 
 func _build_shortcuts_overlay() -> PanelContainer:
@@ -1942,6 +2002,8 @@ func _push_undo_state() -> void:
 		_undo_stack.pop_front()
 	_redo_stack.clear()
 	_mark_dirty()
+	if _properties_panel and _properties_panel.visible:
+		call_deferred("_rebuild_properties_list")
 
 
 # --- Dirty tracking (unsaved .nyx working-file changes) ---
@@ -2438,6 +2500,282 @@ func _load_category_icons() -> void:
 		_category_icons[cat_name] = ImageTexture.create_from_image(padded)
 
 
+func _toggle_properties_panel() -> void:
+	if _properties_panel:
+		_properties_panel.visible = not _properties_panel.visible
+		if _properties_panel.visible:
+			_rebuild_properties_list()
+
+
+func _build_properties_panel() -> Panel:
+	var panel := Panel.new()
+	panel.size = Vector2(220, 320)
+	panel.visible = true
+
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.13, 0.13, 0.16, 0.95)
+	bg.corner_radius_top_left = 6
+	bg.corner_radius_top_right = 6
+	bg.corner_radius_bottom_left = 6
+	bg.corner_radius_bottom_right = 6
+	panel.add_theme_stylebox_override("panel", bg)
+
+	var vbox := VBoxContainer.new()
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vbox.add_theme_constant_override("separation", 0)
+	panel.add_child(vbox)
+
+	var prop_header_wrap := PanelContainer.new()
+	var prop_header_bg := StyleBoxFlat.new()
+	prop_header_bg.bg_color = get_theme_color("base_color", "Editor")
+	prop_header_bg.corner_radius_top_left = 6
+	prop_header_bg.corner_radius_top_right = 6
+	prop_header_bg.border_width_bottom = 2
+	prop_header_bg.border_color = Color(0.12, 0.12, 0.16)
+	prop_header_wrap.add_theme_stylebox_override("panel", prop_header_bg)
+	vbox.add_child(prop_header_wrap)
+	var header := HBoxContainer.new()
+	header.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	header.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
+			if ev.pressed:
+				panel.set_meta("_drag_offset", panel.get_local_mouse_position())
+		elif ev is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			if panel.has_meta("_drag_offset"):
+				panel.position = panel.position + ev.relative
+	)
+	var _pad_l := Control.new()
+	_pad_l.custom_minimum_size = Vector2(2, 0)
+	_pad_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(_pad_l)
+	var header_lbl := Label.new()
+	header_lbl.text = "Properties"
+	header_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(header_lbl)
+	var close_btn := Button.new()
+	close_btn.text = "×"
+	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.add_theme_font_size_override("font_size", 16)
+	close_btn.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
+	close_btn.add_theme_color_override("font_hover_color", Color("#4AAF78"))
+	var _empty := StyleBoxEmpty.new()
+	close_btn.add_theme_stylebox_override("normal", _empty)
+	close_btn.add_theme_stylebox_override("hover", _empty)
+	close_btn.add_theme_stylebox_override("pressed", _empty)
+	close_btn.add_theme_stylebox_override("focus", _empty)
+	close_btn.pressed.connect(func() -> void: panel.visible = false)
+	header.add_child(close_btn)
+	var _pad_r := Control.new()
+	_pad_r.custom_minimum_size = Vector2(2, 0)
+	_pad_r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(_pad_r)
+	prop_header_wrap.add_child(header)
+
+	# Param list
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(scroll)
+
+	var params_margin := MarginContainer.new()
+	params_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	params_margin.add_theme_constant_override("margin_left", 8)
+	params_margin.add_theme_constant_override("margin_right", 2)
+	params_margin.add_theme_constant_override("margin_top", 4)
+	params_margin.add_theme_constant_override("margin_bottom", 4)
+	scroll.add_child(params_margin)
+
+	_properties_vbox = VBoxContainer.new()
+	_properties_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_properties_vbox.add_theme_constant_override("separation", 2)
+	params_margin.add_child(_properties_vbox)
+
+	# Detail area — hidden until a param is clicked
+	var detail_sep := HSeparator.new()
+	var sep_style := StyleBoxLine.new()
+	sep_style.color = Color(0.22, 0.22, 0.28)
+	sep_style.thickness = 1
+	detail_sep.add_theme_stylebox_override("separator", sep_style)
+	detail_sep.visible = false
+	panel.set_meta("detail_sep", detail_sep)
+	vbox.add_child(detail_sep)
+
+	var detail_vbox := VBoxContainer.new()
+	detail_vbox.add_theme_constant_override("separation", 6)
+	detail_vbox.visible = false
+	panel.set_meta("detail_vbox", detail_vbox)
+	vbox.add_child(detail_vbox)
+
+	return panel
+
+
+func _get_output_node() -> Node:
+	return _graph.get_node_or_null("OutputNode")
+
+
+func _rebuild_render_mode_options() -> void:
+	if not _render_mode_popup:
+		return
+	_render_mode_popup.clear()
+	if _shader_type == 0:
+		for label in ["Opaque", "Mix", "Add", "Premult Alpha"]:
+			_render_mode_popup.add_item(label)
+	elif _shader_type == 1:
+		for label in ["Default", "Unshaded", "Light Only", "Blend Add", "Blend Premult"]:
+			_render_mode_popup.add_item(label)
+	var output := _get_output_node()
+	var mode: int = 0
+	if output:
+		mode = output.get_mode()
+	if _render_mode_btn:
+		_render_mode_btn.text = _render_mode_popup.get_item_text(mode) + "  ▾"
+		_render_mode_btn.disabled = _shader_type == 2
+
+
+func _rebuild_properties_list() -> void:
+	if not _properties_vbox:
+		return
+	_selected_param_row = null
+	for child in _properties_vbox.get_children():
+		child.queue_free()
+
+	var found := false
+	for node in _graph.get_children():
+		if not node is GraphNode:
+			continue
+		if not node.has_method("is_param_mode") or not node.call("is_param_mode"):
+			continue
+		found = true
+		var row := _build_param_row(node)
+		_properties_vbox.add_child(row)
+
+	if not found:
+		var lbl := Label.new()
+		lbl.text = "No exposed parameters."
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.add_theme_color_override("font_color", Color(0.45, 0.48, 0.52))
+		_properties_vbox.add_child(lbl)
+
+
+func _build_param_row(node: Node) -> Control:
+	var param_name: String = node.call("get_param_name") if node.has_method("get_param_name") else node.name
+
+	var outer := Control.new()
+	outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer.custom_minimum_size = Vector2(0, 24)
+	outer.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 0)
+	hbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	outer.add_child(hbox)
+
+	var name_lbl := Label.new()
+	name_lbl.text = param_name
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.add_theme_font_size_override("font_size", 10)
+	name_lbl.add_theme_color_override("font_color", Color(0.80, 0.83, 0.88))
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(name_lbl)
+
+	var copy_lbl := Label.new()
+	copy_lbl.text = "⧉"
+	copy_lbl.add_theme_font_size_override("font_size", 16)
+	copy_lbl.add_theme_color_override("font_color", Color(0.40, 0.43, 0.50))
+	copy_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+	copy_lbl.modulate = Color(1, 1, 1, 0)
+	copy_lbl.mouse_entered.connect(func() -> void:
+		copy_lbl.add_theme_color_override("font_color", Color("#4AAF78"))
+	)
+	copy_lbl.mouse_exited.connect(func() -> void:
+		copy_lbl.add_theme_color_override("font_color", Color(0.40, 0.43, 0.50))
+	)
+	var copy_wrap := MarginContainer.new()
+	copy_wrap.add_theme_constant_override("margin_left", 4)
+	copy_wrap.add_theme_constant_override("margin_right", 4)
+	copy_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	copy_wrap.add_child(copy_lbl)
+	hbox.add_child(copy_wrap)
+
+	outer.tooltip_text = 'material.set_shader_parameter("%s", value)' % param_name
+
+	var _apply_style := func(hovered: bool) -> void:
+		var selected := outer.get_meta("selected", false)
+		var bg := StyleBoxFlat.new()
+		if selected:
+			bg.bg_color = Color(0.10, 0.22, 0.16)
+			bg.border_width_left = 2
+			bg.border_color = Color("#4AAF78")
+		elif hovered:
+			bg.bg_color = Color(0.20, 0.20, 0.26)
+		else:
+			bg.bg_color = Color(0, 0, 0, 0)
+		outer.add_theme_stylebox_override("panel", bg)
+		var name_col: Color
+		if selected:
+			name_col = Color("#4AAF78")
+		elif hovered:
+			name_col = Color.WHITE
+		else:
+			name_col = Color(0.80, 0.83, 0.88)
+		name_lbl.add_theme_color_override("font_color", name_col)
+		copy_lbl.modulate = Color(1, 1, 1, 1) if (hovered or selected) else Color(1, 1, 1, 0)
+
+	outer.mouse_entered.connect(func() -> void: _apply_style.call(true))
+	outer.mouse_exited.connect(func() -> void: _apply_style.call(false))
+
+	outer.gui_input.connect(func(ev: InputEvent) -> void:
+		if not ev is InputEventMouseButton or not ev.pressed or ev.button_index != MOUSE_BUTTON_LEFT:
+			return
+		if copy_lbl.get_global_rect().has_point(outer.get_global_mouse_position()):
+			DisplayServer.clipboard_set('material.set_shader_parameter("%s", value)' % param_name)
+		else:
+			if _selected_param_row and is_instance_valid(_selected_param_row):
+				_selected_param_row.set_meta("selected", false)
+				_selected_param_row.get_meta("apply_style").call(false)
+			_selected_param_row = outer
+			outer.set_meta("selected", true)
+			_apply_style.call(false)
+			_show_param_detail(node)
+		outer.accept_event()
+	)
+
+	outer.set_meta("apply_style", _apply_style)
+	return outer
+
+
+func _show_param_detail(node: Node) -> void:
+	if not _properties_panel:
+		return
+	var detail_vbox := _properties_panel.get_meta("detail_vbox") as VBoxContainer
+	var detail_sep := _properties_panel.get_meta("detail_sep") as HSeparator
+	if not detail_vbox:
+		return
+	for child in detail_vbox.get_children():
+		child.queue_free()
+
+	var param_name: String = node.call("get_param_name") if node.has_method("get_param_name") else node.name
+
+	var name_lbl := Label.new()
+	name_lbl.text = param_name
+	name_lbl.add_theme_font_size_override("font_size", 10)
+	name_lbl.add_theme_color_override("font_color", Color("#4AAF78"))
+	name_lbl.add_theme_constant_override("margin_left", 10)
+	detail_vbox.add_child(name_lbl)
+
+	if node.has_method("get_blackboard_control"):
+		var ctrl := node.call("get_blackboard_control")
+		if ctrl:
+			var wrap := HBoxContainer.new()
+			wrap.add_theme_constant_override("separation", 0)
+			ctrl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			wrap.add_child(ctrl)
+			detail_vbox.add_child(wrap)
+
+	detail_vbox.visible = true
+	detail_sep.visible = true
+
+
 func _load_toolbar_icon(path: String, size: int = 16) -> ImageTexture:
 	var tex := load(path) as Texture2D
 	if not tex:
@@ -2474,6 +2812,10 @@ func _style_graph_toolbar() -> void:
 	for child in hbox.get_children():
 		if child is Button:
 			_style_toolbar_button(child)
+			if "grid" in child.tooltip_text.to_lower() or "grid" in child.text.to_lower():
+				if child.button_pressed:
+					child.button_pressed = false
+					child.pressed.emit()
 			# Tighter margins for icon-only buttons in the floating toolbar.
 			var icon_margin := StyleBoxFlat.new()
 			icon_margin.bg_color = Color(0, 0, 0, 0)
@@ -2513,7 +2855,8 @@ func _build_graph_toolbar() -> PanelContainer:
 	var editor_base := get_theme_color("base_color", "Editor")
 	bar_bg.bg_color = editor_base
 	bar_bg.expand_margin_top = 4
-	bar_bg.expand_margin_bottom = 2
+	bar_bg.border_width_bottom = 2
+	bar_bg.border_color = Color(0.12, 0.12, 0.16)
 	wrap.add_theme_stylebox_override("panel", bar_bg)
 
 	var toolbar := HBoxContainer.new()
@@ -2562,9 +2905,9 @@ func _build_graph_toolbar() -> PanelContainer:
 	_filename_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	toolbar.add_child(_filename_label)
 
-	var sep_fn := VSeparator.new()
-	_style_toolbar_separator(sep_fn)
-	toolbar.add_child(sep_fn)
+	var sep_type := VSeparator.new()
+	_style_toolbar_separator(sep_type)
+	toolbar.add_child(sep_type)
 
 	_type_popup = PopupMenu.new()
 	_type_popup.add_item("Spatial", 0)
@@ -2585,6 +2928,37 @@ func _build_graph_toolbar() -> PanelContainer:
 	)
 	_style_toolbar_button(_type_btn)
 	toolbar.add_child(_type_btn)
+
+	_render_mode_popup = PopupMenu.new()
+	_render_mode_btn = Button.new()
+	_render_mode_btn.text = "Opaque  ▾"
+	_render_mode_btn.add_child(_render_mode_popup)
+	_render_mode_btn.pressed.connect(func() -> void:
+		var r := _render_mode_btn.get_screen_position()
+		var h := _render_mode_btn.size.y
+		_render_mode_popup.reset_size()
+		_render_mode_popup.popup(Rect2(Vector2(r.x, r.y + h), Vector2(_render_mode_btn.size.x, 0)))
+	)
+	_render_mode_popup.id_pressed.connect(func(id: int) -> void:
+		_render_mode_btn.text = _render_mode_popup.get_item_text(id) + "  ▾"
+		var output := _get_output_node()
+		if output:
+			output.set_mode(id)
+			_request_compile()
+	)
+	_style_toolbar_button(_render_mode_btn)
+	toolbar.add_child(_render_mode_btn)
+	_rebuild_render_mode_options()
+
+	var sep_params := VSeparator.new()
+	_style_toolbar_separator(sep_params)
+	toolbar.add_child(sep_params)
+
+	var params_btn := Button.new()
+	params_btn.text = "Properties"
+	params_btn.pressed.connect(_toggle_properties_panel)
+	_style_toolbar_button(params_btn)
+	toolbar.add_child(params_btn)
 
 	# Spacer pushes export/live + shortcuts to the right edge of the toolbar.
 	var spacer := Control.new()
@@ -2710,7 +3084,7 @@ func _deserialize_graph(data: Dictionary) -> void:
 
 	var saved_type: int = data.get("shader_type", 0)
 	_shader_type = saved_type
-	_type_btn.text = _type_popup.get_item_text(saved_type) + "  ▾"
+	_sync_shader_type_ui(saved_type)
 	# Restore the artifact link. Lazy: store the path only; the Shader resource is
 	# re-resolved (ResourceLoader.load) on first Update / live-link use, not now.
 	_linked_shader_path = data.get("linked_shader_path", "")
@@ -2772,7 +3146,7 @@ func _new_graph() -> void:
 	_loading = true
 	_clear_graph_nodes()
 	_shader_type = 0
-	_type_btn.text = _type_popup.get_item_text(0) + "  ▾"
+	_sync_shader_type_ui(0)
 	_current_nyx_path = ""
 	_set_linked("")
 	_last_shader_code = ""

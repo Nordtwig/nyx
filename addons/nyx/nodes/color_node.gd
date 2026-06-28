@@ -194,3 +194,39 @@ func set_state(state: Dictionary) -> void:
 	_param_name_edit.visible = _param_mode
 	_update_param_button()
 	_update_param_tooltip()
+
+
+func is_param_mode() -> bool:
+	return _param_mode
+
+
+func get_param_name() -> String:
+	return _param_name
+
+
+func open_picker() -> void:
+	emit_signal("edit_started")
+	_popup.reset_size()
+	var pos := get_screen_position() + Vector2(0, size.y)
+	_popup.popup(Rect2(pos, _popup.size))
+
+
+func get_blackboard_control() -> Control:
+	var btn := Button.new()
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.custom_minimum_size = Vector2(0, 32)
+	var _refresh := func() -> void:
+		var s := StyleBoxFlat.new()
+		s.bg_color = _color
+		s.set_corner_radius_all(4)
+		btn.add_theme_stylebox_override("normal", s)
+		var sh := StyleBoxFlat.new()
+		sh.bg_color = _color.lightened(0.1)
+		sh.set_corner_radius_all(4)
+		btn.add_theme_stylebox_override("hover", sh)
+		btn.add_theme_stylebox_override("pressed", sh)
+		btn.add_theme_stylebox_override("focus", s)
+	_refresh.call()
+	btn.pressed.connect(func() -> void: open_picker())
+	value_changed.connect(func() -> void: _refresh.call())
+	return btn

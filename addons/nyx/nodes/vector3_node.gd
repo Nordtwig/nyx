@@ -159,3 +159,43 @@ func set_state(state: Dictionary) -> void:
 	_param_name_edit.visible = _param_mode
 	_update_param_button()
 	_update_param_tooltip()
+
+
+func is_param_mode() -> bool:
+	return _param_mode
+
+
+func get_param_name() -> String:
+	return _param_name
+
+
+func get_blackboard_control() -> Control:
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	for axis in ["X", "Y", "Z"]:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var lbl := Label.new()
+		lbl.text = axis
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.add_theme_color_override("font_color", Color(0.65, 0.68, 0.72))
+		lbl.custom_minimum_size = Vector2(12, 0)
+		row.add_child(lbl)
+		var sb := SpinBox.new()
+		sb.min_value = -1e9
+		sb.max_value = 1e9
+		sb.step = 0.001
+		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var prop: String = "_" + axis.to_lower()
+		sb.value = get(prop)
+		sb.value_changed.connect(func(v: float) -> void:
+			set(prop, v)
+			emit_signal("value_changed")
+		)
+		value_changed.connect(func() -> void:
+			if sb.value != get(prop):
+				sb.set_value_no_signal(get(prop))
+		)
+		row.add_child(sb)
+		vbox.add_child(row)
+	return vbox
