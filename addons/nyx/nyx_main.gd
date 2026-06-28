@@ -583,7 +583,10 @@ var _load_dialog: EditorFileDialog
 var _texture_dialog: EditorFileDialog
 var _new_confirm: ConfirmationDialog
 var _load_confirm: ConfirmationDialog
-var _save_btn: Button
+var _file_btn: Button
+var _file_popup: PopupMenu
+var _recent_popup: PopupMenu
+var _filename_label: Label
 var _dirty: bool = false              # unsaved changes to the .nyx working file
 var _loading: bool = false            # suppresses dirty-marking during load/new
 var _pending_load_path: String = ""   # path awaiting the discard-changes confirm
@@ -1372,6 +1375,54 @@ func _on_export_menu_id(id: int) -> void:
 			print("Nyx: unlinked")
 
 
+func _get_recent_files() -> Array:
+	var s := EditorInterface.get_editor_settings()
+	if s.has_setting("nyx/recent_files"):
+		return Array(s.get_setting("nyx/recent_files"))
+	return []
+
+
+func _push_recent(path: String) -> void:
+	var s := EditorInterface.get_editor_settings()
+	var recent := _get_recent_files()
+	recent.erase(path)
+	recent.insert(0, path)
+	if recent.size() > 10:
+		recent.resize(10)
+	s.set_setting("nyx/recent_files", PackedStringArray(recent))
+
+
+func _refresh_recent_menu() -> void:
+	_recent_popup.clear()
+	var recent := _get_recent_files()
+	if recent.is_empty():
+		_recent_popup.add_item("(empty)", 0)
+		_recent_popup.set_item_disabled(0, true)
+	else:
+		for i in recent.size():
+			_recent_popup.add_item(recent[i].get_file(), i)
+			_recent_popup.set_item_tooltip(i, recent[i])
+
+
+func _on_recent_selected(id: int) -> void:
+	var recent := _get_recent_files()
+	if id < recent.size():
+		load_nyx(recent[id])
+
+
+func _on_file_menu_id(id: int) -> void:
+	match id:
+		0:  _on_new_pressed()
+		1:  _load_dialog.popup_centered_ratio(0.5)
+		2:  _on_save_pressed()
+		3:  _popup_save_dialog()
+		4:  _on_export_pressed()
+		5:  _on_export_menu_id(2)  # Export As… (re-link)
+		6:  _on_export_menu_id(0)  # Export new material
+		7:  _on_export_menu_id(1)  # Export shader only
+		8:  _on_export_menu_id(3)  # Unlink
+
+
 func _on_live_toggled(on: bool) -> void:
 	_live_link_on = on
 	# Toggling on immediately reflects the current graph state in the scene.
@@ -1419,6 +1470,8 @@ func _update_link_ui() -> void:
 	_live_btn.disabled = not linked
 	if not linked and _live_btn.button_pressed:
 		_live_btn.button_pressed = false  # fires toggled → live off
+	if _file_popup:
+		_file_popup.set_item_disabled(_file_popup.get_item_index(8), not linked)  # Unlink
 
 
 # Writes the .gdshader with a provenance stamp (gates artifact → Nyx navigation).
@@ -1841,6 +1894,7 @@ func _build_shortcuts_overlay() -> PanelContainer:
 		["Ctrl+O", "Open graph"],
 		["Ctrl+S", "Save (+ Update if linked)"],
 		["Ctrl+Shift+S", "Save As"],
+		["Ctrl+E", "Export / Update linked shader"],
 		["Ctrl+U", "Reload Nyx"],
 		["?", "Toggle this chart"],
 	]
@@ -1905,8 +1959,11 @@ func _set_clean() -> void:
 
 
 func _update_save_button() -> void:
-	if _save_btn:
-		_save_btn.text = "Save*" if _dirty else "Save"
+	if _filename_label:
+		var name := _current_nyx_path.get_file() if not _current_nyx_path.is_empty() else "untitled.nyx"
+		_filename_label.text = (name + " *") if _dirty else name
+		var col := Color("#D4A017") if _dirty else Color("#4AAF78")
+		_filename_label.add_theme_color_override("font_color", col)
 
 
 func _undo() -> void:
@@ -2164,6 +2221,10 @@ func _shortcut_input(event: InputEvent) -> void:
 			if not shift:
 				_load_dialog.popup_centered_ratio(0.5)
 				accept_event()
+		KEY_E:
+			if not shift:
+				_on_export_pressed()
+				accept_event()
 
 
 func _on_graph_gui_input(event: InputEvent) -> void:
@@ -2377,9 +2438,61 @@ func _load_category_icons() -> void:
 		_category_icons[cat_name] = ImageTexture.create_from_image(padded)
 
 
+func _load_toolbar_icon(path: String, size: int = 16) -> ImageTexture:
+	var tex := load(path) as Texture2D
+	if not tex:
+		return null
+	var img := tex.get_image()
+	img.resize(size, size, Image.INTERPOLATE_LANCZOS)
+	for y in img.get_height():
+		for x in img.get_width():
+			var px := img.get_pixel(x, y)
+			if px.a > 0.0:
+				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, px.a))
+	return ImageTexture.create_from_image(img)
+
+
 func _style_graph_toolbar() -> void:
-	for child in _graph.get_menu_hbox().get_children():
+	var hbox := _graph.get_menu_hbox()
+
+	var undo_btn := Button.new()
+	undo_btn.icon = _load_toolbar_icon("res://addons/nyx/icons/undo.svg", 12)
+	undo_btn.tooltip_text = "Undo"
+	undo_btn.pressed.connect(_undo)
+	_style_toolbar_button(undo_btn)
+	hbox.add_child(undo_btn)
+	hbox.move_child(undo_btn, 0)
+
+	var redo_btn := Button.new()
+	redo_btn.icon = _load_toolbar_icon("res://addons/nyx/icons/redo.svg", 12)
+	redo_btn.tooltip_text = "Redo"
+	redo_btn.pressed.connect(_redo)
+	_style_toolbar_button(redo_btn)
+	hbox.add_child(redo_btn)
+	hbox.move_child(redo_btn, 1)
+
+	for child in hbox.get_children():
 		if child is Button:
+			_style_toolbar_button(child)
+			# Tighter margins for icon-only buttons in the floating toolbar.
+			var icon_margin := StyleBoxFlat.new()
+			icon_margin.bg_color = Color(0, 0, 0, 0)
+			icon_margin.set_corner_radius_all(4)
+			icon_margin.content_margin_left = 4
+			icon_margin.content_margin_right = 4
+			icon_margin.content_margin_top = 2
+			icon_margin.content_margin_bottom = 2
+			child.add_theme_stylebox_override("normal", icon_margin)
+			var icon_hover := icon_margin.duplicate()
+			icon_hover.bg_color = Color(0.20, 0.20, 0.26)
+			icon_hover.set_border_width_all(1)
+			icon_hover.border_color = Color("#31614F")
+			child.add_theme_stylebox_override("hover", icon_hover)
+			var icon_press := icon_margin.duplicate()
+			icon_press.bg_color = Color(0.16, 0.32, 0.26)
+			child.add_theme_stylebox_override("pressed", icon_press)
+			child.add_theme_stylebox_override("hover_pressed", icon_hover)
+			child.add_theme_stylebox_override("focus", icon_margin)
 			child.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
 			child.add_theme_color_override("font_pressed_color", Color("#4AAF78"))
 			child.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
@@ -2407,44 +2520,51 @@ func _build_graph_toolbar() -> PanelContainer:
 	toolbar.add_theme_constant_override("separation", 4)
 	wrap.add_child(toolbar)
 
-	var new_btn := Button.new()
-	new_btn.text = "New"
-	new_btn.pressed.connect(_on_new_pressed)
-	_style_toolbar_button(new_btn)
-	toolbar.add_child(new_btn)
+	_file_popup = PopupMenu.new()
+	_recent_popup = PopupMenu.new()
+	_recent_popup.id_pressed.connect(_on_recent_selected)
+	_file_popup.add_item("New", 0)
+	_file_popup.add_item("Open…", 1)
+	_file_popup.add_submenu_node_item("Open Recent", _recent_popup)
+	_file_popup.add_separator()
+	_file_popup.add_item("Save", 2)
+	_file_popup.add_item("Save As…", 3)
+	_file_popup.add_separator()
+	_file_popup.add_item("Export…", 4)
+	_file_popup.add_item("Export As…", 5)
+	_file_popup.add_item("Export new material", 6)
+	_file_popup.add_item("Export shader only", 7)
+	_file_popup.add_separator()
+	_file_popup.add_item("Unlink", 8)
+	_file_popup.id_pressed.connect(_on_file_menu_id)
+	_file_popup.about_to_popup.connect(_refresh_recent_menu)
 
-	var save_btn := Button.new()
-	save_btn.text = "Save"
-	save_btn.pressed.connect(_on_save_pressed)
-	_style_toolbar_button(save_btn)
-	toolbar.add_child(save_btn)
-	_save_btn = save_btn
-
-	var load_btn := Button.new()
-	load_btn.text = "Load"
-	load_btn.pressed.connect(func(): _load_dialog.popup_centered_ratio(0.5))
-	_style_toolbar_button(load_btn)
-	toolbar.add_child(load_btn)
+	_file_btn = Button.new()
+	_file_btn.text = "File  ▾"
+	_file_btn.add_child(_file_popup)
+	_file_btn.pressed.connect(func() -> void:
+		var r := _file_btn.get_screen_position()
+		var h := _file_btn.size.y
+		_file_popup.reset_size()
+		_file_popup.popup(Rect2(Vector2(r.x, r.y + h), Vector2(0, 0)))
+	)
+	_style_toolbar_button(_file_btn)
+	toolbar.add_child(_file_btn)
 
 	var sep := VSeparator.new()
 	_style_toolbar_separator(sep)
 	toolbar.add_child(sep)
 
-	var undo_btn := Button.new()
-	undo_btn.text = "Undo"
-	undo_btn.pressed.connect(_undo)
-	_style_toolbar_button(undo_btn)
-	toolbar.add_child(undo_btn)
+	_filename_label = Label.new()
+	_filename_label.text = "untitled.nyx"
+	_filename_label.add_theme_font_size_override("font_size", 11)
+	_filename_label.add_theme_color_override("font_color", Color("#4AAF78"))
+	_filename_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toolbar.add_child(_filename_label)
 
-	var redo_btn := Button.new()
-	redo_btn.text = "Redo"
-	redo_btn.pressed.connect(_redo)
-	_style_toolbar_button(redo_btn)
-	toolbar.add_child(redo_btn)
-
-	var sep2 := VSeparator.new()
-	_style_toolbar_separator(sep2)
-	toolbar.add_child(sep2)
+	var sep_fn := VSeparator.new()
+	_style_toolbar_separator(sep_fn)
+	toolbar.add_child(sep_fn)
 
 	_type_popup = PopupMenu.new()
 	_type_popup.add_item("Spatial", 0)
@@ -2698,6 +2818,7 @@ func _on_save_file_selected(path: String) -> void:
 	if not path.ends_with(".nyx"):
 		path += ".nyx"
 	_current_nyx_path = path
+	_push_recent(path)
 	if _write_nyx_file(path):
 		_set_clean()
 		print("Nyx: saved graph → %s" % path)
@@ -2773,6 +2894,7 @@ func _do_load(path: String) -> void:
 		push_error("Nyx: could not read graph from %s" % path)
 		return
 	_current_nyx_path = path
+	_push_recent(path)
 	_deserialize_graph(_resource_to_dict(graph))
 	_set_clean()  # freshly loaded from disk
 	# A loaded linked graph goes live by default (same as just-linked).
