@@ -66,6 +66,7 @@ const ParticlePositionNode = preload("res://addons/nyx/nodes/particle_position_n
 const ParticleDeltaNode = preload("res://addons/nyx/nodes/particle_delta_node.gd")
 const ParticleRandomNode = preload("res://addons/nyx/nodes/particle_random_node.gd")
 const ParticleIndexNode = preload("res://addons/nyx/nodes/particle_index_node.gd")
+const VertexOutputNode = preload("res://addons/nyx/nodes/vertex_output_node.gd")
 
 const _NODE_REGISTRY := [
 	{"category": "Inputs", "nodes": [
@@ -439,6 +440,7 @@ const _TYPE_COLORS := {
 
 const NODE_CLASSES := {
 	"OutputNode": OutputNode,
+	"VertexOutputNode": VertexOutputNode,
 	"ColorNode": ColorNode,
 	"AddNode": AddNode,
 	"MultiplyNode": MultiplyNode,
@@ -760,8 +762,29 @@ func _ready() -> void:
 	_shortcuts_overlay = _build_shortcuts_overlay()
 	add_child(_shortcuts_overlay)
 
-	_add_node(OutputNode.new(), Vector2(400, 200), "OutputNode")
-	_add_node(ColorNode.new(), Vector2(150, 200), "Color")
+	_add_node(OutputNode.new(), Vector2(300, 160), "OutputNode")
+	_add_node(VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
+	_update_sink_visibility()
+	_frame_default_view()
+
+
+# Frame the graph view so the default node cluster sits in the top-left with a
+# small margin. Deferred: scroll_offset only sticks after GraphEdit lays out.
+func _frame_default_view() -> void:
+	call_deferred("_do_frame_default_view")
+
+
+func _do_frame_default_view() -> void:
+	if not _graph:
+		return
+	# Wait for the deferred node resize pass; GraphEdit re-clamps scroll_offset
+	# against the node bounding box afterward, which would otherwise snap y back.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_instance_valid(_graph):
+		return
+	_graph.zoom = 1.0
+	_graph.scroll_offset = Vector2(-600, -100)
 
 
 func _build_preview_panel() -> Panel:
@@ -1222,17 +1245,31 @@ func _build_shader_code() -> String:
 
 		return "shader_type particles;\n%s\n%s%svoid start() {\n%s}\n\nvoid process() {\n%s}\n" % [uniform_lines, function_block, compose_fn, start_body, process_body]
 
-	# Spatial
+	# Spatial — Fragment Output node
 	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
 	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
 	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
 	var metallic  = _get_snippet_for("OutputNode", 3, c, "0.0")
 	var emission  = _get_snippet_for("OutputNode", 4, c, "vec3(0.0, 0.0, 0.0)")
-	var normal         = _get_snippet_for("OutputNode", 5, c, "")
-	var vertex_offset  = _get_snippet_for("OutputNode", 6, c, "")
-	var normal_line := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
-	var vertex_block := "void vertex() {\n\tVERTEX += %s;\n}\n\n" % vertex_offset if vertex_offset != "" else ""
-	return "shader_type spatial;\n%s%s\n%s%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n%s}\n" % [render_mode_line, uniform_lines, function_block, vertex_block, albedo, alpha, roughness, metallic, emission, normal_line]
+	var normal    = _get_snippet_for("OutputNode", 5, c, "")
+	var specular  = _get_snippet_for("OutputNode", 6, c, "")
+	var ao        = _get_snippet_for("OutputNode", 7, c, "")
+	var normal_line   := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
+	var specular_line := "\tSPECULAR = %s;\n" % specular if specular != "" else ""
+	var ao_line       := "\tAO = %s;\n" % ao if ao != "" else ""
+	# Vertex Output node
+	var vertex_offset = _get_snippet_for("VertexOutputNode", 0, c, "")
+	var vert_normal   = _get_snippet_for("VertexOutputNode", 1, c, "")
+	var vert_tangent  = _get_snippet_for("VertexOutputNode", 2, c, "")
+	var vertex_lines := ""
+	if vertex_offset != "":
+		vertex_lines += "\tVERTEX += %s;\n" % vertex_offset
+	if vert_normal != "":
+		vertex_lines += "\tNORMAL = %s;\n" % vert_normal
+	if vert_tangent != "":
+		vertex_lines += "\tTANGENT = %s;\n" % vert_tangent
+	var vertex_block := "void vertex() {\n%s}\n\n" % vertex_lines if vertex_lines != "" else ""
+	return "shader_type spatial;\n%s%s\n%s%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n%s%s%s}\n" % [render_mode_line, uniform_lines, function_block, vertex_block, albedo, alpha, roughness, metallic, emission, normal_line, specular_line, ao_line]
 
 
 func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
@@ -1270,12 +1307,17 @@ func _sync_shader_type_ui(idx: int) -> void:
 func _on_shader_type_changed(idx: int) -> void:
 	_shader_type = idx
 	_sync_shader_type_ui(idx)
-	if idx == 2:
-		_ensure_particle_sinks()
-	else:
+	if idx == 0:
+		_ensure_spatial_sinks()
 		var output_node = _graph.get_node_or_null("OutputNode")
 		if output_node:
-			output_node.set_shader_type(idx)
+			output_node.set_shader_type(0)
+	elif idx == 1:
+		var output_node = _graph.get_node_or_null("OutputNode")
+		if output_node:
+			output_node.set_shader_type(1)
+	elif idx == 2:
+		_ensure_particle_sinks()
 	_update_sink_visibility()
 	# Rebuild per-node previews for the new mode. Particle mode has no per-node
 	# previews (the values are per-particle, not per-pixel), so just tear them down.
@@ -1291,6 +1333,13 @@ func _on_shader_type_changed(idx: int) -> void:
 	_request_compile()
 
 
+func _ensure_spatial_sinks() -> void:
+	if not _graph.get_node_or_null("OutputNode"):
+		_add_node(OutputNode.new(), Vector2(300, 160), "OutputNode")
+	if not _graph.get_node_or_null("VertexOutputNode"):
+		_add_node(VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
+
+
 func _ensure_particle_sinks() -> void:
 	if not _graph.get_node_or_null("ParticleStartNode"):
 		_add_node(ParticleStartNode.new(), Vector2(440, 120), "ParticleStartNode")
@@ -1302,6 +1351,9 @@ func _update_sink_visibility() -> void:
 	var output_node = _graph.get_node_or_null("OutputNode")
 	if output_node:
 		output_node.visible = _shader_type != 2
+	var vertex_output_node = _graph.get_node_or_null("VertexOutputNode")
+	if vertex_output_node:
+		vertex_output_node.visible = _shader_type == 0
 	var start_node = _graph.get_node_or_null("ParticleStartNode")
 	if start_node:
 		start_node.visible = _shader_type == 2
@@ -1341,7 +1393,7 @@ func _apply_texture_uniforms() -> void:
 
 
 func _compile_shader() -> void:
-	if _graph.get_node_or_null("OutputNode") or _shader_type == 2:
+	if _graph.get_node_or_null("OutputNode") or _graph.get_node_or_null("VertexOutputNode") or _shader_type == 2:
 		var code := _build_shader_code()
 		if code != _last_shader_code:
 			_last_shader_code = code
@@ -2065,7 +2117,7 @@ func _on_delete_nodes_request(nodes: Array[StringName]) -> void:
 # never be copied or duplicated.
 func _is_sink_node(node: Node) -> bool:
 	var n := str(node.name)
-	return n == "OutputNode" or n == "ParticleStartNode" or n == "ParticleProcessNode"
+	return n == "OutputNode" or n == "VertexOutputNode" or n == "ParticleStartNode" or n == "ParticleProcessNode"
 
 
 # Serialize the currently-selected (non-sink) nodes plus the connections wholly between
@@ -3113,7 +3165,9 @@ func _deserialize_graph(data: Dictionary) -> void:
 		var to: String = name_map.get(conn["to_node"], conn["to_node"])
 		_graph.connect_node(from, conn["from_port"], to, conn["to_port"])
 
-	if _shader_type == 2:
+	if _shader_type == 0:
+		_ensure_spatial_sinks()
+	elif _shader_type == 2:
 		_ensure_particle_sinks()
 	_update_sink_visibility()
 	_request_compile()
@@ -3152,9 +3206,10 @@ func _new_graph() -> void:
 	_last_shader_code = ""
 	_undo_stack.clear()
 	_redo_stack.clear()
-	_add_node(OutputNode.new(), Vector2(400, 200), "OutputNode")
-	_add_node(ColorNode.new(), Vector2(150, 200), "Color")
+	_add_node(OutputNode.new(), Vector2(300, 160), "OutputNode")
+	_add_node(VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
 	_update_sink_visibility()
+	_frame_default_view()
 	_request_compile()
 	_loading = false
 	_set_clean()  # fresh editor = nothing unsaved

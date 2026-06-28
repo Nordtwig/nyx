@@ -4,8 +4,8 @@ extends "res://addons/nyx/nodes/nyx_node.gd"
 const _SPATIAL_MODES := ["", "blend_mix", "blend_add", "blend_premul_alpha"]
 const _CANVAS_MODES := ["", "unshaded", "light_only", "blend_add", "blend_premul_alpha"]
 
-const _SPATIAL_LABELS := ["Albedo", "Alpha", "Roughness", "Metallic", "Emission", "Normal", "Vertex Offset"]
-const _CANVAS_LABELS := ["Color", "Alpha", "Normal Map", "", "", "", ""]
+const _SPATIAL_LABELS := ["Albedo", "Alpha", "Roughness", "Metallic", "Emission", "Normal", "Specular", "AO"]
+const _CANVAS_LABELS := ["Color", "Alpha", "Normal Map", "", "", "", "", ""]
 
 var _mode: int = 0
 var _shader_type: int = 0
@@ -29,7 +29,8 @@ func _ready() -> void:
 	set_slot(3, true, 1, float_color, false, -1, float_color)
 	set_slot(4, true, 0, vec3_color, false, -1, vec3_color)
 	set_slot(5, true, 0, vec3_color, false, -1, vec3_color)
-	set_slot(6, true, 0, vec3_color, false, -1, vec3_color)
+	set_slot(6, true, 1, float_color, false, -1, float_color)
+	set_slot(7, true, 1, float_color, false, -1, float_color)
 
 	for label_text in _SPATIAL_LABELS:
 		var label := Label.new()
@@ -66,7 +67,8 @@ func set_shader_type(type: int) -> void:
 		set_slot(3, true, 1, float_color, false, -1, float_color)
 		set_slot(4, true, 0, vec3_color, false, -1, vec3_color)
 		set_slot(5, true, 0, vec3_color, false, -1, vec3_color)
-		set_slot(6, true, 0, vec3_color, false, -1, vec3_color)
+		set_slot(6, true, 1, float_color, false, -1, float_color)
+		set_slot(7, true, 1, float_color, false, -1, float_color)
 		for i in range(_slot_labels.size()):
 			_slot_labels[i].text = _SPATIAL_LABELS[i]
 			_slot_labels[i].visible = true
@@ -79,6 +81,7 @@ func set_shader_type(type: int) -> void:
 		set_slot(4, false, -1, vec3_color, false, -1, vec3_color)
 		set_slot(5, false, -1, vec3_color, false, -1, vec3_color)
 		set_slot(6, false, -1, vec3_color, false, -1, vec3_color)
+		set_slot(7, false, -1, vec3_color, false, -1, vec3_color)
 		for i in range(_slot_labels.size()):
 			_slot_labels[i].text = _CANVAS_LABELS[i]
 			_slot_labels[i].visible = _CANVAS_LABELS[i] != ""
