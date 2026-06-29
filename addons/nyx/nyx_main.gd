@@ -604,10 +604,18 @@ var _pending_after_save: Callable = Callable()  # run after a "Save & …" compl
 var _texture_target: Node = null
 var _spawn_position: Vector2
 var _last_shader_code: String
+# Shader compiler (graph → GLSL). Extracted from this file; holds a reference to
+# _graph and is constructed once in _ready. See nyx_compiler.gd.
+const NyxCompiler = preload("res://addons/nyx/nyx_compiler.gd")
+var _compiler  # NyxCompiler instance
+
+# Persistence layer (.nyx disk format + dict↔resource bridge). Stateless/static.
+# graph→dict (_serialize_graph) and dict→graph (_deserialize_graph) stay here; this
+# only owns disk↔format. See nyx_serializer.gd.
+const NyxSerializer = preload("res://addons/nyx/nyx_serializer.gd")
+
 # Live link / linked artifact state.
 const NyxCharon = preload("res://addons/nyx/core/charon.gd")
-const NyxGraphRes = preload("res://addons/nyx/core/nyx_graph.gd")
-const NyxNodeDataRes = preload("res://addons/nyx/core/nyx_node_data.gd")
 var _export_mode: String = "full"         # "full" | "shader_only" (drives _on_export_file_selected)
 var _current_nyx_path: String = ""        # working .nyx file on disk ("" = unsaved)
 var _linked_shader_path: String = ""      # linked exported .gdshader ("" = unlinked)
@@ -630,6 +638,7 @@ func _ready() -> void:
 	add_child(_compile_timer)
 
 	_graph = GraphEdit.new()
+	_compiler = NyxCompiler.new(_graph)
 	_graph.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_graph.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
@@ -1106,7 +1115,7 @@ func _refresh_node_preview(node: Node) -> void:
 	if not node.has_meta("_preview_material"):
 		return
 	var mat: ShaderMaterial = node.get_meta("_preview_material")
-	mat.shader.code = _build_node_preview_shader(node)
+	mat.shader.code = _compiler.build_node_preview_shader(node, _shader_type)
 	for child in _graph.get_children():
 		if child.has_method("get_uniform_name") and child.has_method("get_texture"):
 			var tex = child.get_texture()
@@ -1120,156 +1129,9 @@ func _refresh_all_node_previews() -> void:
 			_refresh_node_preview(child)
 
 
-func _build_node_preview_shader(node: Node) -> String:
-	var c = _graph.get_connection_list()
-
-	var uniform_lines := ""
-	var seen_decls := {}
-	for child in _graph.get_children():
-		if child.has_method("get_uniform_declaration"):
-			var decl: String = child.get_uniform_declaration()
-			if decl != "" and not seen_decls.has(decl):
-				uniform_lines += decl + "\n"
-				seen_decls[decl] = true
-
-	var shader_functions := {}
-	for child in _graph.get_children():
-		if child.has_method("get_shader_functions"):
-			shader_functions.merge(child.get_shader_functions())
-	var function_block := ""
-	for fn in shader_functions:
-		function_block += shader_functions[fn]
-
-	var preview_expr: String
-	if node.get_output_port_count() == 0:
-		preview_expr = _get_snippet_for(node.name, 0, c, "vec3(0.5, 0.5, 0.5)")
-	else:
-		var node_result := _get_node_snippet(node, 0, c)
-		preview_expr = _to_vec3_display(node_result[0], node_result[1])
-
-	if _shader_type == 1:
-		return "shader_type canvas_item;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tCOLOR = vec4(%s, 1.0);\n}\n" % [uniform_lines, function_block, preview_expr]
-
-	return "shader_type spatial;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tALBEDO = %s;\n}\n" % [uniform_lines, function_block, preview_expr]
-
-
 func _request_compile() -> void:
 	_compile_timer.stop()
 	_compile_timer.start()
-
-
-func _build_shader_code() -> String:
-	var uniform_lines := ""
-	var seen_decls := {}
-	for child in _graph.get_children():
-		if child.has_method("get_uniform_declaration"):
-			var decl: String = child.get_uniform_declaration()
-			if decl != "" and not seen_decls.has(decl):
-				uniform_lines += decl + "\n"
-				seen_decls[decl] = true
-
-	var shader_functions := {}
-	for child in _graph.get_children():
-		if child.has_method("get_shader_functions"):
-			shader_functions.merge(child.get_shader_functions())
-	var function_block := ""
-	for fn in shader_functions:
-		function_block += shader_functions[fn]
-
-	var output_node = _graph.get_node_or_null("OutputNode")
-	var render_mode: String = output_node.get_render_mode() if output_node else ""
-	var render_mode_line: String = ("render_mode %s;\n" % render_mode) if render_mode != "" else ""
-
-	var c = _graph.get_connection_list()
-
-	if _shader_type == 1:
-		# Canvas Item
-		var color  = _get_snippet_for("OutputNode", 0, c, "vec3(1.0, 1.0, 1.0)")
-		var alpha  = _get_snippet_for("OutputNode", 1, c, "1.0")
-		var normal = _get_snippet_for("OutputNode", 2, c, "")
-		var normal_line := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
-		return "shader_type canvas_item;\n%s%s\n%svoid fragment() {\n\tCOLOR = vec4(%s, %s);\n%s}\n" % [render_mode_line, uniform_lines, function_block, color, alpha, normal_line]
-
-	if _shader_type == 2:
-		# Particles — process shader. Two entry points: start() (once, on spawn)
-		# and process() (per frame). TRANSFORM is recomposed from decomposed
-		# Position/Rotation/Scale via nyx_compose_transform. CUSTOM.y is reserved
-		# for age tracking (0 at spawn, += DELTA/LIFETIME each frame → Age Ratio).
-		var compose_fn := "mat4 nyx_compose_transform(vec3 pos, vec3 euler, vec3 scale) {\n" \
-			+ "\tfloat cx = cos(euler.x); float sx = sin(euler.x);\n" \
-			+ "\tfloat cy = cos(euler.y); float sy = sin(euler.y);\n" \
-			+ "\tfloat cz = cos(euler.z); float sz = sin(euler.z);\n" \
-			+ "\tmat3 rx = mat3(vec3(1.0, 0.0, 0.0), vec3(0.0, cx, sx), vec3(0.0, -sx, cx));\n" \
-			+ "\tmat3 ry = mat3(vec3(cy, 0.0, -sy), vec3(0.0, 1.0, 0.0), vec3(sy, 0.0, cy));\n" \
-			+ "\tmat3 rz = mat3(vec3(cz, sz, 0.0), vec3(-sz, cz, 0.0), vec3(0.0, 0.0, 1.0));\n" \
-			+ "\tmat3 basis = rz * ry * rx;\n" \
-			+ "\tbasis[0] *= scale.x; basis[1] *= scale.y; basis[2] *= scale.z;\n" \
-			+ "\tmat4 m;\n" \
-			+ "\tm[0] = vec4(basis[0], 0.0);\n" \
-			+ "\tm[1] = vec4(basis[1], 0.0);\n" \
-			+ "\tm[2] = vec4(basis[2], 0.0);\n" \
-			+ "\tm[3] = vec4(pos, 1.0);\n" \
-			+ "\treturn m;\n}\n\n"
-
-		var s_pos := "vec3(0.0)"
-		var s_vel := "vec3(0.0)"
-		var s_col := "vec4(1.0)"
-		var s_scale := "vec3(1.0)"
-		var s_rot := "vec3(0.0)"
-		if _graph.get_node_or_null("ParticleStartNode"):
-			s_pos   = _get_typed_snippet_for("ParticleStartNode", 0, c, "vec3(0.0)", 0)
-			s_vel   = _get_typed_snippet_for("ParticleStartNode", 1, c, "vec3(0.0)", 0)
-			s_col   = _get_typed_snippet_for("ParticleStartNode", 2, c, "vec4(1.0)", 3)
-			s_scale = _get_typed_snippet_for("ParticleStartNode", 3, c, "vec3(1.0)", 0)
-			s_rot   = _get_typed_snippet_for("ParticleStartNode", 4, c, "vec3(0.0)", 0)
-
-		var start_body := "\tTRANSFORM = EMISSION_TRANSFORM * nyx_compose_transform(%s, %s, %s);\n" % [s_pos, s_rot, s_scale]
-		start_body += "\tVELOCITY = %s;\n" % s_vel
-		start_body += "\tCOLOR = %s;\n" % s_col
-		start_body += "\tCUSTOM.y = 0.0;\n"
-
-		var process_body := "\tCUSTOM.y += DELTA / max(LIFETIME, 0.0001);\n"
-		var p_pos := ""
-		if _graph.get_node_or_null("ParticleProcessNode"):
-			var p_vel := _get_typed_snippet_for("ParticleProcessNode", 0, c, "", 0)
-			var p_col := _get_typed_snippet_for("ParticleProcessNode", 1, c, "", 3)
-			p_pos = _get_typed_snippet_for("ParticleProcessNode", 2, c, "", 0)
-			if p_vel != "":
-				process_body += "\tVELOCITY = %s;\n" % p_vel
-			if p_col != "":
-				process_body += "\tCOLOR = %s;\n" % p_col
-		if p_pos != "":
-			process_body += "\tTRANSFORM[3].xyz = %s;\n" % p_pos
-		else:
-			process_body += "\tTRANSFORM[3].xyz += VELOCITY * DELTA;\n"
-
-		return "shader_type particles;\n%s\n%s%svoid start() {\n%s}\n\nvoid process() {\n%s}\n" % [uniform_lines, function_block, compose_fn, start_body, process_body]
-
-	# Spatial — Fragment Output node
-	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
-	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
-	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
-	var metallic  = _get_snippet_for("OutputNode", 3, c, "0.0")
-	var emission  = _get_snippet_for("OutputNode", 4, c, "vec3(0.0, 0.0, 0.0)")
-	var normal    = _get_snippet_for("OutputNode", 5, c, "")
-	var specular  = _get_snippet_for("OutputNode", 6, c, "")
-	var ao        = _get_snippet_for("OutputNode", 7, c, "")
-	var normal_line   := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
-	var specular_line := "\tSPECULAR = %s;\n" % specular if specular != "" else ""
-	var ao_line       := "\tAO = %s;\n" % ao if ao != "" else ""
-	# Vertex Output node
-	var vertex_offset = _get_snippet_for("VertexOutputNode", 0, c, "")
-	var vert_normal   = _get_snippet_for("VertexOutputNode", 1, c, "")
-	var vert_tangent  = _get_snippet_for("VertexOutputNode", 2, c, "")
-	var vertex_lines := ""
-	if vertex_offset != "":
-		vertex_lines += "\tVERTEX += %s;\n" % vertex_offset
-	if vert_normal != "":
-		vertex_lines += "\tNORMAL = %s;\n" % vert_normal
-	if vert_tangent != "":
-		vertex_lines += "\tTANGENT = %s;\n" % vert_tangent
-	var vertex_block := "void vertex() {\n%s}\n\n" % vertex_lines if vertex_lines != "" else ""
-	return "shader_type spatial;\n%s%s\n%s%svoid fragment() {\n\tALBEDO = %s;\n\tALPHA = %s;\n\tROUGHNESS = %s;\n\tMETALLIC = %s;\n\tEMISSION = %s;\n%s%s%s}\n" % [render_mode_line, uniform_lines, function_block, vertex_block, albedo, alpha, roughness, metallic, emission, normal_line, specular_line, ao_line]
 
 
 func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
@@ -1293,7 +1155,7 @@ func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
 			to_reconnect.append({"from": from, "fp": fp - 1, "to": to, "tp": tp})
 	for r in to_reconnect:
 		_graph.connect_node(r["from"], r["fp"], r["to"], r["tp"])
-	_update_all_polymorphic_ports()
+	_compiler.update_all_polymorphic_ports()
 	_request_compile()
 
 
@@ -1394,7 +1256,7 @@ func _apply_texture_uniforms() -> void:
 
 func _compile_shader() -> void:
 	if _graph.get_node_or_null("OutputNode") or _graph.get_node_or_null("VertexOutputNode") or _shader_type == 2:
-		var code := _build_shader_code()
+		var code: String = _compiler.build_shader_code(_shader_type)
 		if code != _last_shader_code:
 			_last_shader_code = code
 			var mat := _get_active_material()
@@ -1530,11 +1392,11 @@ func _popup_export_dialog() -> void:
 func _do_update() -> void:
 	if _linked_shader_path.is_empty():
 		return
-	var code := _build_shader_code()
+	var code: String = _compiler.build_shader_code(_shader_type)
 	if not _write_shader_file(_linked_shader_path, code):
 		return
 	if not _current_nyx_path.is_empty():
-		_write_nyx_file(_current_nyx_path)
+		NyxSerializer.write(_current_nyx_path, _serialize_graph())
 	NyxCharon.notify_shader_updated(_linked_shader_path, _get_active_material())
 	EditorInterface.get_resource_filesystem().scan()
 	print("Nyx: updated shader → %s" % _linked_shader_path)
@@ -1657,7 +1519,7 @@ func _write_material_file(shader_path: String) -> bool:
 func _on_export_file_selected(path: String) -> void:
 	if not path.ends_with(".gdshader"):
 		path += ".gdshader"
-	var code := _build_shader_code()
+	var code: String = _compiler.build_shader_code(_shader_type)
 	if not _write_shader_file(path, code):
 		return
 	if _export_mode != "shader_only":
@@ -1669,101 +1531,6 @@ func _on_export_file_selected(path: String) -> void:
 		print("Nyx: exported shader → %s (linked)" % path)
 	else:
 		print("Nyx: exported\n  shader  → %s\n  material → %s (linked)" % [path, path.get_basename() + ".tres"])
-
-
-func _get_snippet_typed(to_node: String, to_port: int, connections: Array, default_val: String, default_type: int) -> Array:
-	for conn in connections:
-		if str(conn["to_node"]) == to_node and conn["to_port"] == to_port:
-			var from := _graph.get_node_or_null(str(conn["from_node"]))
-			if from:
-				return _get_node_snippet(from, conn["from_port"], connections)
-	return [default_val, default_type]
-
-
-func _get_snippet_for(to_node: String, to_port: int, connections: Array, default_val: String) -> String:
-	# Heuristic default type from the literal — fine for float/vec3 defaults, but
-	# can't tell vec3 from vec4. Use _get_typed_snippet_for when the slot is vec4.
-	var default_type: int = 1 if not default_val.begins_with("vec") else 0
-	return _get_typed_snippet_for(to_node, to_port, connections, default_val, default_type)
-
-
-func _get_typed_snippet_for(to_node: String, to_port: int, connections: Array, default_val: String, default_type: int) -> String:
-	var result := _get_snippet_typed(to_node, to_port, connections, default_val, default_type)
-	var snippet: String = result[0]
-	if snippet.is_empty():
-		return snippet
-	var from_type: int = result[1]
-	var to_node_ref := _graph.get_node_or_null(to_node)
-	var to_type: int = to_node_ref.get_input_port_type(to_port) if to_node_ref else 0
-	return _promote(snippet, from_type, to_type)
-
-
-func _get_node_snippet(node: Node, from_port: int, connections: Array) -> Array:
-	var defaults: Array = node.get_default_inputs() if node.has_method("get_default_inputs") else []
-	var default_types: Array = node.get_default_input_types() if node.has_method("get_default_input_types") else []
-
-	var raw_inputs := []
-	for i in range(node.get_input_port_count()):
-		var default_val: String = defaults[i] if i < defaults.size() else "0.0"
-		var default_type: int = default_types[i] if i < default_types.size() else node.get_input_port_type(i)
-		raw_inputs.append(_get_snippet_typed(node.name, i, connections, default_val, default_type))
-
-	var input_types := []
-	for r in raw_inputs:
-		input_types.append(r[1])
-
-	var output_type: int
-	if node.has_method("get_output_type"):
-		output_type = node.get_output_type(from_port, input_types)
-	else:
-		output_type = node.get_output_port_type(from_port) if node.get_output_port_count() > from_port else 0
-
-	var is_poly: bool = node.has_method("is_polymorphic") and node.is_polymorphic()
-
-	var inputs := []
-	for i in range(raw_inputs.size()):
-		var snippet: String = raw_inputs[i][0]
-		var in_type: int = raw_inputs[i][1]
-		# Polymorphic nodes operate at their resolved output type, so promote
-		# every input up to it. Fixed-type nodes promote to the declared port type.
-		var target_type: int = output_type if is_poly else (node.get_input_port_type(i) if i < node.get_input_port_count() else 0)
-		inputs.append(_promote(snippet, in_type, target_type))
-
-	return [node.get_output_snippet(from_port, inputs), output_type]
-
-
-func _resolve_output_type(node: Node, from_port: int) -> int:
-	if not node.has_method("is_polymorphic") or not node.is_polymorphic():
-		return node.get_output_port_type(from_port)
-	var c := _graph.get_connection_list()
-	var default_types: Array = node.get_default_input_types() if node.has_method("get_default_input_types") else []
-	var input_types := []
-	for i in range(node.get_input_port_count()):
-		var in_type: int = default_types[i] if i < default_types.size() else node.get_input_port_type(i)
-		for conn in c:
-			if str(conn["to_node"]) == node.name and conn["to_port"] == i:
-				var from_n := _graph.get_node_or_null(str(conn["from_node"]))
-				if from_n:
-					in_type = _resolve_output_type(from_n, conn["from_port"])
-				break
-		input_types.append(in_type)
-	return node.get_output_type(from_port, input_types) if node.has_method("get_output_type") else node.get_output_port_type(from_port)
-
-
-func _update_all_polymorphic_ports() -> void:
-	for child in _graph.get_children():
-		if not (child is GraphNode):
-			continue
-		if not child.has_method("is_polymorphic") or not child.is_polymorphic():
-			continue
-		for port in range(child.get_output_port_count()):
-			var resolved_type := _resolve_output_type(child, port)
-			if child.get_output_port_type(port) == resolved_type:
-				continue
-			var port_color := NyxNodeBase._type_color(resolved_type)
-			child.set_slot(port,
-				child.is_slot_enabled_left(port), child.get_slot_type_left(port), child.get_slot_color_left(port),
-				child.is_slot_enabled_right(port), resolved_type, port_color)
 
 
 func sync_size(new_size: Vector2) -> void:
@@ -2190,7 +1957,7 @@ func _paste_buffer(buf: Dictionary, offset: Vector2 = Vector2(30, 30)) -> void:
 			_graph.connect_node(from, conn["from_port"], to, conn["to_port"])
 	for node in new_nodes:
 		node.selected = true
-	_update_all_polymorphic_ports()
+	_compiler.update_all_polymorphic_ports()
 	_request_compile()
 	_mark_dirty()
 
@@ -2228,60 +1995,20 @@ func _on_connection_request(from_node: StringName, from_port: int, to_node: Stri
 	var to := _graph.get_node_or_null(str(to_node))
 	if not from or not to:
 		return
-	var from_type: int = _resolve_output_type(from, from_port)
+	var from_type: int = _compiler.resolve_output_type(from, from_port)
 	var to_type: int = to.get_input_port_type(to_port)
-	if not _can_promote(from_type, to_type):
+	if not _compiler.can_promote(from_type, to_type):
 		return
 	_push_undo_state()
 	_graph.connect_node(from_node, from_port, to_node, to_port)
-	_update_all_polymorphic_ports()
+	_compiler.update_all_polymorphic_ports()
 	_request_compile()
-
-
-# Type IDs: 0 = vec3, 1 = float, 2 = vec2, 3 = vec4.
-func _can_promote(from_type: int, to_type: int) -> bool:
-	if from_type == to_type:
-		return true
-	match from_type:
-		1: return to_type in [2, 0, 3]  # float → vec2/vec3/vec4
-		2: return to_type in [0, 3]     # vec2  → vec3/vec4
-		0: return to_type == 3          # vec3  → vec4
-		3: return to_type == 0          # vec4  → vec3 (drop alpha, .rgb)
-	return false
-
-
-# Widen a GLSL snippet from one type to another (no-op if already matching).
-func _promote(snippet: String, from_type: int, to_type: int) -> String:
-	if from_type == to_type:
-		return snippet
-	match to_type:
-		2:
-			if from_type == 1: return "vec2(%s)" % snippet
-		0:
-			if from_type == 1: return "vec3(%s)" % snippet
-			if from_type == 2: return "vec3(%s, 0.0)" % snippet
-			if from_type == 3: return "(%s).rgb" % snippet
-		3:
-			if from_type == 1: return "vec4(%s)" % snippet
-			if from_type == 2: return "vec4(%s, 0.0, 1.0)" % snippet
-			if from_type == 0: return "vec4(%s, 1.0)" % snippet
-	return snippet
-
-
-# Narrow any type down to a vec3 for display in per-node previews.
-func _to_vec3_display(snippet: String, type: int) -> String:
-	match type:
-		1: return "vec3(%s)" % snippet
-		2: return "vec3(%s, 0.0)" % snippet
-		3: return "(%s).rgb" % snippet
-	return snippet
-
 
 
 func _on_disconnection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
 	_push_undo_state()
 	_graph.disconnect_node(from_node, from_port, to_node, to_port)
-	_update_all_polymorphic_ports()
+	_compiler.update_all_polymorphic_ports()
 	_request_compile()
 
 
@@ -3220,7 +2947,7 @@ func _new_graph() -> void:
 func _on_save_pressed() -> void:
 	if _current_nyx_path.is_empty():
 		_popup_save_dialog()
-	elif _write_nyx_file(_current_nyx_path):
+	elif NyxSerializer.write(_current_nyx_path, _serialize_graph()):
 		_set_clean()
 		print("Nyx: saved graph → %s" % _current_nyx_path)
 
@@ -3238,7 +2965,7 @@ func _save_then(after: Callable) -> void:
 	if _current_nyx_path.is_empty():
 		_pending_after_save = after
 		_popup_save_dialog()
-	elif _write_nyx_file(_current_nyx_path):
+	elif NyxSerializer.write(_current_nyx_path, _serialize_graph()):
 		_set_clean()
 		after.call()
 
@@ -3248,7 +2975,7 @@ func _on_save_file_selected(path: String) -> void:
 		path += ".nyx"
 	_current_nyx_path = path
 	_push_recent(path)
-	if _write_nyx_file(path):
+	if NyxSerializer.write(path, _serialize_graph()):
 		_set_clean()
 		print("Nyx: saved graph → %s" % path)
 		# Continue a pending "Save & New / Load" once the save succeeded.
@@ -3256,55 +2983,6 @@ func _on_save_file_selected(path: String) -> void:
 			var after := _pending_after_save
 			_pending_after_save = Callable()
 			after.call()
-
-
-# Writes the graph to disk as a native NyxGraph resource (`.nyx`). Returns success.
-func _write_nyx_file(path: String) -> bool:
-	var graph := _dict_to_resource(_serialize_graph())
-	var err := ResourceSaver.save(graph, path)
-	if err != OK:
-		push_error("Nyx: could not write graph to %s (err %d)" % [path, err])
-		return false
-	if path.begins_with("res://"):
-		EditorInterface.get_resource_filesystem().update_file(path)
-	return true
-
-
-# --- NyxGraph resource <-> serialize-dict translation ---
-# Save/load go through the resource; undo/redo keep using the dict directly. The
-# dict is the single source of truth; these just wrap/unwrap it.
-
-func _dict_to_resource(d: Dictionary) -> NyxGraphRes:
-	var graph := NyxGraphRes.new()
-	graph.shader_type = d.get("shader_type", 0)
-	graph.linked_shader_path = d.get("linked_shader_path", "")
-	for nd in d.get("nodes", []):
-		var data := NyxNodeDataRes.new()
-		data.type = nd.get("type", "")
-		data.node_name = nd.get("name", "")
-		var pos: Array = nd.get("position", [0.0, 0.0])
-		data.position = Vector2(pos[0], pos[1])
-		data.state = nd.get("state", {})
-		graph.nodes.append(data)
-	graph.connections = d.get("connections", [])
-	return graph
-
-
-func _resource_to_dict(graph: NyxGraphRes) -> Dictionary:
-	var nodes := []
-	for data in graph.nodes:
-		nodes.append({
-			"type": data.type,
-			"name": data.node_name,
-			"position": [data.position.x, data.position.y],
-			"state": data.state,
-		})
-	return {
-		"nodes": nodes,
-		"connections": graph.connections,
-		"shader_type": graph.shader_type,
-		"linked_shader_path": graph.linked_shader_path,
-	}
 
 
 # Public, guarded entry point: the Load dialog, "Open in Nyx" navigation, and
@@ -3318,13 +2996,12 @@ func load_nyx(path: String) -> void:
 
 
 func _do_load(path: String) -> void:
-	var graph = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
-	if graph == null or not graph is NyxGraphRes:
-		push_error("Nyx: could not read graph from %s" % path)
+	var data = NyxSerializer.read(path)
+	if data == null:
 		return
 	_current_nyx_path = path
 	_push_recent(path)
-	_deserialize_graph(_resource_to_dict(graph))
+	_deserialize_graph(data)
 	_set_clean()  # freshly loaded from disk
 	# A loaded linked graph goes live by default (same as just-linked).
 	if not _linked_shader_path.is_empty():
