@@ -258,14 +258,11 @@ var _outer_vbox: VBoxContainer
 var _graph_container: VBoxContainer
 var _graph: GraphEdit
 var _shader_type: int = 0
-var _type_btn: Button
-var _type_popup: PopupMenu
-var _render_mode_btn: Button
-var _render_mode_popup: PopupMenu
-var _properties_panel: Panel
-var _properties_vbox: VBoxContainer
-var _properties_detail_vbox: VBoxContainer
-var _selected_param_row: Control = null
+# Toolbar (signal-based PanelContainer) and properties panel (floating Panel).
+const NyxGraphToolbar = preload("res://addons/nyx/nyx_graph_toolbar.gd")
+const NyxPropertiesPanel = preload("res://addons/nyx/nyx_properties_panel.gd")
+var _toolbar  # NyxGraphToolbar instance
+var _properties_panel  # NyxPropertiesPanel instance
 # Preview panel (floating — owns viewports/materials/mesh-switcher/particles/drag+resize).
 # Per-node preview manager (SubViewport-per-node lifecycle). Both extracted from this file.
 const NyxPreviewPanel = preload("res://addons/nyx/nyx_preview_panel.gd")
@@ -275,7 +272,7 @@ var _node_previews  # NyxNodePreviews instance
 var _type_legend: PanelContainer
 var _legend_toggle: Button
 var _minimap_toggle: Button
-var _shortcuts_overlay: PanelContainer
+var _shortcuts_overlay: Control
 var _panning: bool = false
 var _pan_moved: bool = false  # did the cursor move during the current empty-canvas drag?
 var _clipboard: Dictionary = {}  # {nodes, connections} from the last copy
@@ -292,10 +289,6 @@ var _load_dialog: EditorFileDialog
 var _texture_dialog: EditorFileDialog
 var _new_confirm: ConfirmationDialog
 var _load_confirm: ConfirmationDialog
-var _file_btn: Button
-var _file_popup: PopupMenu
-var _recent_popup: PopupMenu
-var _filename_label: Label
 var _dirty: bool = false              # unsaved changes to the .nyx working file
 var _loading: bool = false            # suppresses dirty-marking during load/new
 var _pending_load_path: String = ""   # path awaiting the discard-changes confirm
@@ -318,9 +311,6 @@ var _export_mode: String = "full"         # "full" | "shader_only" (drives _on_e
 var _current_nyx_path: String = ""        # working .nyx file on disk ("" = unsaved)
 var _linked_shader_path: String = ""      # linked exported .gdshader ("" = unlinked)
 var _live_link_on: bool = false
-var _export_btn: Button                   # contextual Export… / Update
-var _export_menu: MenuButton              # caret dropdown (new material / shader only / re-link / unlink)
-var _live_btn: CheckButton
 var _undo_stack: Array = []
 var _redo_stack: Array = []
 var _pre_drag_snapshot = null
@@ -343,7 +333,7 @@ func _ready() -> void:
 	_graph.snapping_enabled = false
 	_graph.minimap_enabled = false
 	_graph.show_minimap_button = false
-	call_deferred("_style_graph_toolbar")
+	# _style_graph_toolbar now lives in NyxGraphToolbar; called via setup() deferred.
 	var graph_bg := StyleBoxFlat.new()
 	graph_bg.bg_color = Color("#0D0D0F")
 	_graph.add_theme_stylebox_override("panel", graph_bg)
@@ -381,11 +371,31 @@ func _ready() -> void:
 	_graph_container.add_theme_constant_override("separation", 0)
 	_graph_container.add_child(_graph)
 
+	_toolbar = NyxGraphToolbar.new()
+	_toolbar.file_menu_selected.connect(_on_file_menu_id)
+	_toolbar.recent_file_selected.connect(_on_recent_selected)
+	_toolbar.recent_menu_opened.connect(func() -> void: _toolbar.refresh_recent_menu(_get_recent_files()))
+	_toolbar.shader_type_changed.connect(_on_shader_type_changed)
+	_toolbar.render_mode_changed.connect(func(id: int) -> void:
+		var output := _get_output_node()
+		if output:
+			output.set_mode(id)
+			_request_compile()
+	)
+	_toolbar.export_pressed.connect(_on_export_pressed)
+	_toolbar.export_menu_selected.connect(_on_export_menu_id)
+	_toolbar.live_toggled.connect(_on_live_toggled)
+	_toolbar.shortcuts_pressed.connect(_toggle_shortcuts_overlay)
+	_toolbar.properties_pressed.connect(_toggle_properties_panel)
+	_toolbar.undo_pressed.connect(_undo)
+	_toolbar.redo_pressed.connect(_redo)
+
 	_outer_vbox = VBoxContainer.new()
 	_outer_vbox.add_theme_constant_override("separation", 0)
-	_outer_vbox.add_child(_build_graph_toolbar())
+	_outer_vbox.add_child(_toolbar)
 	_outer_vbox.add_child(_graph_container)
 	add_child(_outer_vbox)
+	_toolbar.setup(_graph)
 
 	_search_popup = NyxSearchPopup.new()
 	add_child(_search_popup)
@@ -459,8 +469,9 @@ func _ready() -> void:
 	_node_previews = NyxNodePreviews.new()
 	add_child(_node_previews)
 	_node_previews.setup(_graph, _compiler)
-	_properties_panel = _build_properties_panel()
+	_properties_panel = NyxPropertiesPanel.new()
 	add_child(_properties_panel)
+	_properties_panel.setup(_graph)
 	_update_link_ui()  # unlinked: "Export…", Live disabled
 
 	_type_legend = _build_type_legend()
@@ -514,7 +525,7 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 		node.value_changed.connect(_mark_dirty)
 		node.value_changed.connect(func():
 			if _properties_panel and _properties_panel.visible:
-				_rebuild_properties_list()
+				if _properties_panel: _properties_panel.rebuild()
 		)
 	if node.has_signal("edit_started"):
 		node.edit_started.connect(_push_undo_state)
@@ -610,10 +621,26 @@ func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
 
 
 func _sync_shader_type_ui(idx: int) -> void:
-	if _type_btn and _type_popup:
-		_type_btn.text = _type_popup.get_item_text(idx) + "  ▾"
+	_toolbar.update_shader_type_label(idx)
 	_rebuild_render_mode_options()
-	_rebuild_properties_list()
+	if _properties_panel:
+		_properties_panel.rebuild()
+
+
+func _get_output_node() -> Node:
+	return _graph.get_node_or_null("OutputNode")
+
+
+func _toggle_properties_panel() -> void:
+	if _properties_panel:
+		_properties_panel.toggle()
+
+
+func _rebuild_render_mode_options() -> void:
+	if _toolbar:
+		var output := _get_output_node()
+		var mode: int = output.get_mode() if output and output.has_method("get_mode") else 0
+		_toolbar.update_render_mode(_shader_type, mode)
 
 
 func _on_shader_type_changed(idx: int) -> void:
@@ -723,18 +750,11 @@ func _push_recent(path: String) -> void:
 	s.set_setting("nyx/recent_files", PackedStringArray(recent))
 
 
+
+
 func _refresh_recent_menu() -> void:
-	_recent_popup.clear()
-	var recent := _get_recent_files()
-	if recent.is_empty():
-		_recent_popup.add_item("(empty)", 0)
-		_recent_popup.set_item_disabled(0, true)
-	else:
-		for i in recent.size():
-			_recent_popup.add_item(recent[i].get_file(), i)
-			_recent_popup.set_item_tooltip(i, recent[i])
-
-
+	if _toolbar:
+		_toolbar.refresh_recent_menu(_get_recent_files())
 func _on_recent_selected(id: int) -> void:
 	var recent := _get_recent_files()
 	if id < recent.size():
@@ -789,111 +809,23 @@ func _set_linked(path: String) -> void:
 	# Linking implies you want to see it live — default the toggle on. (The toggle
 	# stays for the rarer "edit without disturbing the scene" case.)
 	if not path.is_empty():
-		_live_btn.button_pressed = true
+		if _toolbar: _toolbar.set_live_on(true)
 
 
 func _update_link_ui() -> void:
-	if not _export_btn:
-		return
-	var linked := not _linked_shader_path.is_empty()
-	_export_btn.text = "Update" if linked else "Export…"
-	_export_btn.tooltip_text = ("Rewrite linked shader: %s" % _linked_shader_path) if linked else "Export shader + material, then link"
-	_live_btn.disabled = not linked
-	if not linked and _live_btn.button_pressed:
-		_live_btn.button_pressed = false  # fires toggled → live off
-	if _file_popup:
-		_file_popup.set_item_disabled(_file_popup.get_item_index(8), not linked)  # Unlink
+	if _toolbar:
+		_toolbar.update_link_ui(not _linked_shader_path.is_empty(), _linked_shader_path)
 
 
 # Writes the .gdshader with a provenance stamp (gates artifact → Nyx navigation).
+
+
 func _write_shader_file(path: String, code: String) -> bool:
-	var out := code
-	if not _current_nyx_path.is_empty():
-		# Line 1 is the machine-read provenance stamp (read_nyx_source parses it);
-		# line 2 is a human warning. Keep them on separate lines.
-		out = "%s%s\n// Generated by Nyx — do not hand-edit; overwritten on Update.\n%s" % [NyxCharon.PROVENANCE_PREFIX, _current_nyx_path, code]
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if not f:
-		push_error("Nyx: could not write shader to %s" % path)
-		return false
-	f.store_string(out)
-	f.close()
-	return true
+	return NyxSerializer.write_shader(path, code, _current_nyx_path)
 
 
-# Writes the companion .tres ShaderMaterial next to the shader. Bakes texture/
-# sub-resource/float-param values — overwrites any existing material values.
 func _write_material_file(shader_path: String) -> bool:
-	var path := shader_path
-	# Collect nodes by export type
-	var file_tex_nodes := []
-	var sub_nodes := []
-	var value_param_nodes := []
-	for child in _graph.get_children():
-		if not child.has_method("get_uniform_declaration"):
-			continue
-		var decl: String = child.get_uniform_declaration()
-		if decl == "":
-			continue
-		if child.has_method("export_as_sub_resource"):
-			sub_nodes.append(child)
-		elif child.has_method("get_texture"):
-			var tex = child.get_texture()
-			if tex != null and not tex.resource_path.is_empty():
-				file_tex_nodes.append(child)
-		elif child.has_method("get_param_export_line"):
-			var export_line: String = child.get_param_export_line()
-			if export_line != "":
-				value_param_nodes.append(child)
-
-	var total_sub_count := sub_nodes.size() * 2
-	var load_steps := 1 + file_tex_nodes.size() + total_sub_count + 1
-	var lines := PackedStringArray()
-	lines.append("[gd_resource type=\"ShaderMaterial\" load_steps=%d format=3]" % load_steps)
-	lines.append("")
-	lines.append("[ext_resource type=\"Shader\" path=\"%s\" id=\"1\"]" % path)
-
-	var tex_id := 2
-	var tex_id_map := {}
-	for node in file_tex_nodes:
-		var uname: String = node.get_uniform_name()
-		lines.append("[ext_resource type=\"Texture2D\" path=\"%s\" id=\"%d\"]" % [node.get_texture().resource_path, tex_id])
-		tex_id_map[uname] = tex_id
-		tex_id += 1
-
-	lines.append("")
-
-	var sub_id_start := 1
-	var sub_param_lines := PackedStringArray()
-	for node in sub_nodes:
-		var result: Dictionary = node.export_as_sub_resource(sub_id_start)
-		for line in (result["lines"] as PackedStringArray):
-			lines.append(line)
-		sub_param_lines.append(result["param_line"])
-		sub_id_start += result["count"] as int
-
-	lines.append("[resource]")
-	lines.append("shader = ExtResource(\"1\")")
-
-	for uname in tex_id_map:
-		lines.append("shader_parameter/%s = ExtResource(\"%d\")" % [uname, tex_id_map[uname]])
-
-	for line in sub_param_lines:
-		lines.append(line)
-
-	for node in value_param_nodes:
-		lines.append(node.get_param_export_line())
-
-	lines.append("")
-
-	var tres_path := path.get_basename() + ".tres"
-	var tf := FileAccess.open(tres_path, FileAccess.WRITE)
-	if not tf:
-		push_error("Nyx: could not write material to %s" % tres_path)
-		return false
-	tf.store_string("\n".join(lines))
-	tf.close()
-	return true
+	return NyxSerializer.write_material(shader_path, _graph.get_children())
 
 
 # Dialog callback: full export (shader + material) or shader-only, then link.
@@ -1082,9 +1014,25 @@ func _do_reposition_minimap_toggle() -> void:
 	_minimap_toggle.position = Vector2(_graph_container.size.x - mw - 20, _outer_vbox.size.y - mh - 20)
 
 
-func _build_shortcuts_overlay() -> PanelContainer:
+func _build_shortcuts_overlay() -> Control:
+	# Outer overlay: IGNORE so clicks pass through to the panel or backdrop.
+	# Backdrop: full-rect STOP — dismisses on any outside click.
+	# Panel: the actual card, centred over the graph.
+	var overlay := Control.new()
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.visible = false
+
+	var backdrop := Control.new()
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	backdrop.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed:
+			_toggle_shortcuts_overlay()
+	)
+	overlay.add_child(backdrop)
+
 	var panel := PanelContainer.new()
-	panel.visible = false
+	overlay.add_child(panel)
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.14, 0.14, 0.18, 0.96)
 	bg.set_corner_radius_all(8)
@@ -1166,7 +1114,7 @@ func _build_shortcuts_overlay() -> PanelContainer:
 		row.add_child(desc_lbl)
 		vbox.add_child(row)
 
-	return panel
+	return overlay
 
 
 
@@ -1177,7 +1125,7 @@ func _push_undo_state() -> void:
 	_redo_stack.clear()
 	_mark_dirty()
 	if _properties_panel and _properties_panel.visible:
-		call_deferred("_rebuild_properties_list")
+		call_deferred(_properties_panel.rebuild)
 
 
 # --- Dirty tracking (unsaved .nyx working-file changes) ---
@@ -1195,11 +1143,9 @@ func _set_clean() -> void:
 
 
 func _update_save_button() -> void:
-	if _filename_label:
-		var name := _current_nyx_path.get_file() if not _current_nyx_path.is_empty() else "untitled.nyx"
-		_filename_label.text = (name + " *") if _dirty else name
-		var col := Color("#D4A017") if _dirty else Color("#4AAF78")
-		_filename_label.add_theme_color_override("font_color", col)
+	var name := _current_nyx_path.get_file() if not _current_nyx_path.is_empty() else "untitled.nyx"
+	if _toolbar:
+		_toolbar.update_filename(name, _dirty)
 
 
 func _undo() -> void:
@@ -1495,10 +1441,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _toggle_shortcuts_overlay() -> void:
 	_shortcuts_overlay.visible = not _shortcuts_overlay.visible
 	if _shortcuts_overlay.visible:
+		_shortcuts_overlay.size = _graph_container.size
+		_shortcuts_overlay.position = Vector2.ZERO
 		_shortcuts_overlay.move_to_front()
-		_shortcuts_overlay.reset_size()
-		var sz := _shortcuts_overlay.get_combined_minimum_size()
-		_shortcuts_overlay.position = ((_graph_container.size - sz) * 0.5).max(Vector2.ZERO)
+		var panel := _shortcuts_overlay.get_child(1)  # child 0 = backdrop, 1 = panel
+		panel.reset_size()
+		var sz: Vector2 = panel.get_combined_minimum_size()
+		panel.position = ((_graph_container.size - sz) * 0.5).max(Vector2.ZERO)
 
 
 func _on_search_node_chosen(id: int) -> void:
@@ -1583,563 +1532,6 @@ func _on_context_menu_selected(id: int) -> void:
 
 # Brand styling for the top toolbar buttons: flat at rest, hunter-green border on
 # hover (the node/chip hover language), subtle green-tinted press.
-func _make_toolbar_btn_style(state: int) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	match state:
-		1: s.bg_color = Color(0.20, 0.20, 0.26)   # hover
-		2: s.bg_color = Color(0.16, 0.32, 0.26)   # pressed (hunter-tinted)
-		_: s.bg_color = Color(0, 0, 0, 0)         # normal (flat)
-	s.set_corner_radius_all(4)
-	s.content_margin_left = 8
-	s.content_margin_right = 8
-	s.content_margin_top = 0
-	s.content_margin_bottom = 0
-	if state == 1:
-		s.set_border_width_all(1)
-		s.border_color = Color("#31614F")
-	return s
-
-
-func _style_toolbar_button(b: Button) -> void:
-	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(0, 0)
-	b.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
-	b.add_theme_color_override("font_hover_color", Color.WHITE)
-	b.add_theme_color_override("font_pressed_color", Color.WHITE)
-	b.add_theme_color_override("font_focus_color", Color(0.85, 0.87, 0.92))
-	b.add_theme_stylebox_override("normal", _make_toolbar_btn_style(0))
-	b.add_theme_stylebox_override("hover", _make_toolbar_btn_style(1))
-	b.add_theme_stylebox_override("pressed", _make_toolbar_btn_style(2))
-	b.add_theme_stylebox_override("hover_pressed", _make_toolbar_btn_style(1))
-	b.add_theme_stylebox_override("focus", _make_toolbar_btn_style(0))
-
-
-func _toggle_properties_panel() -> void:
-	if _properties_panel:
-		_properties_panel.visible = not _properties_panel.visible
-		if _properties_panel.visible:
-			_rebuild_properties_list()
-
-
-func _build_properties_panel() -> Panel:
-	var panel := Panel.new()
-	panel.size = Vector2(220, 320)
-	panel.visible = true
-
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.13, 0.13, 0.16, 0.95)
-	bg.corner_radius_top_left = 6
-	bg.corner_radius_top_right = 6
-	bg.corner_radius_bottom_left = 6
-	bg.corner_radius_bottom_right = 6
-	panel.add_theme_stylebox_override("panel", bg)
-
-	var vbox := VBoxContainer.new()
-	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	vbox.add_theme_constant_override("separation", 0)
-	panel.add_child(vbox)
-
-	var prop_header_wrap := PanelContainer.new()
-	var prop_header_bg := StyleBoxFlat.new()
-	prop_header_bg.bg_color = get_theme_color("base_color", "Editor")
-	prop_header_bg.corner_radius_top_left = 6
-	prop_header_bg.corner_radius_top_right = 6
-	prop_header_bg.border_width_bottom = 2
-	prop_header_bg.border_color = Color(0.12, 0.12, 0.16)
-	prop_header_wrap.add_theme_stylebox_override("panel", prop_header_bg)
-	vbox.add_child(prop_header_wrap)
-	var header := HBoxContainer.new()
-	header.mouse_default_cursor_shape = Control.CURSOR_MOVE
-	header.gui_input.connect(func(ev: InputEvent) -> void:
-		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
-			if ev.pressed:
-				panel.set_meta("_drag_offset", panel.get_local_mouse_position())
-		elif ev is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-			if panel.has_meta("_drag_offset"):
-				panel.position = panel.position + ev.relative
-	)
-	var _pad_l := Control.new()
-	_pad_l.custom_minimum_size = Vector2(2, 0)
-	_pad_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header.add_child(_pad_l)
-	var header_lbl := Label.new()
-	header_lbl.text = "Properties"
-	header_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(header_lbl)
-	var close_btn := Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.add_theme_font_size_override("font_size", 16)
-	close_btn.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
-	close_btn.add_theme_color_override("font_hover_color", Color("#4AAF78"))
-	var _empty := StyleBoxEmpty.new()
-	close_btn.add_theme_stylebox_override("normal", _empty)
-	close_btn.add_theme_stylebox_override("hover", _empty)
-	close_btn.add_theme_stylebox_override("pressed", _empty)
-	close_btn.add_theme_stylebox_override("focus", _empty)
-	close_btn.pressed.connect(func() -> void: panel.visible = false)
-	header.add_child(close_btn)
-	var _pad_r := Control.new()
-	_pad_r.custom_minimum_size = Vector2(2, 0)
-	_pad_r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header.add_child(_pad_r)
-	prop_header_wrap.add_child(header)
-
-	# Param list
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vbox.add_child(scroll)
-
-	var params_margin := MarginContainer.new()
-	params_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	params_margin.add_theme_constant_override("margin_left", 8)
-	params_margin.add_theme_constant_override("margin_right", 2)
-	params_margin.add_theme_constant_override("margin_top", 4)
-	params_margin.add_theme_constant_override("margin_bottom", 4)
-	scroll.add_child(params_margin)
-
-	_properties_vbox = VBoxContainer.new()
-	_properties_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_properties_vbox.add_theme_constant_override("separation", 2)
-	params_margin.add_child(_properties_vbox)
-
-	# Detail area — hidden until a param is clicked
-	var detail_sep := HSeparator.new()
-	var sep_style := StyleBoxLine.new()
-	sep_style.color = Color(0.22, 0.22, 0.28)
-	sep_style.thickness = 1
-	detail_sep.add_theme_stylebox_override("separator", sep_style)
-	detail_sep.visible = false
-	panel.set_meta("detail_sep", detail_sep)
-	vbox.add_child(detail_sep)
-
-	var detail_vbox := VBoxContainer.new()
-	detail_vbox.add_theme_constant_override("separation", 6)
-	detail_vbox.visible = false
-	panel.set_meta("detail_vbox", detail_vbox)
-	vbox.add_child(detail_vbox)
-
-	return panel
-
-
-func _get_output_node() -> Node:
-	return _graph.get_node_or_null("OutputNode")
-
-
-func _rebuild_render_mode_options() -> void:
-	if not _render_mode_popup:
-		return
-	_render_mode_popup.clear()
-	if _shader_type == 0:
-		for label in ["Opaque", "Mix", "Add", "Premult Alpha"]:
-			_render_mode_popup.add_item(label)
-	elif _shader_type == 1:
-		for label in ["Default", "Unshaded", "Light Only", "Blend Add", "Blend Premult"]:
-			_render_mode_popup.add_item(label)
-	var output := _get_output_node()
-	var mode: int = 0
-	if output:
-		mode = output.get_mode()
-	if _render_mode_btn:
-		_render_mode_btn.text = _render_mode_popup.get_item_text(mode) + "  ▾"
-		_render_mode_btn.disabled = _shader_type == 2
-
-
-func _rebuild_properties_list() -> void:
-	if not _properties_vbox:
-		return
-	_selected_param_row = null
-	for child in _properties_vbox.get_children():
-		child.queue_free()
-
-	var found := false
-	for node in _graph.get_children():
-		if not node is GraphNode:
-			continue
-		if not node.has_method("is_param_mode") or not node.call("is_param_mode"):
-			continue
-		found = true
-		var row := _build_param_row(node)
-		_properties_vbox.add_child(row)
-
-	if not found:
-		var lbl := Label.new()
-		lbl.text = "No exposed parameters."
-		lbl.add_theme_font_size_override("font_size", 10)
-		lbl.add_theme_color_override("font_color", Color(0.45, 0.48, 0.52))
-		_properties_vbox.add_child(lbl)
-
-
-func _build_param_row(node: Node) -> Control:
-	var param_name: String = node.call("get_param_name") if node.has_method("get_param_name") else node.name
-
-	var outer := Control.new()
-	outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	outer.custom_minimum_size = Vector2(0, 24)
-	outer.mouse_filter = Control.MOUSE_FILTER_STOP
-
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 0)
-	hbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	outer.add_child(hbox)
-
-	var name_lbl := Label.new()
-	name_lbl.text = param_name
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_lbl.add_theme_font_size_override("font_size", 10)
-	name_lbl.add_theme_color_override("font_color", Color(0.80, 0.83, 0.88))
-	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hbox.add_child(name_lbl)
-
-	var copy_lbl := Label.new()
-	copy_lbl.text = "⧉"
-	copy_lbl.add_theme_font_size_override("font_size", 16)
-	copy_lbl.add_theme_color_override("font_color", Color(0.40, 0.43, 0.50))
-	copy_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
-	copy_lbl.modulate = Color(1, 1, 1, 0)
-	copy_lbl.mouse_entered.connect(func() -> void:
-		copy_lbl.add_theme_color_override("font_color", Color("#4AAF78"))
-	)
-	copy_lbl.mouse_exited.connect(func() -> void:
-		copy_lbl.add_theme_color_override("font_color", Color(0.40, 0.43, 0.50))
-	)
-	var copy_wrap := MarginContainer.new()
-	copy_wrap.add_theme_constant_override("margin_left", 4)
-	copy_wrap.add_theme_constant_override("margin_right", 4)
-	copy_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	copy_wrap.add_child(copy_lbl)
-	hbox.add_child(copy_wrap)
-
-	outer.tooltip_text = 'material.set_shader_parameter("%s", value)' % param_name
-
-	var _apply_style := func(hovered: bool) -> void:
-		var selected := outer.get_meta("selected", false)
-		var bg := StyleBoxFlat.new()
-		if selected:
-			bg.bg_color = Color(0.10, 0.22, 0.16)
-			bg.border_width_left = 2
-			bg.border_color = Color("#4AAF78")
-		elif hovered:
-			bg.bg_color = Color(0.20, 0.20, 0.26)
-		else:
-			bg.bg_color = Color(0, 0, 0, 0)
-		outer.add_theme_stylebox_override("panel", bg)
-		var name_col: Color
-		if selected:
-			name_col = Color("#4AAF78")
-		elif hovered:
-			name_col = Color.WHITE
-		else:
-			name_col = Color(0.80, 0.83, 0.88)
-		name_lbl.add_theme_color_override("font_color", name_col)
-		copy_lbl.modulate = Color(1, 1, 1, 1) if (hovered or selected) else Color(1, 1, 1, 0)
-
-	outer.mouse_entered.connect(func() -> void: _apply_style.call(true))
-	outer.mouse_exited.connect(func() -> void: _apply_style.call(false))
-
-	outer.gui_input.connect(func(ev: InputEvent) -> void:
-		if not ev is InputEventMouseButton or not ev.pressed or ev.button_index != MOUSE_BUTTON_LEFT:
-			return
-		if copy_lbl.get_global_rect().has_point(outer.get_global_mouse_position()):
-			DisplayServer.clipboard_set('material.set_shader_parameter("%s", value)' % param_name)
-		else:
-			if _selected_param_row and is_instance_valid(_selected_param_row):
-				_selected_param_row.set_meta("selected", false)
-				_selected_param_row.get_meta("apply_style").call(false)
-			_selected_param_row = outer
-			outer.set_meta("selected", true)
-			_apply_style.call(false)
-			_show_param_detail(node)
-		outer.accept_event()
-	)
-
-	outer.set_meta("apply_style", _apply_style)
-	return outer
-
-
-func _show_param_detail(node: Node) -> void:
-	if not _properties_panel:
-		return
-	var detail_vbox := _properties_panel.get_meta("detail_vbox") as VBoxContainer
-	var detail_sep := _properties_panel.get_meta("detail_sep") as HSeparator
-	if not detail_vbox:
-		return
-	for child in detail_vbox.get_children():
-		child.queue_free()
-
-	var param_name: String = node.call("get_param_name") if node.has_method("get_param_name") else node.name
-
-	var name_lbl := Label.new()
-	name_lbl.text = param_name
-	name_lbl.add_theme_font_size_override("font_size", 10)
-	name_lbl.add_theme_color_override("font_color", Color("#4AAF78"))
-	name_lbl.add_theme_constant_override("margin_left", 10)
-	detail_vbox.add_child(name_lbl)
-
-	if node.has_method("get_blackboard_control"):
-		var ctrl := node.call("get_blackboard_control")
-		if ctrl:
-			var wrap := HBoxContainer.new()
-			wrap.add_theme_constant_override("separation", 0)
-			ctrl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			wrap.add_child(ctrl)
-			detail_vbox.add_child(wrap)
-
-	detail_vbox.visible = true
-	detail_sep.visible = true
-
-
-func _load_toolbar_icon(path: String, size: int = 16) -> ImageTexture:
-	var tex := load(path) as Texture2D
-	if not tex:
-		return null
-	var img := tex.get_image()
-	img.resize(size, size, Image.INTERPOLATE_LANCZOS)
-	for y in img.get_height():
-		for x in img.get_width():
-			var px := img.get_pixel(x, y)
-			if px.a > 0.0:
-				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, px.a))
-	return ImageTexture.create_from_image(img)
-
-
-func _style_graph_toolbar() -> void:
-	var hbox := _graph.get_menu_hbox()
-
-	var undo_btn := Button.new()
-	undo_btn.icon = _load_toolbar_icon("res://addons/nyx/icons/undo.svg", 12)
-	undo_btn.tooltip_text = "Undo"
-	undo_btn.pressed.connect(_undo)
-	_style_toolbar_button(undo_btn)
-	hbox.add_child(undo_btn)
-	hbox.move_child(undo_btn, 0)
-
-	var redo_btn := Button.new()
-	redo_btn.icon = _load_toolbar_icon("res://addons/nyx/icons/redo.svg", 12)
-	redo_btn.tooltip_text = "Redo"
-	redo_btn.pressed.connect(_redo)
-	_style_toolbar_button(redo_btn)
-	hbox.add_child(redo_btn)
-	hbox.move_child(redo_btn, 1)
-
-	for child in hbox.get_children():
-		if child is Button:
-			_style_toolbar_button(child)
-			if "grid" in child.tooltip_text.to_lower() or "grid" in child.text.to_lower():
-				if child.button_pressed:
-					child.button_pressed = false
-					child.pressed.emit()
-			# Tighter margins for icon-only buttons in the floating toolbar.
-			var icon_margin := StyleBoxFlat.new()
-			icon_margin.bg_color = Color(0, 0, 0, 0)
-			icon_margin.set_corner_radius_all(4)
-			icon_margin.content_margin_left = 4
-			icon_margin.content_margin_right = 4
-			icon_margin.content_margin_top = 2
-			icon_margin.content_margin_bottom = 2
-			child.add_theme_stylebox_override("normal", icon_margin)
-			var icon_hover := icon_margin.duplicate()
-			icon_hover.bg_color = Color(0.20, 0.20, 0.26)
-			icon_hover.set_border_width_all(1)
-			icon_hover.border_color = Color("#31614F")
-			child.add_theme_stylebox_override("hover", icon_hover)
-			var icon_press := icon_margin.duplicate()
-			icon_press.bg_color = Color(0.16, 0.32, 0.26)
-			child.add_theme_stylebox_override("pressed", icon_press)
-			child.add_theme_stylebox_override("hover_pressed", icon_hover)
-			child.add_theme_stylebox_override("focus", icon_margin)
-			child.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
-			child.add_theme_color_override("font_pressed_color", Color("#4AAF78"))
-			child.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
-
-
-func _style_toolbar_separator(s: VSeparator) -> void:
-	var line := StyleBoxLine.new()
-	line.color = Color(0.24, 0.24, 0.30)
-	line.thickness = 1
-	line.grow_begin = 2
-	line.grow_end = 2
-	s.add_theme_stylebox_override("separator", line)
-
-
-func _build_graph_toolbar() -> PanelContainer:
-	var wrap := PanelContainer.new()
-	var bar_bg := StyleBoxFlat.new()
-	var editor_base := get_theme_color("base_color", "Editor")
-	bar_bg.bg_color = editor_base
-	bar_bg.expand_margin_top = 4
-	bar_bg.border_width_bottom = 2
-	bar_bg.border_color = Color(0.12, 0.12, 0.16)
-	wrap.add_theme_stylebox_override("panel", bar_bg)
-
-	var toolbar := HBoxContainer.new()
-	toolbar.add_theme_constant_override("separation", 4)
-	wrap.add_child(toolbar)
-
-	_file_popup = PopupMenu.new()
-	_recent_popup = PopupMenu.new()
-	_recent_popup.id_pressed.connect(_on_recent_selected)
-	_file_popup.add_item("New", 0)
-	_file_popup.add_item("Open…", 1)
-	_file_popup.add_submenu_node_item("Open Recent", _recent_popup)
-	_file_popup.add_separator()
-	_file_popup.add_item("Save", 2)
-	_file_popup.add_item("Save As…", 3)
-	_file_popup.add_separator()
-	_file_popup.add_item("Export…", 4)
-	_file_popup.add_item("Export As…", 5)
-	_file_popup.add_item("Export new material", 6)
-	_file_popup.add_item("Export shader only", 7)
-	_file_popup.add_separator()
-	_file_popup.add_item("Unlink", 8)
-	_file_popup.id_pressed.connect(_on_file_menu_id)
-	_file_popup.about_to_popup.connect(_refresh_recent_menu)
-
-	_file_btn = Button.new()
-	_file_btn.text = "File  ▾"
-	_file_btn.add_child(_file_popup)
-	_file_btn.pressed.connect(func() -> void:
-		var r := _file_btn.get_screen_position()
-		var h := _file_btn.size.y
-		_file_popup.reset_size()
-		_file_popup.popup(Rect2(Vector2(r.x, r.y + h), Vector2(0, 0)))
-	)
-	_style_toolbar_button(_file_btn)
-	toolbar.add_child(_file_btn)
-
-	var sep := VSeparator.new()
-	_style_toolbar_separator(sep)
-	toolbar.add_child(sep)
-
-	_filename_label = Label.new()
-	_filename_label.text = "untitled.nyx"
-	_filename_label.add_theme_font_size_override("font_size", 11)
-	_filename_label.add_theme_color_override("font_color", Color("#4AAF78"))
-	_filename_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	toolbar.add_child(_filename_label)
-
-	var sep_type := VSeparator.new()
-	_style_toolbar_separator(sep_type)
-	toolbar.add_child(sep_type)
-
-	_type_popup = PopupMenu.new()
-	_type_popup.add_item("Spatial", 0)
-	_type_popup.add_item("Canvas Item", 1)
-	_type_popup.add_item("Particles", 2)
-	_type_popup.id_pressed.connect(func(id: int) -> void:
-		_type_btn.text = _type_popup.get_item_text(id) + "  ▾"
-		_on_shader_type_changed(id)
-	)
-	_type_btn = Button.new()
-	_type_btn.text = "Spatial  ▾"
-	_type_btn.add_child(_type_popup)
-	_type_btn.pressed.connect(func() -> void:
-		var r := _type_btn.get_screen_position()
-		var h := _type_btn.size.y
-		_type_popup.reset_size()
-		_type_popup.popup(Rect2(Vector2(r.x, r.y + h), Vector2(_type_btn.size.x, 0)))
-	)
-	_style_toolbar_button(_type_btn)
-	toolbar.add_child(_type_btn)
-
-	_render_mode_popup = PopupMenu.new()
-	_render_mode_btn = Button.new()
-	_render_mode_btn.text = "Opaque  ▾"
-	_render_mode_btn.add_child(_render_mode_popup)
-	_render_mode_btn.pressed.connect(func() -> void:
-		var r := _render_mode_btn.get_screen_position()
-		var h := _render_mode_btn.size.y
-		_render_mode_popup.reset_size()
-		_render_mode_popup.popup(Rect2(Vector2(r.x, r.y + h), Vector2(_render_mode_btn.size.x, 0)))
-	)
-	_render_mode_popup.id_pressed.connect(func(id: int) -> void:
-		_render_mode_btn.text = _render_mode_popup.get_item_text(id) + "  ▾"
-		var output := _get_output_node()
-		if output:
-			output.set_mode(id)
-			_request_compile()
-	)
-	_style_toolbar_button(_render_mode_btn)
-	toolbar.add_child(_render_mode_btn)
-	_rebuild_render_mode_options()
-
-	var sep_params := VSeparator.new()
-	_style_toolbar_separator(sep_params)
-	toolbar.add_child(sep_params)
-
-	var params_btn := Button.new()
-	params_btn.text = "Properties"
-	params_btn.pressed.connect(_toggle_properties_panel)
-	_style_toolbar_button(params_btn)
-	toolbar.add_child(params_btn)
-
-	# Spacer pushes export/live + shortcuts to the right edge of the toolbar.
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	toolbar.add_child(spacer)
-
-	var sep3 := VSeparator.new()
-	_style_toolbar_separator(sep3)
-	toolbar.add_child(sep3)
-
-	_export_btn = Button.new()
-	_export_btn.text = "Export…"
-	_export_btn.pressed.connect(_on_export_pressed)
-	_style_toolbar_button(_export_btn)
-	toolbar.add_child(_export_btn)
-
-	_export_menu = MenuButton.new()
-	_export_menu.flat = true
-	_export_menu.text = "▾"
-	_style_toolbar_button(_export_menu)
-	var pm := _export_menu.get_popup()
-	pm.add_item("Export new material", 0)
-	pm.add_item("Export shader only", 1)
-	pm.add_separator()
-	pm.add_item("Export as… (re-link)", 2)
-	pm.add_item("Unlink", 3)
-	pm.id_pressed.connect(_on_export_menu_id)
-	toolbar.add_child(_export_menu)
-
-	_live_btn = CheckButton.new()
-	_live_btn.text = "Live"
-	_live_btn.tooltip_text = "Push shader changes into the linked artifact in real time."
-	_live_btn.toggled.connect(_on_live_toggled)
-	_style_toolbar_button(_live_btn)
-	_live_btn.add_theme_color_override("font_pressed_color", Color("#4AAF78"))
-	_live_btn.add_theme_color_override("font_hover_color", Color.WHITE)
-	toolbar.add_child(_live_btn)
-
-	var sep4 := VSeparator.new()
-	_style_toolbar_separator(sep4)
-	toolbar.add_child(sep4)
-
-	var help_btn := Button.new()
-	help_btn.text = "?"
-	help_btn.tooltip_text = "Keyboard shortcuts (?)"
-	help_btn.focus_mode = Control.FOCUS_NONE
-	help_btn.add_theme_font_size_override("font_size", 14)
-	help_btn.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
-	help_btn.add_theme_color_override("font_hover_color", Color.WHITE)
-	help_btn.add_theme_color_override("font_pressed_color", Color.WHITE)
-	help_btn.add_theme_color_override("font_focus_color", Color(0.55, 0.55, 0.65))
-	var _hb_empty := StyleBoxEmpty.new()
-	help_btn.add_theme_stylebox_override("normal", _hb_empty)
-	help_btn.add_theme_stylebox_override("hover", _hb_empty)
-	help_btn.add_theme_stylebox_override("pressed", _hb_empty)
-	help_btn.add_theme_stylebox_override("focus", _hb_empty)
-	help_btn.pressed.connect(_toggle_shortcuts_overlay)
-	toolbar.add_child(help_btn)
-
-	var edge_pad := Control.new()
-	edge_pad.custom_minimum_size = Vector2(4, 0)
-	edge_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	toolbar.add_child(edge_pad)
-
-	return wrap
-
-
 func _get_node_type(node: Node) -> String:
 	for type_name in NODE_CLASSES:
 		if node.get_script() == NODE_CLASSES[type_name]:
@@ -2340,5 +1732,5 @@ func _do_load(path: String) -> void:
 	_set_clean()  # freshly loaded from disk
 	# A loaded linked graph goes live by default (same as just-linked).
 	if not _linked_shader_path.is_empty():
-		_live_btn.button_pressed = true
+		if _toolbar: _toolbar.set_live_on(true)
 	print("Nyx: loaded graph ← %s" % path)
