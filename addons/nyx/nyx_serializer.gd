@@ -56,6 +56,40 @@ static func dict_to_resource(d: Dictionary) -> NyxGraphRes:
 # Writes a compiled .gdshader with a provenance stamp on line 1 (read back by
 # NyxCharon.read_nyx_source — gates artifact→Nyx navigation). nyx_path may be ""
 # if the graph is unsaved (stamp is omitted).
+const _Registry = preload("res://addons/nyx/nyx_registry.gd")
+
+
+# Serialises the currently selected (non-sink) nodes + the connections between
+# them into a {nodes, connections} dict — the same format used by the clipboard.
+# Pass _graph.get_children() and _graph.get_connection_list() from the caller.
+static func serialize_selected(graph: GraphEdit) -> Dictionary:
+	var selected := {}
+	var nodes := []
+	for child in graph.get_children():
+		if not child is GraphNode or not child.selected or _Registry.is_sink(child):
+			continue
+		var type := _Registry.get_node_type(child)
+		if type == "":
+			continue
+		selected[str(child.name)] = true
+		nodes.append({
+			"type": type,
+			"name": str(child.name),
+			"position": [child.position_offset.x, child.position_offset.y],
+			"state": child.get_state(),
+		})
+	var connections := []
+	for conn in graph.get_connection_list():
+		if selected.has(str(conn["from_node"])) and selected.has(str(conn["to_node"])):
+			connections.append({
+				"from_node": str(conn["from_node"]),
+				"from_port": conn["from_port"],
+				"to_node": str(conn["to_node"]),
+				"to_port": conn["to_port"],
+			})
+	return {"nodes": nodes, "connections": connections}
+
+
 static func write_shader(path: String, code: String, nyx_path: String) -> bool:
 	var out := code
 	if not nyx_path.is_empty():

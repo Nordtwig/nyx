@@ -1,15 +1,18 @@
 @tool
 extends RefCounted
 
-## Nyx node catalog — the search/doc metadata for every node.
+## Nyx node catalog — the complete node registry.
 ##
-## Pure data (id, label, summary, description, ports, uses, plus the search-gating
-## flags spatial_only / canvas_only / particle_only / particle_unsafe). No logic, no
-## class references — the node-factory map (NODE_CLASSES) and category/colour maps stay
-## in nyx_main because they're welded to the node-class preloads the factory spawns from.
+## Three things live here:
+##   NODE_REGISTRY  — search/doc metadata (id, label, summary, ports, uses, gating flags)
+##   NODE_CLASSES   — type-name → Script map (factory; also used by serializer + paste)
+##   NODE_TYPE_CATEGORY / NODE_TYPE_COLORS — per-type category string + body colour
 ##
-## Neutral preload-const home (no class_name, like Charon) so the search popup and any
-## future doc/tooltip consumer can preload it without reaching back into nyx_main.
+## Also owns two static utilities that only need registry data:
+##   get_node_type(node)  → type-name string (used by serializer, add_node, paste)
+##   is_sink(node)        → true for OutputNode / VertexOutputNode / particle sinks
+##
+## No class_name (preload-const pattern like Charon — avoids global symbol collisions).
 ## Extracted from nyx_main.gd.
 
 const NODE_REGISTRY := [
@@ -297,3 +300,193 @@ const NODE_REGISTRY := [
 			"uses": ["Complex custom math", "Escape hatch for unsupported operations", "Porting existing GLSL snippets into the graph"]},
 	]},
 ]
+
+# ── Node-class preloads ───────────────────────────────────────────────────────
+# All node scripts in one place so NODE_CLASSES, nyx_main factory calls, and
+# any future consumer can reference them without duplicating the preload paths.
+
+const NyxNodeBase          = preload("res://addons/nyx/nodes/nyx_node.gd")
+const OutputNode           = preload("res://addons/nyx/nodes/output_node.gd")
+const VertexOutputNode     = preload("res://addons/nyx/nodes/vertex_output_node.gd")
+const ColorNode            = preload("res://addons/nyx/nodes/color_node.gd")
+const AddNode              = preload("res://addons/nyx/nodes/add_node.gd")
+const MultiplyNode         = preload("res://addons/nyx/nodes/multiply_node.gd")
+const MixNode              = preload("res://addons/nyx/nodes/mix_node.gd")
+const UVNode               = preload("res://addons/nyx/nodes/uv_node.gd")
+const FloatNode            = preload("res://addons/nyx/nodes/float_node.gd")
+const SubtractNode         = preload("res://addons/nyx/nodes/subtract_node.gd")
+const ClampNode            = preload("res://addons/nyx/nodes/clamp_node.gd")
+const PowerNode            = preload("res://addons/nyx/nodes/power_node.gd")
+const SinNode              = preload("res://addons/nyx/nodes/sin_node.gd")
+const CosNode              = preload("res://addons/nyx/nodes/cos_node.gd")
+const TimeNode             = preload("res://addons/nyx/nodes/time_node.gd")
+const SplitNode            = preload("res://addons/nyx/nodes/split_node.gd")
+const CombineNode          = preload("res://addons/nyx/nodes/combine_node.gd")
+const TextureSampleNode    = preload("res://addons/nyx/nodes/texture_sample_node.gd")
+const FresnelNode          = preload("res://addons/nyx/nodes/fresnel_node.gd")
+const ScaleNode            = preload("res://addons/nyx/nodes/scale_node.gd")
+const StepNode             = preload("res://addons/nyx/nodes/step_node.gd")
+const SmoothstepNode       = preload("res://addons/nyx/nodes/smoothstep_node.gd")
+const NoiseNode            = preload("res://addons/nyx/nodes/noise_node.gd")
+const FBMNode              = preload("res://addons/nyx/nodes/fbm_node.gd")
+const GradientNode         = preload("res://addons/nyx/nodes/gradient_node.gd")
+const CurveNode            = preload("res://addons/nyx/nodes/curve_node.gd")
+const TilingOffsetNode     = preload("res://addons/nyx/nodes/tiling_offset_node.gd")
+const NormalFromHeightNode = preload("res://addons/nyx/nodes/normal_from_height_node.gd")
+const BlendNormalsNode     = preload("res://addons/nyx/nodes/blend_normals_node.gd")
+const ScreenUVNode         = preload("res://addons/nyx/nodes/screen_uv_node.gd")
+const ScreenTextureNode    = preload("res://addons/nyx/nodes/screen_texture_node.gd")
+const DepthFadeNode        = preload("res://addons/nyx/nodes/depth_fade_node.gd")
+const RotateUVNode         = preload("res://addons/nyx/nodes/rotate_uv_node.gd")
+const WarpNode             = preload("res://addons/nyx/nodes/warp_node.gd")
+const VertexNode           = preload("res://addons/nyx/nodes/vertex_node.gd")
+const NormalMapNode        = preload("res://addons/nyx/nodes/normal_map_node.gd")
+const AbsNode              = preload("res://addons/nyx/nodes/abs_node.gd")
+const CeilNode             = preload("res://addons/nyx/nodes/ceil_node.gd")
+const FloorNode            = preload("res://addons/nyx/nodes/floor_node.gd")
+const FractNode            = preload("res://addons/nyx/nodes/fract_node.gd")
+const NegateNode           = preload("res://addons/nyx/nodes/negate_node.gd")
+const OneMinusNode         = preload("res://addons/nyx/nodes/one_minus_node.gd")
+const RoundNode            = preload("res://addons/nyx/nodes/round_node.gd")
+const SqrtNode             = preload("res://addons/nyx/nodes/sqrt_node.gd")
+const MinMaxNode           = preload("res://addons/nyx/nodes/min_max_node.gd")
+const DivideNode           = preload("res://addons/nyx/nodes/divide_node.gd")
+const ModNode              = preload("res://addons/nyx/nodes/mod_node.gd")
+const NormalizeNode        = preload("res://addons/nyx/nodes/normalize_node.gd")
+const LengthNode           = preload("res://addons/nyx/nodes/length_node.gd")
+const DotNode              = preload("res://addons/nyx/nodes/dot_node.gd")
+const RerouteNode          = preload("res://addons/nyx/nodes/reroute_node.gd")
+const RelayNode            = preload("res://addons/nyx/nodes/relay_node.gd")
+const PreviewRelayNode     = preload("res://addons/nyx/nodes/preview_relay_node.gd")
+const CustomGLSLNode       = preload("res://addons/nyx/nodes/custom_glsl_node.gd")
+const Vector3Node          = preload("res://addons/nyx/nodes/vector3_node.gd")
+const SpriteTextureNode    = preload("res://addons/nyx/nodes/sprite_texture_node.gd")
+const VertexColorNode      = preload("res://addons/nyx/nodes/vertex_color_node.gd")
+const TexturePixelSizeNode = preload("res://addons/nyx/nodes/texture_pixel_size_node.gd")
+const ParticleStartNode    = preload("res://addons/nyx/nodes/particle_start_node.gd")
+const ParticleProcessNode  = preload("res://addons/nyx/nodes/particle_process_node.gd")
+const ParticleAgeNode      = preload("res://addons/nyx/nodes/particle_age_node.gd")
+const ParticleVelocityNode = preload("res://addons/nyx/nodes/particle_velocity_node.gd")
+const ParticlePositionNode = preload("res://addons/nyx/nodes/particle_position_node.gd")
+const ParticleDeltaNode    = preload("res://addons/nyx/nodes/particle_delta_node.gd")
+const ParticleRandomNode   = preload("res://addons/nyx/nodes/particle_random_node.gd")
+const ParticleIndexNode    = preload("res://addons/nyx/nodes/particle_index_node.gd")
+
+
+# ── Factory map + category/colour data ───────────────────────────────────────
+
+# Maps type-name string → Script. Used by the node factory, serializer, and paste.
+const NODE_CLASSES := {
+	"OutputNode": OutputNode,           "VertexOutputNode": VertexOutputNode,
+	"ColorNode": ColorNode,             "FloatNode": FloatNode,
+	"Vector3Node": Vector3Node,         "UVNode": UVNode,
+	"VertexNode": VertexNode,           "TimeNode": TimeNode,
+	"FresnelNode": FresnelNode,         "AddNode": AddNode,
+	"SubtractNode": SubtractNode,       "MultiplyNode": MultiplyNode,
+	"DivideNode": DivideNode,           "MixNode": MixNode,
+	"ClampNode": ClampNode,             "PowerNode": PowerNode,
+	"MinMaxNode": MinMaxNode,           "ModNode": ModNode,
+	"AbsNode": AbsNode,                 "CeilNode": CeilNode,
+	"FloorNode": FloorNode,             "FractNode": FractNode,
+	"NegateNode": NegateNode,           "OneMinusNode": OneMinusNode,
+	"RoundNode": RoundNode,             "SqrtNode": SqrtNode,
+	"SinNode": SinNode,                 "CosNode": CosNode,
+	"StepNode": StepNode,               "SmoothstepNode": SmoothstepNode,
+	"NormalizeNode": NormalizeNode,     "LengthNode": LengthNode,
+	"DotNode": DotNode,                 "SplitNode": SplitNode,
+	"CombineNode": CombineNode,         "ScaleNode": ScaleNode,
+	"NoiseNode": NoiseNode,             "FBMNode": FBMNode,
+	"TextureSampleNode": TextureSampleNode, "NormalMapNode": NormalMapNode,
+	"GradientNode": GradientNode,       "CurveNode": CurveNode,
+	"TilingOffsetNode": TilingOffsetNode, "RotateUVNode": RotateUVNode,
+	"WarpNode": WarpNode,               "NormalFromHeightNode": NormalFromHeightNode,
+	"BlendNormalsNode": BlendNormalsNode,
+	"ScreenUVNode": ScreenUVNode,       "ScreenTextureNode": ScreenTextureNode,
+	"DepthFadeNode": DepthFadeNode,
+	"SpriteTextureNode": SpriteTextureNode, "VertexColorNode": VertexColorNode,
+	"TexturePixelSizeNode": TexturePixelSizeNode,
+	"RerouteNode": RerouteNode,         "RelayNode": RelayNode,
+	"PreviewRelayNode": PreviewRelayNode, "CustomGLSLNode": CustomGLSLNode,
+	"ParticleStartNode": ParticleStartNode, "ParticleProcessNode": ParticleProcessNode,
+	"ParticleAgeNode": ParticleAgeNode, "ParticleVelocityNode": ParticleVelocityNode,
+	"ParticlePositionNode": ParticlePositionNode, "ParticleDeltaNode": ParticleDeltaNode,
+	"ParticleRandomNode": ParticleRandomNode, "ParticleIndexNode": ParticleIndexNode,
+}
+
+# Node body colour (all monochrome dark — category expressed via icon, not colour).
+const _NODE_COLOR := Color(0.14, 0.14, 0.18)
+const NODE_TYPE_COLORS := {
+	"FloatNode": _NODE_COLOR,    "Vector3Node": _NODE_COLOR,  "UVNode": _NODE_COLOR,
+	"VertexNode": _NODE_COLOR,   "TimeNode": _NODE_COLOR,     "FresnelNode": _NODE_COLOR,
+	"ScreenUVNode": _NODE_COLOR, "ScreenTextureNode": _NODE_COLOR, "DepthFadeNode": _NODE_COLOR,
+	"AddNode": _NODE_COLOR,      "SubtractNode": _NODE_COLOR, "MultiplyNode": _NODE_COLOR,
+	"DivideNode": _NODE_COLOR,   "MixNode": _NODE_COLOR,      "ClampNode": _NODE_COLOR,
+	"PowerNode": _NODE_COLOR,    "MinMaxNode": _NODE_COLOR,   "ModNode": _NODE_COLOR,
+	"AbsNode": _NODE_COLOR,      "CeilNode": _NODE_COLOR,     "FloorNode": _NODE_COLOR,
+	"FractNode": _NODE_COLOR,    "NegateNode": _NODE_COLOR,   "OneMinusNode": _NODE_COLOR,
+	"RoundNode": _NODE_COLOR,    "SqrtNode": _NODE_COLOR,     "SinNode": _NODE_COLOR,
+	"CosNode": _NODE_COLOR,      "StepNode": _NODE_COLOR,     "SmoothstepNode": _NODE_COLOR,
+	"CustomGLSLNode": _NODE_COLOR,
+	"NormalizeNode": _NODE_COLOR, "LengthNode": _NODE_COLOR,  "DotNode": _NODE_COLOR,
+	"SplitNode": _NODE_COLOR,    "CombineNode": _NODE_COLOR,  "NormalFromHeightNode": _NODE_COLOR,
+	"BlendNormalsNode": _NODE_COLOR, "ScaleNode": _NODE_COLOR,
+	"TextureSampleNode": _NODE_COLOR, "NormalMapNode": _NODE_COLOR,
+	"GradientNode": _NODE_COLOR, "CurveNode": _NODE_COLOR,
+	"TilingOffsetNode": _NODE_COLOR, "RotateUVNode": _NODE_COLOR, "WarpNode": _NODE_COLOR,
+	"NoiseNode": _NODE_COLOR,    "FBMNode": _NODE_COLOR,
+	"RerouteNode": _NODE_COLOR,  "RelayNode": _NODE_COLOR,    "PreviewRelayNode": _NODE_COLOR,
+	"SpriteTextureNode": _NODE_COLOR, "VertexColorNode": _NODE_COLOR,
+	"TexturePixelSizeNode": _NODE_COLOR,
+	"ParticleAgeNode": _NODE_COLOR,      "ParticleVelocityNode": _NODE_COLOR,
+	"ParticlePositionNode": _NODE_COLOR, "ParticleDeltaNode": _NODE_COLOR,
+	"ParticleRandomNode": _NODE_COLOR,   "ParticleIndexNode": _NODE_COLOR,
+}
+
+# Maps type-name → category string. Used by _add_node to set node._category.
+const NODE_TYPE_CATEGORY := {
+	"ColorNode": "Inputs",    "FloatNode": "Inputs",     "Vector3Node": "Inputs",
+	"UVNode": "Inputs",       "VertexNode": "Inputs",    "TimeNode": "Inputs",
+	"FresnelNode": "Inputs",
+	"AddNode": "Math",        "SubtractNode": "Math",    "MultiplyNode": "Math",
+	"DivideNode": "Math",     "MixNode": "Math",         "ClampNode": "Math",
+	"PowerNode": "Math",      "MinMaxNode": "Math",      "ModNode": "Math",
+	"AbsNode": "Math",        "CeilNode": "Math",        "FloorNode": "Math",
+	"FractNode": "Math",      "NegateNode": "Math",      "OneMinusNode": "Math",
+	"RoundNode": "Math",      "SqrtNode": "Math",        "SinNode": "Math",
+	"CosNode": "Math",        "StepNode": "Math",        "SmoothstepNode": "Math",
+	"NormalizeNode": "Vector", "LengthNode": "Vector",   "DotNode": "Vector",
+	"SplitNode": "Vector",    "CombineNode": "Vector",   "ScaleNode": "Vector",
+	"NoiseNode": "Noise",     "FBMNode": "Noise",
+	"TextureSampleNode": "Texture", "NormalMapNode": "Texture",
+	"GradientNode": "Texture", "CurveNode": "Texture",
+	"TilingOffsetNode": "UV", "RotateUVNode": "UV",      "WarpNode": "UV",
+	"NormalFromHeightNode": "UV", "BlendNormalsNode": "UV",
+	"ScreenUVNode": "Screen", "ScreenTextureNode": "Screen", "DepthFadeNode": "Screen",
+	"SpriteTextureNode": "Canvas", "VertexColorNode": "Canvas",
+	"TexturePixelSizeNode": "Canvas",
+	"ParticleStartNode": "Particles",   "ParticleProcessNode": "Particles",
+	"ParticleAgeNode": "Particles",     "ParticleVelocityNode": "Particles",
+	"ParticlePositionNode": "Particles","ParticleDeltaNode": "Particles",
+	"ParticleRandomNode": "Particles",  "ParticleIndexNode": "Particles",
+	"RerouteNode": "Organisation",      "RelayNode": "Organisation",
+	"PreviewRelayNode": "Organisation",
+	"CustomGLSLNode": "Advanced",
+}
+
+
+# ── Static utilities ──────────────────────────────────────────────────────────
+
+# Returns the type-name string for a node (its key in NODE_CLASSES), or "" if unknown.
+static func get_node_type(node: Node) -> String:
+	for type_name in NODE_CLASSES:
+		if node.get_script() == NODE_CLASSES[type_name]:
+			return type_name
+	return ""
+
+
+# True for the fixed output/sink nodes that should never be copied or serialised
+# as regular graph nodes (they're always recreated by _ensure_*_sinks).
+static func is_sink(node: Node) -> bool:
+	var n := str(node.name)
+	return n == "OutputNode" or n == "VertexOutputNode" \
+		or n == "ParticleStartNode" or n == "ParticleProcessNode"

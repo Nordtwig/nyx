@@ -1,257 +1,8 @@
 @tool
 extends Control
 
-const NyxNodeBase = preload("res://addons/nyx/nodes/nyx_node.gd")
-const OutputNode = preload("res://addons/nyx/nodes/output_node.gd")
-const ColorNode = preload("res://addons/nyx/nodes/color_node.gd")
-const AddNode = preload("res://addons/nyx/nodes/add_node.gd")
-const MultiplyNode = preload("res://addons/nyx/nodes/multiply_node.gd")
-const MixNode = preload("res://addons/nyx/nodes/mix_node.gd")
-const UVNode = preload("res://addons/nyx/nodes/uv_node.gd")
-const FloatNode = preload("res://addons/nyx/nodes/float_node.gd")
-const SubtractNode = preload("res://addons/nyx/nodes/subtract_node.gd")
-const ClampNode = preload("res://addons/nyx/nodes/clamp_node.gd")
-const PowerNode = preload("res://addons/nyx/nodes/power_node.gd")
-const SinNode = preload("res://addons/nyx/nodes/sin_node.gd")
-const CosNode = preload("res://addons/nyx/nodes/cos_node.gd")
-const TimeNode = preload("res://addons/nyx/nodes/time_node.gd")
-const SplitNode = preload("res://addons/nyx/nodes/split_node.gd")
-const CombineNode = preload("res://addons/nyx/nodes/combine_node.gd")
-const TextureSampleNode = preload("res://addons/nyx/nodes/texture_sample_node.gd")
-const FresnelNode = preload("res://addons/nyx/nodes/fresnel_node.gd")
-const ScaleNode = preload("res://addons/nyx/nodes/scale_node.gd")
-const StepNode = preload("res://addons/nyx/nodes/step_node.gd")
-const SmoothstepNode = preload("res://addons/nyx/nodes/smoothstep_node.gd")
-const NoiseNode = preload("res://addons/nyx/nodes/noise_node.gd")
-const FBMNode = preload("res://addons/nyx/nodes/fbm_node.gd")
-const GradientNode = preload("res://addons/nyx/nodes/gradient_node.gd")
-const CurveNode = preload("res://addons/nyx/nodes/curve_node.gd")
-const TilingOffsetNode = preload("res://addons/nyx/nodes/tiling_offset_node.gd")
-const NormalFromHeightNode = preload("res://addons/nyx/nodes/normal_from_height_node.gd")
-const BlendNormalsNode = preload("res://addons/nyx/nodes/blend_normals_node.gd")
-const ScreenUVNode = preload("res://addons/nyx/nodes/screen_uv_node.gd")
-const ScreenTextureNode = preload("res://addons/nyx/nodes/screen_texture_node.gd")
-const DepthFadeNode = preload("res://addons/nyx/nodes/depth_fade_node.gd")
-const RotateUVNode = preload("res://addons/nyx/nodes/rotate_uv_node.gd")
-const WarpNode = preload("res://addons/nyx/nodes/warp_node.gd")
-const VertexNode = preload("res://addons/nyx/nodes/vertex_node.gd")
-const NormalMapNode = preload("res://addons/nyx/nodes/normal_map_node.gd")
-const AbsNode = preload("res://addons/nyx/nodes/abs_node.gd")
-const CeilNode = preload("res://addons/nyx/nodes/ceil_node.gd")
-const FloorNode = preload("res://addons/nyx/nodes/floor_node.gd")
-const FractNode = preload("res://addons/nyx/nodes/fract_node.gd")
-const NegateNode = preload("res://addons/nyx/nodes/negate_node.gd")
-const OneMinusNode = preload("res://addons/nyx/nodes/one_minus_node.gd")
-const RoundNode = preload("res://addons/nyx/nodes/round_node.gd")
-const SqrtNode = preload("res://addons/nyx/nodes/sqrt_node.gd")
-const MinMaxNode = preload("res://addons/nyx/nodes/min_max_node.gd")
-const DivideNode = preload("res://addons/nyx/nodes/divide_node.gd")
-const ModNode = preload("res://addons/nyx/nodes/mod_node.gd")
-const NormalizeNode = preload("res://addons/nyx/nodes/normalize_node.gd")
-const CustomGLSLNode = preload("res://addons/nyx/nodes/custom_glsl_node.gd")
-const Vector3Node = preload("res://addons/nyx/nodes/vector3_node.gd")
-const RerouteNode = preload("res://addons/nyx/nodes/reroute_node.gd")
-const RelayNode = preload("res://addons/nyx/nodes/relay_node.gd")
-const PreviewRelayNode = preload("res://addons/nyx/nodes/preview_relay_node.gd")
-const SpriteTextureNode = preload("res://addons/nyx/nodes/sprite_texture_node.gd")
-const VertexColorNode = preload("res://addons/nyx/nodes/vertex_color_node.gd")
-const TexturePixelSizeNode = preload("res://addons/nyx/nodes/texture_pixel_size_node.gd")
-const LengthNode = preload("res://addons/nyx/nodes/length_node.gd")
-const DotNode = preload("res://addons/nyx/nodes/dot_node.gd")
-const ParticleStartNode = preload("res://addons/nyx/nodes/particle_start_node.gd")
-const ParticleProcessNode = preload("res://addons/nyx/nodes/particle_process_node.gd")
-const ParticleAgeNode = preload("res://addons/nyx/nodes/particle_age_node.gd")
-const ParticleVelocityNode = preload("res://addons/nyx/nodes/particle_velocity_node.gd")
-const ParticlePositionNode = preload("res://addons/nyx/nodes/particle_position_node.gd")
-const ParticleDeltaNode = preload("res://addons/nyx/nodes/particle_delta_node.gd")
-const ParticleRandomNode = preload("res://addons/nyx/nodes/particle_random_node.gd")
-const ParticleIndexNode = preload("res://addons/nyx/nodes/particle_index_node.gd")
-const VertexOutputNode = preload("res://addons/nyx/nodes/vertex_output_node.gd")
 
 const NyxRegistry = preload("res://addons/nyx/nyx_registry.gd")
-
-# Twilight palette — cooler, muted category accents that sit clearly above the
-# dark abyss background without competing with the bright connection lines.
-# Tune a whole category by editing one constant here.
-const _CAT_INPUTS  := Color(0.14, 0.14, 0.18)
-const _CAT_MATH    := Color(0.14, 0.14, 0.18)
-const _CAT_VECTOR  := Color(0.14, 0.14, 0.18)
-const _CAT_TEXTURE := Color(0.14, 0.14, 0.18)
-const _CAT_OUTPUT  := Color(0.14, 0.14, 0.18)
-
-const _TYPE_COLORS := {
-	# Inputs
-	"FloatNode":    _CAT_INPUTS,
-	"Vector3Node":  _CAT_INPUTS,
-	"UVNode":       _CAT_INPUTS,
-	"VertexNode":   _CAT_INPUTS,
-	"TimeNode":     _CAT_INPUTS,
-	# Screen
-	"ScreenUVNode":      _CAT_INPUTS,
-	"ScreenTextureNode": _CAT_INPUTS,
-	"DepthFadeNode":     _CAT_INPUTS,
-	# Math
-	"AddNode":      _CAT_MATH,
-	"SubtractNode": _CAT_MATH,
-	"MultiplyNode": _CAT_MATH,
-	"DivideNode":   _CAT_MATH,
-	"MixNode":      _CAT_MATH,
-	"ClampNode":    _CAT_MATH,
-	"PowerNode":    _CAT_MATH,
-	"MinMaxNode":   _CAT_MATH,
-	"ModNode":      _CAT_MATH,
-	"AbsNode":      _CAT_MATH,
-	"CeilNode":     _CAT_MATH,
-	"FloorNode":    _CAT_MATH,
-	"FractNode":    _CAT_MATH,
-	"NegateNode":   _CAT_MATH,
-	"OneMinusNode": _CAT_MATH,
-	"RoundNode":    _CAT_MATH,
-	"SqrtNode":     _CAT_MATH,
-	"SinNode":      _CAT_MATH,
-	"CosNode":      _CAT_MATH,
-	# Shape — mathematical value ops
-	"FresnelNode":    _CAT_MATH,
-	"StepNode":       _CAT_MATH,
-	"SmoothstepNode": _CAT_MATH,
-	# Advanced
-	"CustomGLSLNode": _CAT_MATH,
-	# Vector
-	"NormalizeNode":       _CAT_VECTOR,
-	"LengthNode":          _CAT_VECTOR,
-	"DotNode":             _CAT_VECTOR,
-	"SplitNode":           _CAT_VECTOR,
-	"CombineNode":         _CAT_VECTOR,
-	"NormalFromHeightNode": _CAT_VECTOR,
-	"BlendNormalsNode":    _CAT_VECTOR,
-	"ScaleNode":           _CAT_VECTOR,
-	# Texture
-	"TextureSampleNode": _CAT_TEXTURE,
-	"NormalMapNode":     _CAT_TEXTURE,
-	"GradientNode":      _CAT_TEXTURE,
-	"CurveNode":         _CAT_TEXTURE,
-	# UV
-	"TilingOffsetNode": _CAT_TEXTURE,
-	"RotateUVNode":     _CAT_TEXTURE,
-	"WarpNode":         _CAT_TEXTURE,
-	# Noise/Procedural
-	"NoiseNode": _CAT_TEXTURE,
-	"FBMNode":   _CAT_TEXTURE,
-	# Organisation
-	"RerouteNode":      _CAT_OUTPUT,
-	"RelayNode":        _CAT_OUTPUT,
-	"PreviewRelayNode": _CAT_OUTPUT,
-	# Canvas — scene-provided inputs, like UV/Time/ScreenUV
-	"SpriteTextureNode":    _CAT_INPUTS,
-	"VertexColorNode":      _CAT_INPUTS,
-	"TexturePixelSizeNode": _CAT_INPUTS,
-	# Particles — per-particle context inputs (sinks keep their own slate style)
-	"ParticleAgeNode":      _CAT_INPUTS,
-	"ParticleVelocityNode": _CAT_INPUTS,
-	"ParticlePositionNode": _CAT_INPUTS,
-	"ParticleDeltaNode":    _CAT_INPUTS,
-	"ParticleRandomNode":   _CAT_INPUTS,
-	"ParticleIndexNode":    _CAT_INPUTS,
-}
-
-const NODE_CLASSES := {
-	"OutputNode": OutputNode,
-	"VertexOutputNode": VertexOutputNode,
-	"ColorNode": ColorNode,
-	"AddNode": AddNode,
-	"MultiplyNode": MultiplyNode,
-	"MixNode": MixNode,
-	"UVNode": UVNode,
-	"FloatNode": FloatNode,
-	"SubtractNode": SubtractNode,
-	"ClampNode": ClampNode,
-	"PowerNode": PowerNode,
-	"SinNode": SinNode,
-	"CosNode": CosNode,
-	"TimeNode": TimeNode,
-	"SplitNode": SplitNode,
-	"CombineNode": CombineNode,
-	"TextureSampleNode": TextureSampleNode,
-	"FresnelNode": FresnelNode,
-	"ScaleNode": ScaleNode,
-	"StepNode": StepNode,
-	"SmoothstepNode": SmoothstepNode,
-	"NoiseNode": NoiseNode,
-	"FBMNode": FBMNode,
-	"GradientNode": GradientNode,
-	"CurveNode": CurveNode,
-	"TilingOffsetNode": TilingOffsetNode,
-	"RotateUVNode": RotateUVNode,
-	"WarpNode": WarpNode,
-	"NormalFromHeightNode": NormalFromHeightNode,
-	"BlendNormalsNode": BlendNormalsNode,
-	"ScreenUVNode": ScreenUVNode,
-	"ScreenTextureNode": ScreenTextureNode,
-	"DepthFadeNode": DepthFadeNode,
-	"VertexNode": VertexNode,
-	"NormalMapNode": NormalMapNode,
-	"AbsNode": AbsNode,
-	"CeilNode": CeilNode,
-	"FloorNode": FloorNode,
-	"FractNode": FractNode,
-	"NegateNode": NegateNode,
-	"OneMinusNode": OneMinusNode,
-	"RoundNode": RoundNode,
-	"SqrtNode": SqrtNode,
-	"MinMaxNode": MinMaxNode,
-	"DivideNode": DivideNode,
-	"ModNode": ModNode,
-	"NormalizeNode": NormalizeNode,
-	"LengthNode": LengthNode,
-	"DotNode": DotNode,
-	"RerouteNode": RerouteNode,
-	"RelayNode": RelayNode,
-	"PreviewRelayNode": PreviewRelayNode,
-	"CustomGLSLNode": CustomGLSLNode,
-	"Vector3Node": Vector3Node,
-	"SpriteTextureNode": SpriteTextureNode,
-	"VertexColorNode": VertexColorNode,
-	"TexturePixelSizeNode": TexturePixelSizeNode,
-	"ParticleStartNode": ParticleStartNode,
-	"ParticleProcessNode": ParticleProcessNode,
-	"ParticleAgeNode": ParticleAgeNode,
-	"ParticleVelocityNode": ParticleVelocityNode,
-	"ParticlePositionNode": ParticlePositionNode,
-	"ParticleDeltaNode": ParticleDeltaNode,
-	"ParticleRandomNode": ParticleRandomNode,
-	"ParticleIndexNode": ParticleIndexNode,
-}
-
-const _TYPE_CATEGORY := {
-	"ColorNode": "Inputs",    "FloatNode": "Inputs",     "Vector3Node": "Inputs",
-	"UVNode": "Inputs",       "VertexNode": "Inputs",    "TimeNode": "Inputs",
-	"FresnelNode": "Inputs",
-	"AddNode": "Math",        "SubtractNode": "Math",    "MultiplyNode": "Math",
-	"DivideNode": "Math",     "MixNode": "Math",         "ClampNode": "Math",
-	"PowerNode": "Math",      "MinMaxNode": "Math",      "ModNode": "Math",
-	"AbsNode": "Math",        "CeilNode": "Math",        "FloorNode": "Math",
-	"FractNode": "Math",      "NegateNode": "Math",      "OneMinusNode": "Math",
-	"RoundNode": "Math",      "SqrtNode": "Math",        "SinNode": "Math",
-	"CosNode": "Math",        "StepNode": "Math",        "SmoothstepNode": "Math",
-	"NormalizeNode": "Vector", "LengthNode": "Vector",   "DotNode": "Vector",
-	"SplitNode": "Vector",    "CombineNode": "Vector",   "ScaleNode": "Vector",
-	"NoiseNode": "Noise",     "FBMNode": "Noise",
-	"TextureSampleNode": "Texture", "NormalMapNode": "Texture",
-	"GradientNode": "Texture", "CurveNode": "Texture",
-	"TilingOffsetNode": "UV", "RotateUVNode": "UV",      "WarpNode": "UV",
-	"NormalFromHeightNode": "UV", "BlendNormalsNode": "UV",
-	"ScreenUVNode": "Screen", "ScreenTextureNode": "Screen", "DepthFadeNode": "Screen",
-	"SpriteTextureNode": "Canvas", "VertexColorNode": "Canvas",
-	"TexturePixelSizeNode": "Canvas",
-	"ParticleStartNode": "Particles",   "ParticleProcessNode": "Particles",
-	"ParticleAgeNode": "Particles",     "ParticleVelocityNode": "Particles",
-	"ParticlePositionNode": "Particles","ParticleDeltaNode": "Particles",
-	"ParticleRandomNode": "Particles",  "ParticleIndexNode": "Particles",
-	"RerouteNode": "Organisation",      "RelayNode": "Organisation",
-	"PreviewRelayNode": "Organisation",
-	"CustomGLSLNode": "Advanced",
-}
-
 signal reload_requested
 
 var _outer_vbox: VBoxContainer
@@ -486,8 +237,8 @@ func _ready() -> void:
 	_shortcuts_overlay = _build_shortcuts_overlay()
 	add_child(_shortcuts_overlay)
 
-	_add_node(OutputNode.new(), Vector2(300, 160), "OutputNode")
-	_add_node(VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
+	_add_node(NyxRegistry.OutputNode.new(), Vector2(300, 160), "OutputNode")
+	_add_node(NyxRegistry.VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
 	_update_sink_visibility()
 	_frame_default_view()
 
@@ -514,10 +265,10 @@ func _do_frame_default_view() -> void:
 func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	if node_name != "":
 		node.name = node_name
-	var type_name := _get_node_type(node)
-	if _TYPE_COLORS.has(type_name):
-		node._node_color = _TYPE_COLORS[type_name]
-	node._category = _TYPE_CATEGORY.get(type_name, "")
+	var type_name := NyxRegistry.get_node_type(node)
+	if NyxRegistry.NODE_TYPE_COLORS.has(type_name):
+		node._node_color = NyxRegistry.NODE_TYPE_COLORS[type_name]
+	node._category = NyxRegistry.NODE_TYPE_CATEGORY.get(type_name, "")
 	node.position_offset = offset
 	_graph.add_child(node)
 	if node.has_signal("value_changed"):
@@ -671,16 +422,16 @@ func _on_shader_type_changed(idx: int) -> void:
 
 func _ensure_spatial_sinks() -> void:
 	if not _graph.get_node_or_null("OutputNode"):
-		_add_node(OutputNode.new(), Vector2(300, 160), "OutputNode")
+		_add_node(NyxRegistry.OutputNode.new(), Vector2(300, 160), "OutputNode")
 	if not _graph.get_node_or_null("VertexOutputNode"):
-		_add_node(VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
+		_add_node(NyxRegistry.VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
 
 
 func _ensure_particle_sinks() -> void:
 	if not _graph.get_node_or_null("ParticleStartNode"):
-		_add_node(ParticleStartNode.new(), Vector2(440, 120), "ParticleStartNode")
+		_add_node(NyxRegistry.ParticleStartNode.new(), Vector2(440, 120), "ParticleStartNode")
 	if not _graph.get_node_or_null("ParticleProcessNode"):
-		_add_node(ParticleProcessNode.new(), Vector2(440, 360), "ParticleProcessNode")
+		_add_node(NyxRegistry.ParticleProcessNode.new(), Vector2(440, 360), "ParticleProcessNode")
 
 
 func _on_texture_pick_requested(node: Node) -> void:
@@ -939,7 +690,7 @@ func _build_type_legend() -> PanelContainer:
 
 		var sw := ColorRect.new()
 		sw.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sw.color = NyxNodeBase._type_color(e[0])
+		sw.color = NyxRegistry.NyxNodeBase._type_color(e[0])
 		sw.custom_minimum_size = Vector2(9, 9)
 		sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(sw)
@@ -1179,44 +930,6 @@ func _on_delete_nodes_request(nodes: Array[StringName]) -> void:
 	_request_compile()
 
 
-# --- Copy / paste / duplicate ---
-
-# The singleton sink nodes (Output / particle Start+Process) are fixed-name and must
-# never be copied or duplicated.
-func _is_sink_node(node: Node) -> bool:
-	var n := str(node.name)
-	return n == "OutputNode" or n == "VertexOutputNode" or n == "ParticleStartNode" or n == "ParticleProcessNode"
-
-
-# Serialize the currently-selected (non-sink) nodes plus the connections wholly between
-# them, into a {nodes, connections} buffer — the shared payload for copy and duplicate.
-func _serialize_selected_nodes() -> Dictionary:
-	var selected := {}
-	var nodes := []
-	for child in _graph.get_children():
-		if not child is GraphNode or not child.selected or _is_sink_node(child):
-			continue
-		var type := _get_node_type(child)
-		if type == "":
-			continue
-		selected[str(child.name)] = true
-		nodes.append({
-			"type": type,
-			"name": str(child.name),
-			"position": [child.position_offset.x, child.position_offset.y],
-			"state": child.get_state(),
-		})
-	var connections := []
-	for conn in _graph.get_connection_list():
-		if selected.has(str(conn["from_node"])) and selected.has(str(conn["to_node"])):
-			connections.append({
-				"from_node": str(conn["from_node"]),
-				"from_port": conn["from_port"],
-				"to_node": str(conn["to_node"]),
-				"to_port": conn["to_port"],
-			})
-	return {"nodes": nodes, "connections": connections}
-
 
 # Recreate a {nodes, connections} buffer into the graph, offset from the originals, and
 # leave the new nodes selected (so they can be dragged immediately). Used by paste and
@@ -1238,9 +951,9 @@ func _paste_buffer(buf: Dictionary, offset: Vector2 = Vector2(30, 30)) -> void:
 	var new_nodes: Array[Node] = []
 	for nd in src:
 		var type: String = nd["type"]
-		if not NODE_CLASSES.has(type):
+		if not NyxRegistry.NODE_CLASSES.has(type):
 			continue
-		var node = NODE_CLASSES[type].new()
+		var node = NyxRegistry.NODE_CLASSES[type].new()
 		var pos: Array = nd["position"]
 		var base: String = nd["name"]
 		if base.begins_with("@"):
@@ -1264,7 +977,7 @@ func _paste_buffer(buf: Dictionary, offset: Vector2 = Vector2(30, 30)) -> void:
 
 
 func _copy_selected_nodes() -> void:
-	var buf := _serialize_selected_nodes()
+	var buf := NyxSerializer.serialize_selected(_graph)
 	if not (buf["nodes"] as Array).is_empty():
 		_clipboard = buf
 
@@ -1288,7 +1001,7 @@ func _duplicate_selected_nodes() -> void:
 	# Duplicate stays a small offset from the originals (the cursor is usually right on the
 	# node you just selected, so cursor-anchoring would stack the copy on top). Uses its own
 	# buffer so it never clobbers the copy/paste clipboard.
-	_paste_buffer(_serialize_selected_nodes())
+	_paste_buffer(NyxSerializer.serialize_selected(_graph))
 
 
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
@@ -1430,7 +1143,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_R:
 			_push_undo_state()
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
-			_add_node(RerouteNode.new(), _spawn_position, "Reroute")
+			_add_node(NyxRegistry.RerouteNode.new(), _spawn_position, "Reroute")
 			accept_event()
 		KEY_A:
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
@@ -1459,84 +1172,76 @@ func _on_search_node_chosen(id: int) -> void:
 func _on_context_menu_selected(id: int) -> void:
 	_push_undo_state()
 	match id:
-		0: _add_node(ColorNode.new(), _spawn_position, "Color")
-		1: _add_node(AddNode.new(), _spawn_position, "Add")
-		2: _add_node(MultiplyNode.new(), _spawn_position, "Multiply")
-		3: _add_node(MixNode.new(), _spawn_position, "Mix")
-		4: _add_node(UVNode.new(), _spawn_position, "UV")
-		5: _add_node(FloatNode.new(), _spawn_position, "Float")
-		6: _add_node(SubtractNode.new(), _spawn_position, "Subtract")
-		7: _add_node(ClampNode.new(), _spawn_position, "Clamp")
-		8: _add_node(PowerNode.new(), _spawn_position, "Power")
-		9: _add_node(SinNode.new(), _spawn_position, "Sin")
-		10: _add_node(CosNode.new(), _spawn_position, "Cos")
-		11: _add_node(TimeNode.new(), _spawn_position, "Time")
-		12: _add_node(SplitNode.new(), _spawn_position, "Split")
-		13: _add_node(CombineNode.new(), _spawn_position, "Combine")
-		14: _add_node(TextureSampleNode.new(), _spawn_position, "TextureSample")
-		15: _add_node(FresnelNode.new(), _spawn_position, "Fresnel")
-		16: _add_node(ScaleNode.new(), _spawn_position, "Scale")
-		17: _add_node(StepNode.new(), _spawn_position, "Step")
-		18: _add_node(SmoothstepNode.new(), _spawn_position, "Smoothstep")
-		19: _add_node(NoiseNode.new(), _spawn_position, "Noise")
-		36: _add_node(FBMNode.new(), _spawn_position, "FBM")
-		37: _add_node(GradientNode.new(), _spawn_position, "Gradient")
-		38: _add_node(CurveNode.new(), _spawn_position, "Curve")
-		39: _add_node(TilingOffsetNode.new(), _spawn_position, "TilingOffset")
-		40: _add_node(RotateUVNode.new(), _spawn_position, "RotateUV")
-		41: _add_node(WarpNode.new(), _spawn_position, "Warp")
-		42: _add_node(NormalFromHeightNode.new(), _spawn_position, "NormalFromHeight")
-		43: _add_node(BlendNormalsNode.new(), _spawn_position, "BlendNormals")
-		44: _add_node(ScreenUVNode.new(), _spawn_position, "ScreenUV")
-		45: _add_node(ScreenTextureNode.new(), _spawn_position, "ScreenTexture")
-		46: _add_node(DepthFadeNode.new(), _spawn_position, "DepthFade")
-		20: _add_node(VertexNode.new(), _spawn_position, "Vertex")
-		21: _add_node(NormalMapNode.new(), _spawn_position, "NormalMap")
-		22: _add_node(AbsNode.new(), _spawn_position, "Abs")
-		29: _add_node(CeilNode.new(), _spawn_position, "Ceil")
-		30: _add_node(FloorNode.new(), _spawn_position, "Floor")
-		31: _add_node(FractNode.new(), _spawn_position, "Fract")
-		32: _add_node(NegateNode.new(), _spawn_position, "Negate")
-		33: _add_node(OneMinusNode.new(), _spawn_position, "OneMinus")
-		34: _add_node(RoundNode.new(), _spawn_position, "Round")
-		35: _add_node(SqrtNode.new(), _spawn_position, "Sqrt")
-		23: _add_node(MinMaxNode.new(), _spawn_position, "MinMax")
-		24: _add_node(DivideNode.new(), _spawn_position, "Divide")
-		25: _add_node(ModNode.new(), _spawn_position, "Mod")
-		26: _add_node(NormalizeNode.new(), _spawn_position, "Normalize")
-		27: _add_node(LengthNode.new(), _spawn_position, "Length")
-		28: _add_node(DotNode.new(), _spawn_position, "Dot")
-		52: _add_node(RerouteNode.new(), _spawn_position, "Reroute")
-		53: _add_node(RelayNode.new(), _spawn_position, "Relay")
-		54: _add_node(PreviewRelayNode.new(), _spawn_position, "PreviewRelay")
-		47: _add_node(CustomGLSLNode.new(), _spawn_position, "CustomGLSL")
-		48: _add_node(Vector3Node.new(), _spawn_position, "Vector3")
-		49: _add_node(SpriteTextureNode.new(), _spawn_position, "SpriteTexture")
-		50: _add_node(VertexColorNode.new(), _spawn_position, "VertexColor")
-		51: _add_node(TexturePixelSizeNode.new(), _spawn_position, "PixelSize")
+		0: _add_node(NyxRegistry.ColorNode.new(), _spawn_position, "Color")
+		1: _add_node(NyxRegistry.AddNode.new(), _spawn_position, "Add")
+		2: _add_node(NyxRegistry.MultiplyNode.new(), _spawn_position, "Multiply")
+		3: _add_node(NyxRegistry.MixNode.new(), _spawn_position, "Mix")
+		4: _add_node(NyxRegistry.UVNode.new(), _spawn_position, "UV")
+		5: _add_node(NyxRegistry.FloatNode.new(), _spawn_position, "Float")
+		6: _add_node(NyxRegistry.SubtractNode.new(), _spawn_position, "Subtract")
+		7: _add_node(NyxRegistry.ClampNode.new(), _spawn_position, "Clamp")
+		8: _add_node(NyxRegistry.PowerNode.new(), _spawn_position, "Power")
+		9: _add_node(NyxRegistry.SinNode.new(), _spawn_position, "Sin")
+		10: _add_node(NyxRegistry.CosNode.new(), _spawn_position, "Cos")
+		11: _add_node(NyxRegistry.TimeNode.new(), _spawn_position, "Time")
+		12: _add_node(NyxRegistry.SplitNode.new(), _spawn_position, "Split")
+		13: _add_node(NyxRegistry.CombineNode.new(), _spawn_position, "Combine")
+		14: _add_node(NyxRegistry.TextureSampleNode.new(), _spawn_position, "TextureSample")
+		15: _add_node(NyxRegistry.FresnelNode.new(), _spawn_position, "Fresnel")
+		16: _add_node(NyxRegistry.ScaleNode.new(), _spawn_position, "Scale")
+		17: _add_node(NyxRegistry.StepNode.new(), _spawn_position, "Step")
+		18: _add_node(NyxRegistry.SmoothstepNode.new(), _spawn_position, "Smoothstep")
+		19: _add_node(NyxRegistry.NoiseNode.new(), _spawn_position, "Noise")
+		36: _add_node(NyxRegistry.FBMNode.new(), _spawn_position, "FBM")
+		37: _add_node(NyxRegistry.GradientNode.new(), _spawn_position, "Gradient")
+		38: _add_node(NyxRegistry.CurveNode.new(), _spawn_position, "Curve")
+		39: _add_node(NyxRegistry.TilingOffsetNode.new(), _spawn_position, "TilingOffset")
+		40: _add_node(NyxRegistry.RotateUVNode.new(), _spawn_position, "RotateUV")
+		41: _add_node(NyxRegistry.WarpNode.new(), _spawn_position, "Warp")
+		42: _add_node(NyxRegistry.NormalFromHeightNode.new(), _spawn_position, "NormalFromHeight")
+		43: _add_node(NyxRegistry.BlendNormalsNode.new(), _spawn_position, "BlendNormals")
+		44: _add_node(NyxRegistry.ScreenUVNode.new(), _spawn_position, "ScreenUV")
+		45: _add_node(NyxRegistry.ScreenTextureNode.new(), _spawn_position, "ScreenTexture")
+		46: _add_node(NyxRegistry.DepthFadeNode.new(), _spawn_position, "DepthFade")
+		20: _add_node(NyxRegistry.VertexNode.new(), _spawn_position, "Vertex")
+		21: _add_node(NyxRegistry.NormalMapNode.new(), _spawn_position, "NormalMap")
+		22: _add_node(NyxRegistry.AbsNode.new(), _spawn_position, "Abs")
+		29: _add_node(NyxRegistry.CeilNode.new(), _spawn_position, "Ceil")
+		30: _add_node(NyxRegistry.FloorNode.new(), _spawn_position, "Floor")
+		31: _add_node(NyxRegistry.FractNode.new(), _spawn_position, "Fract")
+		32: _add_node(NyxRegistry.NegateNode.new(), _spawn_position, "Negate")
+		33: _add_node(NyxRegistry.OneMinusNode.new(), _spawn_position, "OneMinus")
+		34: _add_node(NyxRegistry.RoundNode.new(), _spawn_position, "Round")
+		35: _add_node(NyxRegistry.SqrtNode.new(), _spawn_position, "Sqrt")
+		23: _add_node(NyxRegistry.MinMaxNode.new(), _spawn_position, "MinMax")
+		24: _add_node(NyxRegistry.DivideNode.new(), _spawn_position, "Divide")
+		25: _add_node(NyxRegistry.ModNode.new(), _spawn_position, "Mod")
+		26: _add_node(NyxRegistry.NormalizeNode.new(), _spawn_position, "Normalize")
+		27: _add_node(NyxRegistry.LengthNode.new(), _spawn_position, "Length")
+		28: _add_node(NyxRegistry.DotNode.new(), _spawn_position, "Dot")
+		52: _add_node(NyxRegistry.RerouteNode.new(), _spawn_position, "Reroute")
+		53: _add_node(NyxRegistry.RelayNode.new(), _spawn_position, "Relay")
+		54: _add_node(NyxRegistry.PreviewRelayNode.new(), _spawn_position, "PreviewRelay")
+		47: _add_node(NyxRegistry.CustomGLSLNode.new(), _spawn_position, "CustomGLSL")
+		48: _add_node(NyxRegistry.Vector3Node.new(), _spawn_position, "Vector3")
+		49: _add_node(NyxRegistry.SpriteTextureNode.new(), _spawn_position, "SpriteTexture")
+		50: _add_node(NyxRegistry.VertexColorNode.new(), _spawn_position, "VertexColor")
+		51: _add_node(NyxRegistry.TexturePixelSizeNode.new(), _spawn_position, "PixelSize")
 		55:
 			if not _graph.get_node_or_null("ParticleStartNode"):
-				_add_node(ParticleStartNode.new(), _spawn_position, "ParticleStartNode")
+				_add_node(NyxRegistry.ParticleStartNode.new(), _spawn_position, "ParticleStartNode")
 				_update_sink_visibility()
 		56:
 			if not _graph.get_node_or_null("ParticleProcessNode"):
-				_add_node(ParticleProcessNode.new(), _spawn_position, "ParticleProcessNode")
+				_add_node(NyxRegistry.ParticleProcessNode.new(), _spawn_position, "ParticleProcessNode")
 				_update_sink_visibility()
-		57: _add_node(ParticleAgeNode.new(), _spawn_position, "ParticleAge")
-		58: _add_node(ParticleVelocityNode.new(), _spawn_position, "ParticleVelocity")
-		59: _add_node(ParticlePositionNode.new(), _spawn_position, "ParticlePosition")
-		60: _add_node(ParticleDeltaNode.new(), _spawn_position, "ParticleDelta")
-		61: _add_node(ParticleRandomNode.new(), _spawn_position, "ParticleRandom")
-		62: _add_node(ParticleIndexNode.new(), _spawn_position, "ParticleIndex")
+		57: _add_node(NyxRegistry.ParticleAgeNode.new(), _spawn_position, "ParticleAge")
+		58: _add_node(NyxRegistry.ParticleVelocityNode.new(), _spawn_position, "ParticleVelocity")
+		59: _add_node(NyxRegistry.ParticlePositionNode.new(), _spawn_position, "ParticlePosition")
+		60: _add_node(NyxRegistry.ParticleDeltaNode.new(), _spawn_position, "ParticleDelta")
+		61: _add_node(NyxRegistry.ParticleRandomNode.new(), _spawn_position, "ParticleRandom")
+		62: _add_node(NyxRegistry.ParticleIndexNode.new(), _spawn_position, "ParticleIndex")
 
-
-# Brand styling for the top toolbar buttons: flat at rest, hunter-green border on
-# hover (the node/chip hover language), subtle green-tinted press.
-func _get_node_type(node: Node) -> String:
-	for type_name in NODE_CLASSES:
-		if node.get_script() == NODE_CLASSES[type_name]:
-			return type_name
-	return ""
 
 
 func _serialize_graph() -> Dictionary:
@@ -1544,7 +1249,7 @@ func _serialize_graph() -> Dictionary:
 	for child in _graph.get_children():
 		if not child is GraphNode:
 			continue
-		var type := _get_node_type(child)
+		var type := NyxRegistry.get_node_type(child)
 		if type == "":
 			continue
 		nodes.append({
@@ -1601,10 +1306,10 @@ func _deserialize_graph(data: Dictionary) -> void:
 	var name_map := {}
 	for node_data in data.get("nodes", []):
 		var type: String = node_data["type"]
-		if not NODE_CLASSES.has(type):
+		if not NyxRegistry.NODE_CLASSES.has(type):
 			push_warning("Nyx: unknown node type '%s', skipping" % type)
 			continue
-		var node = NODE_CLASSES[type].new()
+		var node = NyxRegistry.NODE_CLASSES[type].new()
 		var pos: Array = node_data["position"]
 		var saved_name: String = node_data["name"]
 		var target_name := saved_name if not saved_name.begins_with("@") else type.trim_suffix("Node")
@@ -1660,8 +1365,8 @@ func _new_graph() -> void:
 	_preview_panel.reset_last_code()
 	_undo_stack.clear()
 	_redo_stack.clear()
-	_add_node(OutputNode.new(), Vector2(300, 160), "OutputNode")
-	_add_node(VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
+	_add_node(NyxRegistry.OutputNode.new(), Vector2(300, 160), "OutputNode")
+	_add_node(NyxRegistry.VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
 	_update_sink_visibility()
 	_frame_default_view()
 	_request_compile()
