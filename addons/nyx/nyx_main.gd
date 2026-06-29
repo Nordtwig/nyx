@@ -266,32 +266,21 @@ var _properties_panel: Panel
 var _properties_vbox: VBoxContainer
 var _properties_detail_vbox: VBoxContainer
 var _selected_param_row: Control = null
-var _mesh_row: Control
-var _vpc_3d: SubViewportContainer
-var _vpc_2d: SubViewportContainer
-var _viewport_2d: SubViewport
-var _shader_material_2d: ShaderMaterial
-var _preview_panel: Panel
+# Preview panel (floating — owns viewports/materials/mesh-switcher/particles/drag+resize).
+# Per-node preview manager (SubViewport-per-node lifecycle). Both extracted from this file.
+const NyxPreviewPanel = preload("res://addons/nyx/nyx_preview_panel.gd")
+const NyxNodePreviews = preload("res://addons/nyx/nyx_node_previews.gd")
+var _preview_panel  # NyxPreviewPanel instance
+var _node_previews  # NyxNodePreviews instance
 var _type_legend: PanelContainer
 var _legend_toggle: Button
 var _minimap_toggle: Button
 var _shortcuts_overlay: PanelContainer
-var _preview_dragging: bool = false
-var _preview_resizing: bool = false
 var _panning: bool = false
 var _pan_moved: bool = false  # did the cursor move during the current empty-canvas drag?
 var _clipboard: Dictionary = {}  # {nodes, connections} from the last copy
-var _preview_right_offset: float = 20.0
-var _preview_top_offset: float = -1.0  # -1 = not yet placed
 var _preview_positioned: bool = false
 var _properties_positioned: bool = false
-var _viewport: SubViewport
-var _preview_mesh: MeshInstance3D
-var _preview_camera: Camera3D
-var _preview_mesh_buttons: Array[Button] = []
-var _shader_material: ShaderMaterial
-var _shader_material_particle: ShaderMaterial
-var _particles: GPUParticles3D
 var _compile_timer: Timer
 # Node-search popup. Self-contained Control component (owns its overlay/cards/doc/icons);
 # emits node_chosen(id) → _on_search_node_chosen spawns. See nyx_search_popup.gd.
@@ -313,7 +302,6 @@ var _pending_load_path: String = ""   # path awaiting the discard-changes confir
 var _pending_after_save: Callable = Callable()  # run after a "Save & …" completes
 var _texture_target: Node = null
 var _spawn_position: Vector2
-var _last_shader_code: String
 # Shader compiler (graph → GLSL). Extracted from this file; holds a reference to
 # _graph and is constructed once in _ready. See nyx_compiler.gd.
 const NyxCompiler = preload("res://addons/nyx/nyx_compiler.gd")
@@ -465,8 +453,12 @@ func _ready() -> void:
 	_order_dialog_buttons(_load_confirm, discard_load)
 	add_child(_load_confirm)
 
-	_preview_panel = _build_preview_panel()
+	_preview_panel = NyxPreviewPanel.new()
 	add_child(_preview_panel)
+	_preview_panel.setup(_graph, _graph_container)
+	_node_previews = NyxNodePreviews.new()
+	add_child(_node_previews)
+	_node_previews.setup(_graph, _compiler)
 	_properties_panel = _build_properties_panel()
 	add_child(_properties_panel)
 	_update_link_ui()  # unlinked: "Export…", Live disabled
@@ -508,200 +500,6 @@ func _do_frame_default_view() -> void:
 	_graph.scroll_offset = Vector2(-600, -100)
 
 
-func _build_preview_panel() -> Panel:
-	var floating := Panel.new()
-	floating.size = Vector2(220, 200)
-
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.13, 0.13, 0.16, 0.95)
-	bg.corner_radius_top_left = 6
-	bg.corner_radius_top_right = 6
-	bg.corner_radius_bottom_left = 6
-	bg.corner_radius_bottom_right = 6
-	floating.add_theme_stylebox_override("panel", bg)
-
-	var vbox := VBoxContainer.new()
-	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	floating.add_child(vbox)
-
-	var header_wrap := PanelContainer.new()
-	var header_bg := StyleBoxFlat.new()
-	header_bg.bg_color = get_theme_color("base_color", "Editor")
-	header_bg.corner_radius_top_left = 6
-	header_bg.corner_radius_top_right = 6
-	header_bg.border_width_bottom = 2
-	header_bg.border_color = Color(0.12, 0.12, 0.16)
-	header_wrap.add_theme_stylebox_override("panel", header_bg)
-	vbox.add_child(header_wrap)
-	var header := HBoxContainer.new()
-	header.mouse_default_cursor_shape = Control.CURSOR_MOVE
-	header.gui_input.connect(_on_preview_header_input)
-	header_wrap.add_child(header)
-
-	var title := Label.new()
-	var _header_pad := Control.new()
-	_header_pad.custom_minimum_size = Vector2(2, 0)
-	_header_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header.add_child(_header_pad)
-	title.text = "Preview"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-
-	var toggle := Button.new()
-	toggle.text = "×"
-	toggle.focus_mode = Control.FOCUS_NONE
-	toggle.add_theme_font_size_override("font_size", 16)
-	toggle.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
-	toggle.add_theme_color_override("font_hover_color", Color("#4AAF78"))
-	var _t_empty := StyleBoxEmpty.new()
-	toggle.add_theme_stylebox_override("normal", _t_empty)
-	toggle.add_theme_stylebox_override("hover", _t_empty)
-	toggle.add_theme_stylebox_override("pressed", _t_empty)
-	toggle.add_theme_stylebox_override("focus", _t_empty)
-	toggle.pressed.connect(_toggle_preview)
-	header.add_child(toggle)
-	var _close_pad := Control.new()
-	_close_pad.custom_minimum_size = Vector2(2, 0)
-	_close_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header.add_child(_close_pad)
-
-	# Floating mesh-switcher icon stack — anchored to the bottom-right of the panel.
-	var mesh_stack := VBoxContainer.new()
-	mesh_stack.add_theme_constant_override("separation", 2)
-	mesh_stack.set_anchor(SIDE_RIGHT, 1.0)
-	mesh_stack.set_anchor(SIDE_BOTTOM, 1.0)
-	mesh_stack.set_anchor(SIDE_LEFT, 1.0)
-	mesh_stack.set_anchor(SIDE_TOP, 1.0)
-	mesh_stack.set_offset(SIDE_RIGHT, -8)
-	mesh_stack.set_offset(SIDE_BOTTOM, -4)
-	mesh_stack.set_offset(SIDE_LEFT, -32)
-	mesh_stack.set_offset(SIDE_TOP, -82)
-	mesh_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	floating.add_child(mesh_stack)
-	_mesh_row = mesh_stack
-
-	var icon_names := ["sphere", "plane", "cube"]
-	for pair in [["sphere", SphereMesh.new(), Vector3.ZERO, 1.2], ["plane", QuadMesh.new(), Vector3.ZERO, 1.2], ["cube", BoxMesh.new(), Vector3(20, 40, 20), 1.8]]:
-		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(24, 24)
-		btn.toggle_mode = true
-		btn.button_pressed = pair[0] == "sphere"
-		btn.focus_mode = Control.FOCUS_NONE
-		btn.mouse_filter = Control.MOUSE_FILTER_STOP
-		var icon_path := "res://addons/nyx/icons/preview/%s.svg" % pair[0]
-		if ResourceLoader.exists(icon_path):
-			var tex := load(icon_path) as Texture2D
-			if tex:
-				var img := tex.get_image()
-				img.resize(16, 16, Image.INTERPOLATE_LANCZOS)
-				for y in img.get_height():
-					for x in img.get_width():
-						var px := img.get_pixel(x, y)
-						if px.a > 0.0:
-							img.set_pixel(x, y, Color(1.0, 1.0, 1.0, px.a))
-				btn.icon = ImageTexture.create_from_image(img)
-		btn.add_theme_color_override("icon_normal_color", Color(0.55, 0.55, 0.65))
-		btn.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
-		btn.add_theme_color_override("icon_hover_color", Color(0.9, 0.9, 0.95))
-		btn.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
-		var _s := StyleBoxEmpty.new()
-		btn.add_theme_stylebox_override("normal", _s)
-		btn.add_theme_stylebox_override("hover", _s)
-		btn.add_theme_stylebox_override("pressed", _s)
-		btn.add_theme_stylebox_override("focus", _s)
-		btn.pressed.connect(_on_mesh_btn_pressed.bind(btn, pair[1], pair[2], pair[3]))
-		mesh_stack.add_child(btn)
-		_preview_mesh_buttons.append(btn)
-
-	var vpc := SubViewportContainer.new()
-	vpc.stretch = true
-	vpc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vpc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(vpc)
-	_vpc_3d = vpc
-
-	_viewport = SubViewport.new()
-	_viewport.own_world_3d = true
-	_viewport.transparent_bg = true
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	vpc.add_child(_viewport)
-
-	_preview_camera = Camera3D.new()
-	_preview_camera.position = Vector3(0, 0, 1.2)
-	_viewport.add_child(_preview_camera)
-
-	_preview_mesh = MeshInstance3D.new()
-	_preview_mesh.mesh = SphereMesh.new()
-	_shader_material = ShaderMaterial.new()
-	_shader_material.shader = Shader.new()
-	_shader_material.shader.code = "shader_type spatial;\nvoid fragment() {\n\tALBEDO = vec3(0.5, 0.5, 0.5);\n}\n"
-	_preview_mesh.material_override = _shader_material
-	_viewport.add_child(_preview_mesh)
-
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-45, 45, 0)
-	_viewport.add_child(light)
-
-	# Particle preview — a GPUParticles3D sharing the 3D viewport. Its process
-	# material is the compiled particle shader; the draw pass is a small additive
-	# billboard quad tinted by COLOR. Preview-only, not part of export.
-	_shader_material_particle = ShaderMaterial.new()
-	_shader_material_particle.shader = Shader.new()
-	_shader_material_particle.shader.code = "shader_type particles;\nvoid start() {}\nvoid process() {}\n"
-
-	_particles = GPUParticles3D.new()
-	_particles.amount = 48
-	_particles.lifetime = 2.0
-	_particles.process_material = _shader_material_particle
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.08, 0.08)
-	var draw_mat := StandardMaterial3D.new()
-	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	draw_mat.vertex_color_use_as_albedo = true
-	draw_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	draw_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	draw_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	quad.material = draw_mat
-	_particles.draw_pass_1 = quad
-	_particles.visible = false
-	_particles.emitting = false
-	_viewport.add_child(_particles)
-
-	_vpc_2d = SubViewportContainer.new()
-	_vpc_2d.stretch = true
-	_vpc_2d.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_vpc_2d.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_vpc_2d.visible = false
-	vbox.add_child(_vpc_2d)
-
-	_viewport_2d = SubViewport.new()
-	_viewport_2d.transparent_bg = true
-	_viewport_2d.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_vpc_2d.add_child(_viewport_2d)
-
-	var preview_rect := ColorRect.new()
-	preview_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_shader_material_2d = ShaderMaterial.new()
-	_shader_material_2d.shader = Shader.new()
-	_shader_material_2d.shader.code = "shader_type canvas_item;\nvoid fragment() { COLOR = vec4(0.5, 0.5, 0.5, 1.0); }\n"
-	preview_rect.material = _shader_material_2d
-	_viewport_2d.add_child(preview_rect)
-
-	var grip := Control.new()
-	grip.size = Vector2(16, 16)
-	grip.anchor_left = 1.0
-	grip.anchor_top = 1.0
-	grip.anchor_right = 1.0
-	grip.anchor_bottom = 1.0
-	grip.offset_left = -16
-	grip.offset_top = -16
-	grip.mouse_default_cursor_shape = 12
-	grip.gui_input.connect(_on_preview_resize_input)
-	floating.add_child(grip)
-
-	return floating
-
-
 func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	if node_name != "":
 		node.name = node_name
@@ -727,9 +525,9 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	if node.has_signal("preview_toggled"):
 		node.preview_toggled.connect(func():
 			if node.has_meta("_preview_material"):
-				_close_node_preview(node)
+				_node_previews.close(node)
 			else:
-				_open_node_preview(node)
+				_node_previews.open(node, _shader_type)
 		)
 	node.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
@@ -750,100 +548,40 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 		node.call_deferred("set_preview_chevron_visible", false)
 
 
-func _toggle_preview() -> void:
-	_preview_panel.visible = not _preview_panel.visible
-
-
-func _on_mesh_btn_pressed(btn: Button, mesh: Mesh, rotation: Vector3, cam_z: float) -> void:
-	_preview_mesh.mesh = mesh
-	_preview_mesh.rotation_degrees = rotation
-	_preview_camera.position.z = cam_z
-	for b in _preview_mesh_buttons:
-		b.button_pressed = b == btn
-
-
-
-func _open_node_preview(node: Node) -> void:
-	# No per-node previews in particle mode — values are per-particle, and a
-	# spatial preview shader would reference particle-only builtins (CUSTOM, etc).
-	if _shader_type == 2:
-		return
-	var tex_rect: TextureRect = node.get_preview_slot()
-	if not tex_rect:
-		return
-
-	var vp := SubViewport.new()
-	vp.size = Vector2i(100, 100)
-	vp.transparent_bg = true
-	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	add_child(vp)
-
-	var mat := ShaderMaterial.new()
-	mat.shader = Shader.new()
-
-	if _shader_type == 1:
-		# Canvas Item — use a ColorRect
-		mat.shader.code = "shader_type canvas_item;\nrender_mode unshaded;\nvoid fragment() { COLOR = vec4(0.5, 0.5, 0.5, 1.0); }"
-		var rect := ColorRect.new()
-		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		rect.material = mat
-		vp.add_child(rect)
-	else:
-		# Spatial — use a quad mesh with camera
-		vp.own_world_3d = true
-		var cam := Camera3D.new()
-		cam.position = Vector3(0, 0, 1.2)
-		vp.add_child(cam)
-		cam.make_current()
-		var mesh_inst := MeshInstance3D.new()
-		var qm := QuadMesh.new()
-		qm.size = Vector2(1.84, 1.84)
-		mesh_inst.mesh = qm
-		mat.shader.code = "shader_type spatial;\nrender_mode unshaded;\nvoid fragment() { ALBEDO = vec3(0.5); }"
-		mesh_inst.material_override = mat
-		vp.add_child(mesh_inst)
-		var light := DirectionalLight3D.new()
-		light.rotation_degrees = Vector3(-45, 45, 0)
-		vp.add_child(light)
-
-	tex_rect.texture = vp.get_texture()
-	node.set_meta("_preview_material", mat)
-	node.set_meta("_preview_viewport", vp)
-	_refresh_node_preview(node)
-
-
-func _close_node_preview(node: Node) -> void:
-	if node.has_meta("_preview_material"):
-		node.remove_meta("_preview_material")
-	if node.has_meta("_preview_viewport"):
-		(node.get_meta("_preview_viewport") as Node).queue_free()
-		node.remove_meta("_preview_viewport")
-	var tex_rect: TextureRect = node.get_preview_slot()
-	if tex_rect:
-		tex_rect.texture = null
-
-
-func _refresh_node_preview(node: Node) -> void:
-	if not node.has_meta("_preview_material"):
-		return
-	var mat: ShaderMaterial = node.get_meta("_preview_material")
-	mat.shader.code = _compiler.build_node_preview_shader(node, _shader_type)
-	for child in _graph.get_children():
-		if child.has_method("get_uniform_name") and child.has_method("get_texture"):
-			var tex = child.get_texture()
-			if tex:
-				mat.set_shader_parameter(child.get_uniform_name(), tex)
-
-
-func _refresh_all_node_previews() -> void:
-	for child in _graph.get_children():
-		if child.has_meta("_preview_material"):
-			_refresh_node_preview(child)
-
-
 func _request_compile() -> void:
 	_compile_timer.stop()
 	_compile_timer.start()
+
+
+func _compile_shader() -> void:
+	if _graph.get_node_or_null("OutputNode") or _graph.get_node_or_null("VertexOutputNode") or _shader_type == 2:
+		var code: String = _compiler.build_shader_code(_shader_type)
+		if _preview_panel.compile(code, _shader_type):
+			if _live_link_on and not _linked_shader_path.is_empty():
+				NyxCharon.notify_shader_updated(_linked_shader_path, _preview_panel.get_active_material())
+		_preview_panel.apply_uniforms()
+	if _shader_type != 2:
+		_node_previews.refresh_all(_shader_type)
+
+
+func _update_sink_visibility() -> void:
+	var output_node = _graph.get_node_or_null("OutputNode")
+	if output_node:
+		output_node.visible = _shader_type != 2
+	var vertex_output_node = _graph.get_node_or_null("VertexOutputNode")
+	if vertex_output_node:
+		vertex_output_node.visible = _shader_type == 0
+	var start_node = _graph.get_node_or_null("ParticleStartNode")
+	if start_node:
+		start_node.visible = _shader_type == 2
+	var process_node = _graph.get_node_or_null("ParticleProcessNode")
+	if process_node:
+		process_node.visible = _shader_type == 2
+	if _preview_panel:
+		_preview_panel.update_for_shader_type(_shader_type)
+	for child in _graph.get_children():
+		if child is GraphNode and child.has_method("set_preview_chevron_visible"):
+			child.set_preview_chevron_visible(_shader_type != 2)
 
 
 func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
@@ -897,13 +635,10 @@ func _on_shader_type_changed(idx: int) -> void:
 	# previews (the values are per-particle, not per-pixel), so just tear them down.
 	for child in _graph.get_children():
 		if child is GraphNode and child.has_meta("_preview_material"):
-			if child.has_meta("_preview_viewport"):
-				(child.get_meta("_preview_viewport") as Node).queue_free()
-				child.remove_meta("_preview_viewport")
-			child.remove_meta("_preview_material")
+			_node_previews.close(child)
 			if idx != 2:
-				_open_node_preview(child)
-	_last_shader_code = ""
+				_node_previews.open(child, idx)
+	_preview_panel.reset_last_code()
 	_request_compile()
 
 
@@ -919,72 +654,6 @@ func _ensure_particle_sinks() -> void:
 		_add_node(ParticleStartNode.new(), Vector2(440, 120), "ParticleStartNode")
 	if not _graph.get_node_or_null("ParticleProcessNode"):
 		_add_node(ParticleProcessNode.new(), Vector2(440, 360), "ParticleProcessNode")
-
-
-func _update_sink_visibility() -> void:
-	var output_node = _graph.get_node_or_null("OutputNode")
-	if output_node:
-		output_node.visible = _shader_type != 2
-	var vertex_output_node = _graph.get_node_or_null("VertexOutputNode")
-	if vertex_output_node:
-		vertex_output_node.visible = _shader_type == 0
-	var start_node = _graph.get_node_or_null("ParticleStartNode")
-	if start_node:
-		start_node.visible = _shader_type == 2
-	var process_node = _graph.get_node_or_null("ParticleProcessNode")
-	if process_node:
-		process_node.visible = _shader_type == 2
-	if _preview_mesh:
-		_preview_mesh.visible = _shader_type == 0
-	if _particles:
-		_particles.visible = _shader_type == 2
-		_particles.emitting = _shader_type == 2
-	_mesh_row.visible = _shader_type == 0
-	_vpc_3d.visible = _shader_type == 0 or _shader_type == 2  # particles reuse the 3D viewport
-	_vpc_2d.visible = _shader_type == 1
-	for child in _graph.get_children():
-		if child is GraphNode and child.has_method("set_preview_chevron_visible"):
-			child.set_preview_chevron_visible(_shader_type != 2)
-
-
-func _get_active_material() -> ShaderMaterial:
-	if _shader_type == 2:
-		return _shader_material_particle
-	return _shader_material_2d if _shader_type == 1 else _shader_material
-
-
-func _apply_texture_uniforms() -> void:
-	var mat := _get_active_material()
-	if mat == null:
-		return
-	for child in _graph.get_children():
-		if child.has_method("get_uniform_name") and child.has_method("get_texture"):
-			var tex = child.get_texture()
-			if tex:
-				mat.set_shader_parameter(child.get_uniform_name(), tex)
-		if child.has_method("apply_shader_params"):
-			child.apply_shader_params(mat)
-
-
-func _compile_shader() -> void:
-	if _graph.get_node_or_null("OutputNode") or _graph.get_node_or_null("VertexOutputNode") or _shader_type == 2:
-		var code: String = _compiler.build_shader_code(_shader_type)
-		if code != _last_shader_code:
-			_last_shader_code = code
-			var mat := _get_active_material()
-			if mat:
-				mat.shader.code = code
-				# Live link: push the new code into the linked artifact's loaded
-				# resource so the scene viewport updates in-memory (no disk write).
-				if _live_link_on and not _linked_shader_path.is_empty():
-					NyxCharon.notify_shader_updated(_linked_shader_path, mat)
-			# Restart so start() changes apply to live particles immediately.
-			if _shader_type == 2 and _particles:
-				_particles.restart()
-		_apply_texture_uniforms()
-	# Per-node previews are pixel-shaded; they don't exist in particle mode.
-	if _shader_type != 2:
-		_refresh_all_node_previews()
 
 
 func _on_texture_pick_requested(node: Node) -> void:
@@ -1089,7 +758,7 @@ func _on_live_toggled(on: bool) -> void:
 	_live_link_on = on
 	# Toggling on immediately reflects the current graph state in the scene.
 	if on and not _linked_shader_path.is_empty():
-		NyxCharon.notify_shader_updated(_linked_shader_path, _get_active_material())
+		NyxCharon.notify_shader_updated(_linked_shader_path, _preview_panel.get_active_material())
 
 
 func _popup_export_dialog() -> void:
@@ -1109,7 +778,7 @@ func _do_update() -> void:
 		return
 	if not _current_nyx_path.is_empty():
 		NyxSerializer.write(_current_nyx_path, _serialize_graph())
-	NyxCharon.notify_shader_updated(_linked_shader_path, _get_active_material())
+	NyxCharon.notify_shader_updated(_linked_shader_path, _preview_panel.get_active_material())
 	EditorInterface.get_resource_filesystem().scan()
 	print("Nyx: updated shader → %s" % _linked_shader_path)
 
@@ -1237,7 +906,7 @@ func _on_export_file_selected(path: String) -> void:
 	if _export_mode != "shader_only":
 		_write_material_file(path)
 	_set_linked(path)
-	NyxCharon.notify_shader_updated(path, _get_active_material())
+	NyxCharon.notify_shader_updated(path, _preview_panel.get_active_material())
 	EditorInterface.get_resource_filesystem().scan()
 	if _export_mode == "shader_only":
 		print("Nyx: exported shader → %s (linked)" % path)
@@ -1254,12 +923,8 @@ func sync_size(new_size: Vector2) -> void:
 	if not _properties_positioned and _properties_panel:
 		_properties_positioned = true
 		call_deferred("_position_properties_default")
-	elif _preview_panel and _preview_top_offset >= 0.0:
-		var top := _graph_top()
-		_preview_panel.position = Vector2(
-			_graph_container.size.x - _preview_panel.size.x - _preview_right_offset,
-			_preview_top_offset
-		).clamp(Vector2(0, top), Vector2(_outer_vbox.size.x, top + _graph_container.size.y) - _preview_panel.size)
+	elif _preview_panel and _preview_panel.is_placed():
+		_preview_panel.reanchor(_graph_top(), _outer_vbox.size.x)
 	_reposition_legend()
 	_reposition_minimap_toggle()
 	if _search_popup:
@@ -1270,17 +935,13 @@ func _graph_top() -> float:
 	return _graph_container.position.y if _graph_container else 0.0
 
 
+
 func _position_preview_default() -> void:
-	_preview_top_offset = _graph_top() + 12.0
-	_preview_right_offset = 20.0
-	_preview_panel.position = Vector2(
-		_graph_container.size.x - _preview_panel.size.x - _preview_right_offset,
-		_preview_top_offset
-	)
+	_preview_panel.place_default(_graph_top())
 
 
 func _position_properties_default() -> void:
-	var top := _graph_top() + 12.0 + _preview_panel.size.y + 8.0
+	var top: float = _graph_top() + 12.0 + _preview_panel.size.y + 8.0
 	_properties_panel.position = Vector2(
 		_graph_container.size.x - _properties_panel.size.x - 20.0,
 		top
@@ -1507,24 +1168,6 @@ func _build_shortcuts_overlay() -> PanelContainer:
 
 	return panel
 
-
-func _on_preview_header_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_preview_dragging = event.pressed
-	elif event is InputEventMouseMotion and _preview_dragging:
-		_preview_panel.position += event.relative
-		_preview_right_offset = _graph_container.size.x - _preview_panel.position.x - _preview_panel.size.x
-		_preview_top_offset = _preview_panel.position.y
-
-
-func _on_preview_resize_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_preview_resizing = event.pressed
-	elif event is InputEventMouseMotion and _preview_resizing:
-		var new_size: Vector2 = _preview_panel.size + event.relative
-		new_size.x = max(new_size.x, 160.0)
-		new_size.y = max(new_size.y, 120.0)
-		_preview_panel.size = new_size
 
 
 func _push_undo_state() -> void:
@@ -2622,7 +2265,7 @@ func _new_graph() -> void:
 	_sync_shader_type_ui(0)
 	_current_nyx_path = ""
 	_set_linked("")
-	_last_shader_code = ""
+	_preview_panel.reset_last_code()
 	_undo_stack.clear()
 	_redo_stack.clear()
 	_add_node(OutputNode.new(), Vector2(300, 160), "OutputNode")
