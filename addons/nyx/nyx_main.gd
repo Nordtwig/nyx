@@ -270,6 +270,8 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	if NyxRegistry.NODE_TYPE_COLORS.has(type_name):
 		node._node_color = NyxRegistry.NODE_TYPE_COLORS[type_name]
 	node._category = NyxRegistry.NODE_TYPE_CATEGORY.get(type_name, "")
+	if NyxRegistry.NODE_WIDTH_TIERS.has(type_name):
+		node.custom_minimum_size.x = NyxRegistry.NODE_WIDTH_TIERS[type_name]
 	node.position_offset = offset
 	_graph.add_child(node)
 	if node.has_signal("value_changed"):
