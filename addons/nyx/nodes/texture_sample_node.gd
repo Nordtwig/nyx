@@ -99,3 +99,7 @@ func set_state(state: Dictionary) -> void:
 	if uname != "":
 		_uniform_name = uname
 		_name_edit.text = _uniform_name
+
+
+func get_vector_semantic() -> String:
+	return "color"

@@ -8,23 +8,53 @@ extends Panel
 ## children to find param-mode nodes); has no back-reference to nyx_main otherwise.
 ##
 ## Public API:
-##   setup(graph)  — store graph ref, build UI (call after add_child)
-##   rebuild()     — repopulate param list from current graph state
-##   toggle()      — show/hide + auto-rebuild on show
+##   setup(graph, graph_container)  — store refs, build UI (call after add_child)
+##   rebuild()                      — repopulate param list from current graph state
+##   toggle()                       — show/hide + auto-rebuild on show
+##   place_default(graph_top)       — initial anchor placement
+##   reanchor(graph_top, outer_width) — re-pin on resize (no-op until placed)
+##   is_placed()                    — true once placed at least once
 ##
 ## Extracted from nyx_main.gd.
 
 var _graph: GraphEdit
+var _graph_container: Control
 
 var _properties_vbox: VBoxContainer
 var _detail_vbox: VBoxContainer
 var _detail_sep: HSeparator
 var _selected_param_row: Control = null
 
+var _right_offset: float = 20.0
+var _top_offset: float = -1.0          # -1 = not yet placed
 
-func setup(graph: GraphEdit) -> void:
+
+func setup(graph: GraphEdit, graph_container: Control) -> void:
 	_graph = graph
+	_graph_container = graph_container
 	_build()
+
+
+func place_default(graph_top: float) -> void:
+	_top_offset = graph_top
+	_right_offset = 20.0
+	position = Vector2(_graph_container.size.x - size.x - _right_offset, _top_offset)
+
+
+func reanchor(graph_top: float, outer_width: float) -> void:
+	if _top_offset < 0.0:
+		return
+	position = Vector2(
+		_graph_container.size.x - size.x - _right_offset,
+		_top_offset
+	).clamp(
+		Vector2(0.0, graph_top),
+		Vector2(outer_width, graph_top + _graph_container.size.y) - size
+	)
+
+
+func is_placed() -> bool:
+	return _top_offset >= 0.0
 
 
 func rebuild() -> void:
@@ -96,6 +126,8 @@ func _build() -> void:
 		elif ev is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			if has_meta("_drag_offset"):
 				position = position + ev.relative
+				_right_offset = _graph_container.size.x - position.x - size.x
+				_top_offset = position.y
 	)
 	prop_header_wrap.add_child(header)
 

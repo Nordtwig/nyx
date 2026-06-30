@@ -381,6 +381,13 @@ func is_polymorphic() -> bool:
 	return false
 
 
+# Optional semantic hint for nodes whose output is conceptually a "color" or a
+# generic "vector". Split reads this off whatever feeds it to decide between
+# R/G/B/A and X/Y/Z/W output labels. "" = no opinion.
+func get_vector_semantic() -> String:
+	return ""
+
+
 func get_output_type(from_port: int, input_types: Array) -> int:
 	if is_polymorphic():
 		return _dominant_type(input_types)

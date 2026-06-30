@@ -20,15 +20,10 @@ const NyxPreviewPanel = preload("res://addons/nyx/nyx_preview_panel.gd")
 const NyxNodePreviews = preload("res://addons/nyx/nyx_node_previews.gd")
 var _preview_panel  # NyxPreviewPanel instance
 var _node_previews  # NyxNodePreviews instance
-var _type_legend: PanelContainer
-var _legend_toggle: Button
-var _minimap_toggle: Button
 var _shortcuts_overlay: Control
 var _panning: bool = false
 var _pan_moved: bool = false  # did the cursor move during the current empty-canvas drag?
 var _clipboard: Dictionary = {}  # {nodes, connections} from the last copy
-var _preview_positioned: bool = false
-var _properties_positioned: bool = false
 var _compile_timer: Timer
 # Node-search popup. Self-contained Control component (owns its overlay/cards/doc/icons);
 # emits node_chosen(id) → _on_search_node_chosen spawns. See nyx_search_popup.gd.
@@ -83,7 +78,6 @@ func _ready() -> void:
 	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
 	_graph.snapping_enabled = false
 	_graph.minimap_enabled = false
-	_graph.show_minimap_button = false
 	# _style_graph_toolbar now lives in NyxGraphToolbar; called via setup() deferred.
 	var graph_bg := StyleBoxFlat.new()
 	graph_bg.bg_color = Color("#0D0D0F")
@@ -222,18 +216,9 @@ func _ready() -> void:
 	_node_previews.setup(_graph, _compiler)
 	_properties_panel = NyxPropertiesPanel.new()
 	add_child(_properties_panel)
-	_properties_panel.setup(_graph)
+	_properties_panel.setup(_graph, _graph_container)
 	_update_link_ui()  # unlinked: "Export…", Live disabled
 
-	_type_legend = _build_type_legend()
-	_type_legend.visible = false
-	add_child(_type_legend)
-	_legend_toggle = _build_legend_toggle()
-	add_child(_legend_toggle)
-	call_deferred("_reposition_legend")
-	_minimap_toggle = _build_minimap_toggle()
-	add_child(_minimap_toggle)
-	call_deferred("_reposition_minimap_toggle")
 	_shortcuts_overlay = _build_shortcuts_overlay()
 	add_child(_shortcuts_overlay)
 
@@ -241,10 +226,29 @@ func _ready() -> void:
 	_add_node(NyxRegistry.VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
 	_update_sink_visibility()
 	_frame_default_view()
+	_setup_initial_panel_layout()
+
+
+# Waits until the Nyx tab is actually visible AND the editor's post-visibility
+# layout has settled (the dock-collapse from entering focus layout, kicked off
+# in plugin.gd's _make_visible right as visibility flips true, takes a couple
+# frames to actually resize the editor). This is the state a freshly created
+# main screen is already in when Ctrl+U recreates it — its first layout pass
+# never races the dock collapse, which is why that path always lands correctly.
+func _await_layout_ready() -> void:
+	# Wait for the deferred node resize pass; GraphEdit re-clamps scroll_offset
+	# against the node bounding box afterward, which would otherwise snap y back.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	while is_instance_valid(self) and not is_visible_in_tree():
+		await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 # Frame the graph view so the default node cluster sits in the top-left with a
-# small margin. Deferred: scroll_offset only sticks after GraphEdit lays out.
+# small margin. Deferred + waits for layout to settle so it never frames
+# against a (0,0) or pre-dock-collapse GraphEdit size.
 func _frame_default_view() -> void:
 	call_deferred("_do_frame_default_view")
 
@@ -252,10 +256,7 @@ func _frame_default_view() -> void:
 func _do_frame_default_view() -> void:
 	if not _graph:
 		return
-	# Wait for the deferred node resize pass; GraphEdit re-clamps scroll_offset
-	# against the node bounding box afterward, which would otherwise snap y back.
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await _await_layout_ready()
 	if not is_instance_valid(_graph):
 		return
 	_graph.zoom = 1.0
@@ -368,6 +369,7 @@ func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
 	for r in to_reconnect:
 		_graph.connect_node(r["from"], r["fp"], r["to"], r["tp"])
 	_compiler.update_all_polymorphic_ports()
+	_compiler.update_contextual_labels()
 	_request_compile()
 
 
@@ -429,9 +431,9 @@ func _ensure_spatial_sinks() -> void:
 
 func _ensure_particle_sinks() -> void:
 	if not _graph.get_node_or_null("ParticleStartNode"):
-		_add_node(NyxRegistry.ParticleStartNode.new(), Vector2(440, 120), "ParticleStartNode")
+		_add_node(NyxRegistry.ParticleStartNode.new(), Vector2(300, 40), "ParticleStartNode")
 	if not _graph.get_node_or_null("ParticleProcessNode"):
-		_add_node(NyxRegistry.ParticleProcessNode.new(), Vector2(440, 360), "ParticleProcessNode")
+		_add_node(NyxRegistry.ParticleProcessNode.new(), Vector2(300, 215), "ParticleProcessNode")
 
 
 func _on_texture_pick_requested(node: Node) -> void:
@@ -600,16 +602,17 @@ func _on_export_file_selected(path: String) -> void:
 func sync_size(new_size: Vector2) -> void:
 	if _outer_vbox:
 		_outer_vbox.size = new_size
-	if not _preview_positioned and _preview_panel:
-		_preview_positioned = true
-		call_deferred("_position_preview_default")
-	if not _properties_positioned and _properties_panel:
-		_properties_positioned = true
-		call_deferred("_position_properties_default")
-	elif _preview_panel and _preview_panel.is_placed():
-		_preview_panel.reanchor(_graph_top(), _outer_vbox.size.x)
-	_reposition_legend()
-	_reposition_minimap_toggle()
+	# Initial placement happens once in _do_setup_initial_panel_layout(), which
+	# waits for the tab to be visible and settled before placing — so by the
+	# time either panel is_placed(), _graph_container.size is already trustworthy
+	# and later calls here only need to reanchor against it.
+	if _preview_panel and _preview_panel.is_placed():
+		# Deferred: _outer_vbox.size = new_size above only queues a container
+		# sort (Godot's deferred message queue), so _graph_container.size
+		# wouldn't reflect the new width if read synchronously here.
+		call_deferred("_reanchor_preview")
+	if _properties_panel and _properties_panel.is_placed():
+		call_deferred("_reanchor_properties")
 	if _search_popup:
 		_search_popup.handle_resize()
 
@@ -618,151 +621,34 @@ func _graph_top() -> float:
 	return _graph_container.position.y if _graph_container else 0.0
 
 
+func _reanchor_preview() -> void:
+	if _preview_panel and _preview_panel.is_placed():
+		_preview_panel.reanchor(_graph_top(), _outer_vbox.size.x)
 
-func _position_preview_default() -> void:
+
+func _reanchor_properties() -> void:
+	if _properties_panel and _properties_panel.is_placed():
+		_properties_panel.reanchor(_graph_top(), _outer_vbox.size.x)
+
+
+# One-shot initial placement for both floating panels, run once the Nyx tab is
+# actually visible and the editor's post-visibility layout (dock-collapse from
+# entering focus layout) has settled — see _await_layout_ready(). This mirrors
+# why Ctrl+U always positions correctly: a freshly created main screen's first
+# layout pass only ever runs while the tab is already visible/settled.
+func _setup_initial_panel_layout() -> void:
+	call_deferred("_do_setup_initial_panel_layout")
+
+
+func _do_setup_initial_panel_layout() -> void:
+	if not _preview_panel or not _properties_panel:
+		return
+	await _await_layout_ready()
+	if not is_instance_valid(_preview_panel) or not is_instance_valid(_properties_panel):
+		return
 	_preview_panel.place_default(_graph_top())
-
-
-func _position_properties_default() -> void:
 	var top: float = _graph_top() + 12.0 + _preview_panel.size.y + 8.0
-	_properties_panel.position = Vector2(
-		_graph_container.size.x - _properties_panel.size.x - 20.0,
-		top
-	)
-
-
-# Static key in the bottom-left corner of the graph mapping the four data-type
-# dot colors to plain-language names. The dot color is the real type encoding;
-# this just reinforces it without any per-port hover machinery.
-# Shared brand styling for the floating corner chips (Types / Map / ?). Monochrome
-# dark body + grey border at rest; hunter-green border on hover (the same hover
-# language as nodes). `hpad` widens narrow chips like the "?" button.
-func _make_chip_style(hover: bool, hpad: float = 4.0) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.20, 0.20, 0.26, 0.97) if hover else Color(0.14, 0.14, 0.18, 0.95)
-	s.set_corner_radius_all(6)
-	s.set_content_margin_all(4)
-	s.content_margin_left = hpad
-	s.content_margin_right = hpad
-	s.set_border_width_all(1)
-	s.border_color = Color("#31614F") if hover else Color(0.24, 0.24, 0.30)
-	return s
-
-
-func _style_chip(btn: Button, hpad: float = 4.0) -> void:
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.add_theme_font_size_override("font_size", 10)
-	btn.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
-	btn.add_theme_stylebox_override("normal", _make_chip_style(false, hpad))
-	var hover := _make_chip_style(true, hpad)
-	btn.add_theme_stylebox_override("hover", hover)
-	btn.add_theme_stylebox_override("pressed", hover)
-
-
-func _build_type_legend() -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.14, 0.14, 0.18, 0.96)
-	bg.set_corner_radius_all(6)
-	bg.set_content_margin_all(6)
-	bg.set_border_width_all(1)
-	bg.border_color = Color(0.24, 0.24, 0.30)
-	panel.add_theme_stylebox_override("panel", bg)
-
-	var vbox := VBoxContainer.new()
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_theme_constant_override("separation", 2)
-	panel.add_child(vbox)
-
-	# [type_id, friendly_name, glsl_name]
-	var entries := [
-		[1, "Value", "float"],
-		[2, "UV", "vec2"],
-		[0, "Color", "vec3"],
-		[3, "Color + Alpha", "vec4"],
-	]
-	for e in entries:
-		var row := HBoxContainer.new()
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_theme_constant_override("separation", 6)
-
-		var sw := ColorRect.new()
-		sw.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sw.color = NyxRegistry.NyxNodeBase._type_color(e[0])
-		sw.custom_minimum_size = Vector2(9, 9)
-		sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(sw)
-
-		var lbl := Label.new()
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lbl.text = "%s  (%s)" % [e[1], e[2]]
-		lbl.add_theme_color_override("font_color", Color(0.85, 0.87, 0.92))
-		lbl.add_theme_font_size_override("font_size", 10)
-		row.add_child(lbl)
-
-		vbox.add_child(row)
-
-	return panel
-
-
-func _build_legend_toggle() -> Button:
-	var btn := Button.new()
-	btn.text = "Types  ▴"
-	_style_chip(btn)
-	btn.pressed.connect(_on_legend_toggle)
-	return btn
-
-
-func _on_legend_toggle() -> void:
-	_type_legend.visible = not _type_legend.visible
-	_legend_toggle.text = "Types  ▾" if _type_legend.visible else "Types  ▴"
-	_reposition_legend()
-
-
-func _reposition_legend() -> void:
-	if not _legend_toggle or not _outer_vbox:
-		return
-	call_deferred("_do_reposition_legend")
-
-
-func _do_reposition_legend() -> void:
-	if not _legend_toggle:
-		return
-	var bh: float = _legend_toggle.get_combined_minimum_size().y
-	_legend_toggle.position = Vector2(20, _outer_vbox.size.y - bh - 20)
-	if _type_legend:
-		var ph: float = _type_legend.get_combined_minimum_size().y
-		_type_legend.position = Vector2(20, _legend_toggle.position.y - ph - 6)
-
-
-func _build_minimap_toggle() -> Button:
-	var btn := Button.new()
-	btn.text = "Map  ▴"
-	_style_chip(btn)
-	btn.pressed.connect(_on_minimap_toggle)
-	return btn
-
-
-func _on_minimap_toggle() -> void:
-	_graph.minimap_enabled = not _graph.minimap_enabled
-	_minimap_toggle.text = "Map  ▾" if _graph.minimap_enabled else "Map  ▴"
-
-
-# Positions the [Map] chip anchored to the bottom-right corner.
-func _reposition_minimap_toggle() -> void:
-	if not _minimap_toggle or not _outer_vbox:
-		return
-	call_deferred("_do_reposition_minimap_toggle")
-
-
-func _do_reposition_minimap_toggle() -> void:
-	if not _minimap_toggle or not _graph_container:
-		return
-	var mw: float = _minimap_toggle.get_combined_minimum_size().x
-	var mh: float = _minimap_toggle.get_combined_minimum_size().y
-	_minimap_toggle.position = Vector2(_graph_container.size.x - mw - 20, _outer_vbox.size.y - mh - 20)
+	_properties_panel.place_default(top)
 
 
 func _build_shortcuts_overlay() -> Control:
@@ -864,6 +750,45 @@ func _build_shortcuts_overlay() -> Control:
 		row.add_child(key_lbl)
 		row.add_child(desc_lbl)
 		vbox.add_child(row)
+
+	var types_sep := HSeparator.new()
+	types_sep.add_theme_constant_override("separation", 4)
+	var types_sep_line := StyleBoxLine.new()
+	types_sep_line.color = Color(0.24, 0.24, 0.30)
+	types_sep_line.thickness = 1
+	types_sep.add_theme_stylebox_override("separator", types_sep_line)
+	vbox.add_child(types_sep)
+
+	var types_title := Label.new()
+	types_title.text = "Types"
+	types_title.add_theme_font_size_override("font_size", 11)
+	types_title.add_theme_color_override("font_color", Color("#4AAF78"))
+	vbox.add_child(types_title)
+
+	# [type_id, friendly_name, glsl_name]
+	var type_entries := [
+		[1, "Value", "float"],
+		[2, "UV", "vec2"],
+		[0, "Color", "vec3"],
+		[3, "Color + Alpha", "vec4"],
+	]
+	for te in type_entries:
+		var trow := HBoxContainer.new()
+		trow.add_theme_constant_override("separation", 6)
+
+		var sw := ColorRect.new()
+		sw.color = NyxRegistry.NyxNodeBase._type_color(te[0])
+		sw.custom_minimum_size = Vector2(9, 9)
+		sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		trow.add_child(sw)
+
+		var tlbl := Label.new()
+		tlbl.text = "%s  (%s)" % [te[1], te[2]]
+		tlbl.add_theme_font_size_override("font_size", 11)
+		tlbl.add_theme_color_override("font_color", Color(0.55, 0.58, 0.62))
+		trow.add_child(tlbl)
+
+		vbox.add_child(trow)
 
 	return overlay
 
@@ -972,6 +897,7 @@ func _paste_buffer(buf: Dictionary, offset: Vector2 = Vector2(30, 30)) -> void:
 	for node in new_nodes:
 		node.selected = true
 	_compiler.update_all_polymorphic_ports()
+	_compiler.update_contextual_labels()
 	_request_compile()
 	_mark_dirty()
 
@@ -1016,6 +942,7 @@ func _on_connection_request(from_node: StringName, from_port: int, to_node: Stri
 	_push_undo_state()
 	_graph.connect_node(from_node, from_port, to_node, to_port)
 	_compiler.update_all_polymorphic_ports()
+	_compiler.update_contextual_labels()
 	_request_compile()
 
 
@@ -1023,6 +950,7 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 	_push_undo_state()
 	_graph.disconnect_node(from_node, from_port, to_node, to_port)
 	_compiler.update_all_polymorphic_ports()
+	_compiler.update_contextual_labels()
 	_request_compile()
 
 
@@ -1335,6 +1263,7 @@ func _deserialize_graph(data: Dictionary) -> void:
 	elif _shader_type == 2:
 		_ensure_particle_sinks()
 	_update_sink_visibility()
+	_compiler.update_contextual_labels()
 	_request_compile()
 	_loading = false
 

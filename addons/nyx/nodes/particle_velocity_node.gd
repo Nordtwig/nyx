@@ -22,3 +22,7 @@ func _ready() -> void:
 
 func get_shader_snippet(inputs: Array = []) -> String:
 	return "VELOCITY"
+
+
+func get_vector_semantic() -> String:
+	return "vector"

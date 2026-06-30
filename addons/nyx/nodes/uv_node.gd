@@ -15,3 +15,7 @@ func _ready() -> void:
 
 func get_shader_snippet(inputs: Array = []) -> String:
 	return "UV"
+
+
+func get_vector_semantic() -> String:
+	return "vector"

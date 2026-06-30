@@ -19,3 +19,7 @@ func get_shader_snippet(inputs: Array = []) -> String:
 
 func get_default_inputs() -> Array:
 	return []
+
+
+func get_vector_semantic() -> String:
+	return "vector"

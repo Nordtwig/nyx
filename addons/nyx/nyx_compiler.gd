@@ -9,6 +9,7 @@ extends RefCounted
 ##   build_shader_code(shader_type)              → full shader source
 ##   build_node_preview_shader(node, shader_type) → per-node preview shader source
 ##   update_all_polymorphic_ports()              → resync GraphEdit poly-port colors
+##   update_contextual_labels()                  → resync nodes whose UI depends on what feeds them (e.g. Split)
 ##   resolve_output_type(node, from_port)        → resolved output type (connection validation)
 ##   can_promote(from_type, to_type)             → promotion-matrix check (connection validation)
 
@@ -262,6 +263,16 @@ func update_all_polymorphic_ports() -> void:
 			child.set_slot(port,
 				child.is_slot_enabled_left(port), child.get_slot_type_left(port), child.get_slot_color_left(port),
 				child.is_slot_enabled_right(port), resolved_type, port_color)
+
+
+## Generic post-connection-change hook for nodes whose UI reads the graph beyond
+## their own type (e.g. Split swapping X/Y/Z/W vs R/G/B/A labels based on what
+## feeds it). Brute-force like update_all_polymorphic_ports() — cheap, and only
+## nodes implementing refresh_contextual_labels() opt in.
+func update_contextual_labels() -> void:
+	for child in graph.get_children():
+		if child is GraphNode and child.has_method("refresh_contextual_labels"):
+			child.refresh_contextual_labels()
 
 
 func can_promote(from_type: int, to_type: int) -> bool:

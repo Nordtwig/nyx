@@ -230,3 +230,7 @@ func get_blackboard_control() -> Control:
 	btn.pressed.connect(func() -> void: open_picker())
 	value_changed.connect(func() -> void: _refresh.call())
 	return btn
+
+
+func get_vector_semantic() -> String:
+	return "color"
