@@ -13,6 +13,7 @@ extends RefCounted
 ##   can_promote(from_type, to_type)             → promotion-matrix check (connection validation)
 
 const NyxNodeBase = preload("res://addons/nyx/nodes/nyx_node.gd")
+const NyxRegistry = preload("res://addons/nyx/nyx_registry.gd")
 
 var graph: GraphEdit
 
@@ -299,3 +300,28 @@ func _to_vec3_display(snippet: String, type: int) -> String:
 		2: return "vec3(%s, 0.0)" % snippet
 		3: return "(%s).rgb" % snippet
 	return snippet
+
+
+# True if `node` is, or is recursively fed by (via input connections), an
+# Instance Custom Data node. Per-node previews always render the value via
+# fragment() (an ALBEDO/COLOR swatch), but INSTANCE_CUSTOM is vertex-only in
+# Godot, so any node downstream of it can't be previewed — the manager uses
+# this to skip building a preview instead of letting the shader fail to
+# compile. Static graph-topology check, not a runtime compile-error catch
+# (Godot doesn't expose shader compile errors back to GDScript).
+func depends_on_instance_custom_data(node: Node) -> bool:
+	return _walk_for_instance_custom_data(node, graph.get_connection_list(), {})
+
+
+func _walk_for_instance_custom_data(node: Node, connections: Array, visited: Dictionary) -> bool:
+	if visited.has(node.name):
+		return false
+	visited[node.name] = true
+	if NyxRegistry.get_node_type(node) == "InstanceCustomDataNode":
+		return true
+	for conn in connections:
+		if str(conn["to_node"]) == str(node.name):
+			var from := graph.get_node_or_null(str(conn["from_node"]))
+			if from and _walk_for_instance_custom_data(from, connections, visited):
+				return true
+	return false

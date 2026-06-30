@@ -12,6 +12,7 @@ var _preview_slot: TextureRect
 var _preview_wrapper: Panel
 var _preview_spacer: Control
 var _preview_chevron: Button
+var _preview_unavailable_label: Label
 var _body_style: StyleBoxFlat
 var _titlebar_style: StyleBoxFlat
 var _halo_style: StyleBoxFlat
@@ -104,6 +105,35 @@ func _add_preview_controls() -> void:
 	_preview_slot.material = corner_mat
 
 	_preview_wrapper.add_child(_preview_slot)
+
+	_preview_unavailable_label = Label.new()
+	_preview_unavailable_label.text = "No preview"
+	_preview_unavailable_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_preview_unavailable_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_preview_unavailable_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_preview_unavailable_label.add_theme_color_override("font_color", Color(0.55, 0.55, 0.6))
+	_preview_unavailable_label.add_theme_font_size_override("font_size", 10)
+	_preview_unavailable_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_preview_unavailable_label.visible = false
+	_preview_wrapper.add_child(_preview_unavailable_label)
+
+
+# Called by the preview manager when it can't build a preview for the node's
+# current graph position (e.g. depends on per-instance data). Hides the
+# texture slot and shows a short explanation instead.
+func show_preview_unavailable(msg: String) -> void:
+	if _preview_unavailable_label:
+		_preview_unavailable_label.text = msg
+		_preview_unavailable_label.visible = true
+	if _preview_slot:
+		_preview_slot.visible = false
+
+
+func clear_preview_unavailable() -> void:
+	if _preview_unavailable_label:
+		_preview_unavailable_label.visible = false
+	if _preview_slot:
+		_preview_slot.visible = true
 
 
 func _on_preview_chevron_pressed(chevron: Button) -> void:

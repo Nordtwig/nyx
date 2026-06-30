@@ -30,6 +30,19 @@ func open(node: Node, shader_type: int) -> void:
 	if not tex_rect:
 		return
 
+	# Per-node previews always render the value via fragment() (an ALBEDO/COLOR
+	# swatch), but INSTANCE_CUSTOM is vertex-only in Godot — any node fed by
+	# Instance Custom Data would fail to compile here even though it's valid in
+	# the node's real destination (Vertex Offset). Detect and bail gracefully
+	# instead of letting the shader compile error spam the Output.
+	if _compiler.depends_on_instance_custom_data(node):
+		if node.has_method("show_preview_unavailable"):
+			node.show_preview_unavailable("No preview — depends on per-instance data (vertex-only)")
+		return
+
+	if node.has_method("clear_preview_unavailable"):
+		node.clear_preview_unavailable()
+
 	var vp := SubViewport.new()
 	vp.size = Vector2i(100, 100)
 	vp.transparent_bg = true
@@ -83,6 +96,14 @@ func close(node: Node) -> void:
 
 func refresh(node: Node, shader_type: int) -> void:
 	if not node.has_meta("_preview_material"):
+		return
+	# A graph edit elsewhere may have newly routed Instance Custom Data into
+	# this node's upstream chain since it was opened — re-check on every
+	# refresh, not just on open().
+	if _compiler.depends_on_instance_custom_data(node):
+		close(node)
+		if node.has_method("show_preview_unavailable"):
+			node.show_preview_unavailable("No preview — depends on per-instance data (vertex-only)")
 		return
 	var mat: ShaderMaterial = node.get_meta("_preview_material")
 	mat.shader.code = _compiler.build_node_preview_shader(node, shader_type)

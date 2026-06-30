@@ -42,6 +42,21 @@ const NODE_REGISTRY := [
 			"description": "Unlike UV, vertex position is continuous across the mesh with no seams where UV islands meet. Particularly valuable as noise input on spheres and organic shapes.",
 			"ports": ["Out (vec3) — local position XYZ"],
 			"uses": ["Seamless noise on spheres", "Position-based patterns", "Effects that shouldn't depend on UV unwrapping"]},
+		{"label": "Object Position", "id": 63, "spatial_only": true,
+			"summary": "The world-space position of the object this shader is applied to.",
+			"description": "Outputs NODE_POSITION_WORLD — the origin of the node the material is on, in world space. Note for MultiMeshInstance3D: this is the position of the MultiMesh node itself, not each individual instance — every instance reads the same value.",
+			"ports": ["Out (vec3) — world-space XYZ of the object's origin"],
+			"uses": ["Per-object phase offset so wind sway or pulsing doesn't sync across separately placed objects", "Seeding position-based random variation between objects", "World-space effects that should stay stable regardless of UV or local vertex position"]},
+		{"label": "World Position", "id": 64, "spatial_only": true,
+			"summary": "The world-space position of the exact point currently being shaded.",
+			"description": "Unlike Object Position (one fixed value for the whole object), World Position varies continuously across the surface — the base and tip of a mesh report different values. Computed as MODEL_MATRIX * VERTEX, valid in both Albedo and Vertex Offset on an ordinary mesh. MultiMesh caveat: MODEL_MATRIX only reflects each instance's transform inside Vertex Offset / Vertex Output — in Albedo or other fragment slots it falls back to the MultiMesh node's own transform, so World Position won't vary per-instance there. For per-instance fragment-stage colour, you'd need the same vertex→fragment relay Instance Custom Data is blocked on.",
+			"ports": ["Out (vec3) — world-space XYZ of the current surface point"],
+			"uses": ["World-space colour gradients across a large surface or between objects (biome-style blending) — on ordinary meshes, not MultiMesh fragment use", "Position-seeded noise/patterns that stay stable in world space regardless of UV unwrapping", "A spatially-varying wave (e.g. wind gusts that sweep across a field) when wired through Vertex Offset — safe on MultiMesh since that's the vertex stage"]},
+		{"label": "Instance Custom Data", "id": 65, "spatial_only": true,
+			"summary": "Per-instance custom data for a MultiMesh, set from GDScript.",
+			"description": "Reads INSTANCE_CUSTOM — a vec4 you populate per instance via multimesh.set_instance_custom_data() (requires multimesh.use_custom_data = true). Use it to give every instance in a MultiMesh field its own seed, phase offset, or position — something Object Position can't do, since every instance in a MultiMesh shares the same object. Vertex-stage only: Godot doesn't expose INSTANCE_CUSTOM in the fragment function, so wire it through Vertex Offset / Vertex Output, not Albedo or other fragment slots.",
+			"ports": ["Out (vec4) — the instance's custom data, channels meaning whatever you packed into them"],
+			"uses": ["Per-instance phase/seed so animation doesn't sync across a MultiMesh field (e.g. grass blades swaying out of sync)", "Per-instance scale or rotation driven from GDScript", "Carrying a baked per-instance world position into the shader for motion math"]},
 		{"label": "Time", "id": 11,
 			"summary": "The current time in seconds, with pre-computed oscillating variants.",
 			"description": "Three outputs driven by the engine clock. Sin and Cos save you adding extra nodes for the most common time-based animation patterns.",
@@ -340,6 +355,9 @@ const DepthFadeNode        = preload("res://addons/nyx/nodes/depth_fade_node.gd"
 const RotateUVNode         = preload("res://addons/nyx/nodes/rotate_uv_node.gd")
 const WarpNode             = preload("res://addons/nyx/nodes/warp_node.gd")
 const VertexNode           = preload("res://addons/nyx/nodes/vertex_node.gd")
+const ObjectPositionNode   = preload("res://addons/nyx/nodes/object_position_node.gd")
+const WorldPositionNode    = preload("res://addons/nyx/nodes/world_position_node.gd")
+const InstanceCustomDataNode = preload("res://addons/nyx/nodes/instance_custom_data_node.gd")
 const NormalMapNode        = preload("res://addons/nyx/nodes/normal_map_node.gd")
 const AbsNode              = preload("res://addons/nyx/nodes/abs_node.gd")
 const CeilNode             = preload("res://addons/nyx/nodes/ceil_node.gd")
@@ -381,6 +399,8 @@ const NODE_CLASSES := {
 	"ColorNode": ColorNode,             "FloatNode": FloatNode,
 	"Vector3Node": Vector3Node,         "UVNode": UVNode,
 	"VertexNode": VertexNode,           "TimeNode": TimeNode,
+	"ObjectPositionNode": ObjectPositionNode, "WorldPositionNode": WorldPositionNode,
+	"InstanceCustomDataNode": InstanceCustomDataNode,
 	"FresnelNode": FresnelNode,         "AddNode": AddNode,
 	"SubtractNode": SubtractNode,       "MultiplyNode": MultiplyNode,
 	"DivideNode": DivideNode,           "MixNode": MixNode,
@@ -418,6 +438,7 @@ const _NODE_COLOR := Color(0.14, 0.14, 0.18)
 const NODE_TYPE_COLORS := {
 	"FloatNode": _NODE_COLOR,    "Vector3Node": _NODE_COLOR,  "UVNode": _NODE_COLOR,
 	"VertexNode": _NODE_COLOR,   "TimeNode": _NODE_COLOR,     "FresnelNode": _NODE_COLOR,
+	"ObjectPositionNode": _NODE_COLOR, "WorldPositionNode": _NODE_COLOR, "InstanceCustomDataNode": _NODE_COLOR,
 	"ScreenUVNode": _NODE_COLOR, "ScreenTextureNode": _NODE_COLOR, "DepthFadeNode": _NODE_COLOR,
 	"AddNode": _NODE_COLOR,      "SubtractNode": _NODE_COLOR, "MultiplyNode": _NODE_COLOR,
 	"DivideNode": _NODE_COLOR,   "MixNode": _NODE_COLOR,      "ClampNode": _NODE_COLOR,
@@ -446,7 +467,8 @@ const NODE_TYPE_COLORS := {
 const NODE_TYPE_CATEGORY := {
 	"ColorNode": "Inputs",    "FloatNode": "Inputs",     "Vector3Node": "Inputs",
 	"UVNode": "Inputs",       "VertexNode": "Inputs",    "TimeNode": "Inputs",
-	"FresnelNode": "Inputs",
+	"FresnelNode": "Inputs", "ObjectPositionNode": "Inputs", "WorldPositionNode": "Inputs",
+	"InstanceCustomDataNode": "Inputs",
 	"AddNode": "Math",        "SubtractNode": "Math",    "MultiplyNode": "Math",
 	"DivideNode": "Math",     "MixNode": "Math",         "ClampNode": "Math",
 	"PowerNode": "Math",      "MinMaxNode": "Math",      "ModNode": "Math",

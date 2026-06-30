@@ -1088,20 +1088,23 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 			_spawn_position = event.position / _graph.zoom + _graph.scroll_offset
 			_search_popup.open(_shader_type)
 		elif event.button_index == MOUSE_BUTTON_LEFT:
-			# Plain left-drag on EMPTY canvas pans. Over a node (body or dots) we do nothing
-			# so GraphEdit's own node-drag / connection-drag runs. Shift also defers (native
-			# box-select). The whole pan lifecycle lives here: GraphEdit captures mouse focus
-			# on the press, so the drag motion and release come back even over nodes.
+			# Shift+drag on EMPTY canvas pans. Plain drag is GraphEdit's native box-select —
+			# confirmed (2026-06-30, vanilla-GraphEdit test scene) that Shift+drag does NOT
+			# trigger native box-select in this Godot version, only an unmodified drag does,
+			# so panning moved to Shift to free up plain drag for selection. Over a node
+			# (body or dots) we do nothing so GraphEdit's own node-drag / connection-drag
+			# runs. The whole pan lifecycle lives here: GraphEdit captures mouse focus on the
+			# press, so the drag motion and release come back even over nodes.
 			if event.pressed:
-				if not event.shift_pressed and not _is_mouse_over_node():
+				if event.shift_pressed and not _is_mouse_over_node():
 					_panning = true
 					_pan_moved = false
 					accept_event()
 			else:
 				if _panning:
 					_panning = false
-					# A clean click on empty canvas (no drag) deselects all nodes — the
-					# pan intercept means GraphEdit never gets to do this itself.
+					# A clean shift-click on empty canvas (no drag) deselects all nodes —
+					# the pan intercept means GraphEdit never gets to do this itself.
 					if not _pan_moved:
 						_deselect_all_nodes()
 					accept_event()
@@ -1241,6 +1244,9 @@ func _on_context_menu_selected(id: int) -> void:
 		60: _add_node(NyxRegistry.ParticleDeltaNode.new(), _spawn_position, "ParticleDelta")
 		61: _add_node(NyxRegistry.ParticleRandomNode.new(), _spawn_position, "ParticleRandom")
 		62: _add_node(NyxRegistry.ParticleIndexNode.new(), _spawn_position, "ParticleIndex")
+		63: _add_node(NyxRegistry.ObjectPositionNode.new(), _spawn_position, "ObjectPosition")
+		64: _add_node(NyxRegistry.WorldPositionNode.new(), _spawn_position, "WorldPosition")
+		65: _add_node(NyxRegistry.InstanceCustomDataNode.new(), _spawn_position, "InstanceCustomData")
 
 
 
