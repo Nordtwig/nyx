@@ -1,0 +1,6 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" uid="uid://6d7khkwinhsx" path="res://effects/sin_time_blue_orange_.gdshader" id="1"]
+
+[resource]
+shader = ExtResource("1")

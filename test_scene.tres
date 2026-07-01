@@ -1,7 +1,0 @@
-[gd_resource type="VisualShader" format=3 uid="uid://olidw2foyudn"]
-
-[sub_resource type="VisualShaderNodeReroute" id="VisualShaderNodeReroute_thrxi"]
-
-[resource]
-nodes/vertex/2/node = SubResource("VisualShaderNodeReroute_thrxi")
-nodes/vertex/2/position = Vector2(-106.666664, 320)

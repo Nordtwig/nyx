@@ -1,0 +1,10 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" uid="uid://dp6no17ltly0s" path="res://textures/ground_texture.gdshader" id="1"]
+[ext_resource type="Texture2D" uid="uid://2hummvj3idiq" path="res://textures/Ground054_2K-PNG_Color.png" id="2"]
+[ext_resource type="Texture2D" uid="uid://bb26jp33q4hj8" path="res://textures/Ground054_2K-PNG_NormalGL.png" id="3"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/tex_texturesample = ExtResource("2")
+shader_parameter/nrm_normalmap = ExtResource("3")

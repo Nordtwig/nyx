@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://cwuhd4tj66jas"]
 
-[ext_resource type="Shader" uid="uid://bva534e6b1t4q" path="res://flames.gdshader" id="1"]
+[ext_resource type="Shader" uid="uid://bva534e6b1t4q" path="res://effects/flames.gdshader" id="1"]
 
 [sub_resource type="Curve" id="Curve_1"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.25903612, 1), 0.0, 0.0, 0, 0, Vector2(0.6927711, 0), 0.0, 0.0, 0, 0, Vector2(1, 1), 5.8373623, 0.0, 0, 0]
