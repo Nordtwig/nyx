@@ -9,10 +9,11 @@ var _outer_vbox: VBoxContainer
 var _graph_container: VBoxContainer
 var _graph: GraphEdit
 var _shader_type: int = 0
-# Toolbar (signal-based PanelContainer) and properties panel (floating Panel).
-const NyxGraphToolbar = preload("res://addons/nyx/nyx_graph_toolbar.gd")
+# Chrome bar (minimal top bar: filename+dirty dot, Live badge, ◈ palette button) and
+# properties panel (floating Panel).
+const NyxChromeBar = preload("res://addons/nyx/nyx_chrome_bar.gd")
 const NyxPropertiesPanel = preload("res://addons/nyx/nyx_properties_panel.gd")
-var _toolbar  # NyxGraphToolbar instance
+var _chrome_bar  # NyxChromeBar instance
 var _properties_panel  # NyxPropertiesPanel instance
 # Preview panel (floating — owns viewports/materials/mesh-switcher/particles/drag+resize).
 # Per-node preview manager (SubViewport-per-node lifecycle). Both extracted from this file.
@@ -29,6 +30,14 @@ var _compile_timer: Timer
 # emits node_chosen(id) → _on_search_node_chosen spawns. See nyx_search_popup.gd.
 const NyxSearchPopup = preload("res://addons/nyx/nyx_search_popup.gd")
 var _search_popup  # NyxSearchPopup instance
+
+# Ctrl+P command palette — same overlay pattern as the search popup, single card.
+# Emits the same signal names the old toolbar used to, so it reuses the same
+# handlers unchanged (see nyx_command_palette.gd header). This is now the only
+# way to reach File/Export/Live/View actions — the toolbar has been replaced by
+# nyx_chrome_bar.gd's minimal filename+dot / Live badge / ◈ bar.
+const NyxCommandPalette = preload("res://addons/nyx/nyx_command_palette.gd")
+var _command_palette  # NyxCommandPalette instance
 var _export_dialog: EditorFileDialog
 var _save_dialog: EditorFileDialog
 var _load_dialog: EditorFileDialog
@@ -78,7 +87,7 @@ func _ready() -> void:
 	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
 	_graph.snapping_enabled = false
 	_graph.minimap_enabled = false
-	# _style_graph_toolbar now lives in NyxGraphToolbar; called via setup() deferred.
+	# _style_graph_toolbar now lives in NyxChromeBar; called via setup() deferred.
 	var graph_bg := StyleBoxFlat.new()
 	graph_bg.bg_color = Color("#0D0D0F")
 	_graph.add_theme_stylebox_override("panel", graph_bg)
@@ -116,29 +125,38 @@ func _ready() -> void:
 	_graph_container.add_theme_constant_override("separation", 0)
 	_graph_container.add_child(_graph)
 
-	_toolbar = NyxGraphToolbar.new()
-	_toolbar.file_menu_selected.connect(_on_file_menu_id)
-	_toolbar.recent_file_selected.connect(_on_recent_selected)
-	_toolbar.recent_menu_opened.connect(func() -> void: _toolbar.refresh_recent_menu(_get_recent_files()))
-	_toolbar.export_pressed.connect(_on_export_pressed)
-	_toolbar.export_menu_selected.connect(_on_export_menu_id)
-	_toolbar.live_toggled.connect(_on_live_toggled)
-	_toolbar.shortcuts_pressed.connect(_toggle_shortcuts_overlay)
-	_toolbar.properties_toggled.connect(_toggle_properties_panel)
-	_toolbar.undo_pressed.connect(_undo)
-	_toolbar.redo_pressed.connect(_redo)
-
 	_outer_vbox = VBoxContainer.new()
 	_outer_vbox.add_theme_constant_override("separation", 0)
-	_outer_vbox.add_child(_toolbar)
 	_outer_vbox.add_child(_graph_container)
 	add_child(_outer_vbox)
-	_toolbar.setup(_graph)
+
+	# Floats over the graph's top-left corner — does NOT sit in _outer_vbox,
+	# reserves no layout space (see nyx_chrome_bar.gd header).
+	_chrome_bar = NyxChromeBar.new()
+	_chrome_bar.palette_pressed.connect(_open_command_palette)
+	_chrome_bar.undo_pressed.connect(_undo)
+	_chrome_bar.redo_pressed.connect(_redo)
+	_chrome_bar.properties_toggled.connect(_toggle_properties_panel)
+	add_child(_chrome_bar)
+	_chrome_bar.setup(_graph, _graph_container)
 
 	_search_popup = NyxSearchPopup.new()
 	add_child(_search_popup)
 	_search_popup.setup(_graph_container)
 	_search_popup.node_chosen.connect(_on_search_node_chosen)
+
+	_command_palette = NyxCommandPalette.new()
+	add_child(_command_palette)
+	_command_palette.setup(_graph_container)
+	_command_palette.file_menu_selected.connect(_on_file_menu_id)
+	_command_palette.recent_file_selected.connect(_on_recent_selected)
+	_command_palette.export_pressed.connect(_on_export_pressed)
+	_command_palette.export_menu_selected.connect(_on_export_menu_id)
+	_command_palette.live_toggled.connect(_on_live_toggled)
+	_command_palette.shortcuts_pressed.connect(_toggle_shortcuts_overlay)
+	_command_palette.properties_toggled.connect(_toggle_properties_panel)
+	_command_palette.undo_pressed.connect(_undo)
+	_command_palette.redo_pressed.connect(_redo)
 
 	_export_dialog = EditorFileDialog.new()
 	_export_dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
@@ -511,9 +529,6 @@ func _push_recent(path: String) -> void:
 
 
 
-func _refresh_recent_menu() -> void:
-	if _toolbar:
-		_toolbar.refresh_recent_menu(_get_recent_files())
 func _on_recent_selected(id: int) -> void:
 	var recent := _get_recent_files()
 	if id < recent.size():
@@ -565,15 +580,22 @@ func _do_update() -> void:
 func _set_linked(path: String) -> void:
 	_linked_shader_path = path
 	_update_link_ui()
-	# Linking implies you want to see it live — default the toggle on. (The toggle
-	# stays for the rarer "edit without disturbing the scene" case.)
+	# Linking implies you want to see it live by default — Ctrl+P → Live is the
+	# opt-out for the rarer "edit without disturbing the scene" case.
 	if not path.is_empty():
-		if _toolbar: _toolbar.set_live_on(true)
+		_on_live_toggled(true)
+		if _chrome_bar:
+			_chrome_bar.set_live_badge(true)
 
 
+# Unlinking can't stay "live" — force it off (mirrors the old toolbar's Live
+# checkbox auto-uncheck-on-unlink). Linking itself doesn't force live state;
+# _set_linked/_do_load explicitly turn it on where that's the desired default.
 func _update_link_ui() -> void:
-	if _toolbar:
-		_toolbar.update_link_ui(not _linked_shader_path.is_empty(), _linked_shader_path)
+	if _linked_shader_path.is_empty() and _live_link_on:
+		_on_live_toggled(false)
+	if _chrome_bar:
+		_chrome_bar.set_live_badge(_live_link_on)
 
 
 # Writes the .gdshader with a provenance stamp (gates artifact → Nyx navigation).
@@ -619,8 +641,12 @@ func sync_size(new_size: Vector2) -> void:
 		call_deferred("_reanchor_preview")
 	if _properties_panel and _properties_panel.is_placed():
 		call_deferred("_reanchor_properties")
+	if _chrome_bar and _chrome_bar.is_placed():
+		call_deferred("_reanchor_chrome_bar")
 	if _search_popup:
 		_search_popup.handle_resize()
+	if _command_palette:
+		_command_palette.handle_resize()
 
 
 func _graph_top() -> float:
@@ -635,6 +661,11 @@ func _reanchor_preview() -> void:
 func _reanchor_properties() -> void:
 	if _properties_panel and _properties_panel.is_placed():
 		_properties_panel.reanchor(_graph_top(), _outer_vbox.size.x)
+
+
+func _reanchor_chrome_bar() -> void:
+	if _chrome_bar and _chrome_bar.is_placed():
+		_chrome_bar.reanchor(_graph_top())
 
 
 # One-shot initial placement for both floating panels, run once the Nyx tab is
@@ -652,6 +683,8 @@ func _do_setup_initial_panel_layout() -> void:
 	await _await_layout_ready()
 	if not is_instance_valid(_preview_panel) or not is_instance_valid(_properties_panel):
 		return
+	if is_instance_valid(_chrome_bar):
+		_chrome_bar.place_default(_graph_top())
 	_preview_panel.place_default(_graph_top())
 	var top: float = _graph_top() + 12.0 + _preview_panel.size.y + 8.0
 	_properties_panel.place_default(top)
@@ -739,6 +772,7 @@ func _build_shortcuts_overlay() -> Control:
 		["Ctrl+Shift+S", "Save As"],
 		["Ctrl+E", "Export / Update linked shader"],
 		["Ctrl+U", "Reload Nyx"],
+		["Ctrl+P", "Command palette"],
 		["?", "Toggle this chart"],
 	]
 	for e in entries:
@@ -826,8 +860,8 @@ func _set_clean() -> void:
 
 func _update_save_button() -> void:
 	var name := _current_nyx_path.get_file() if not _current_nyx_path.is_empty() else "untitled.nyx"
-	if _toolbar:
-		_toolbar.update_filename(name, _dirty)
+	if _chrome_bar:
+		_chrome_bar.update_filename(name, _dirty)
 
 
 func _undo() -> void:
@@ -1014,6 +1048,10 @@ func _shortcut_input(event: InputEvent) -> void:
 			if not shift:
 				_on_export_pressed()
 				accept_event()
+		KEY_P:
+			if not shift:
+				_open_command_palette()
+				accept_event()
 
 
 func _on_graph_gui_input(event: InputEvent) -> void:
@@ -1062,6 +1100,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	if _search_popup and _search_popup.visible:
 		return
+	if _command_palette and _command_palette.visible:
+		return
 	if not _graph.get_global_rect().has_point(get_global_mouse_position()):
 		return
 	if event.keycode == KEY_SLASH and event.shift_pressed:
@@ -1090,6 +1130,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
 			_search_popup.open(_shader_type)
 			accept_event()
+
+
+func _open_command_palette() -> void:
+	_command_palette.open({
+		"linked": not _linked_shader_path.is_empty(),
+		"live_on": _live_link_on,
+		"recent_files": _get_recent_files(),
+	})
 
 
 func _toggle_shortcuts_overlay() -> void:
@@ -1382,5 +1430,7 @@ func _do_load(path: String) -> void:
 	_set_clean()  # freshly loaded from disk
 	# A loaded linked graph goes live by default (same as just-linked).
 	if not _linked_shader_path.is_empty():
-		if _toolbar: _toolbar.set_live_on(true)
+		_on_live_toggled(true)
+		if _chrome_bar:
+			_chrome_bar.set_live_badge(true)
 	print("Nyx: loaded graph ← %s" % path)
