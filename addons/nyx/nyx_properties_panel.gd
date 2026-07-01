@@ -14,8 +14,17 @@ extends Panel
 ##   place_default(graph_top)       — initial anchor placement
 ##   reanchor(graph_top, outer_width) — re-pin on resize (no-op until placed)
 ##   is_placed()                    — true once placed at least once
+##   set_context(node, shader_type) — show/hide the Graph Settings section for the
+##                                    given selected node (no-op unless it's a sink)
+##   sync_shader_type(idx)          — update the cached shader type and refresh
+##   get_context_node()             — the node currently backing the context section, or null
 ##
 ## Extracted from nyx_main.gd.
+
+signal shader_type_change_requested(idx: int)
+signal render_mode_change_requested(id: int)
+
+const NyxRegistry = preload("res://addons/nyx/nyx_registry.gd")
 
 var _graph: GraphEdit
 var _graph_container: Control
@@ -24,6 +33,11 @@ var _properties_vbox: VBoxContainer
 var _detail_vbox: VBoxContainer
 var _detail_sep: HSeparator
 var _selected_param_row: Control = null
+
+var _context_vbox: VBoxContainer
+var _context_sep: HSeparator
+var _context_node: Node = null
+var _last_shader_type: int = 0
 
 var _right_offset: float = 20.0
 var _top_offset: float = -1.0          # -1 = not yet placed
@@ -58,6 +72,7 @@ func is_placed() -> bool:
 
 
 func rebuild() -> void:
+	_rebuild_context()
 	if not _properties_vbox:
 		return
 	_selected_param_row = null
@@ -79,6 +94,85 @@ func rebuild() -> void:
 		lbl.add_theme_font_size_override("font_size", 10)
 		lbl.add_theme_color_override("font_color", Color(0.45, 0.48, 0.52))
 		_properties_vbox.add_child(lbl)
+
+
+# ── Graph Settings context (shown when the selected node is a sink) ───────────
+
+# Called by nyx_main on every node_selected/node_deselected. Only sink nodes
+# (OutputNode/VertexOutputNode/particle sinks) produce a context section —
+# selecting anything else clears it.
+func set_context(node: Node, shader_type: int) -> void:
+	_context_node = node if node and NyxRegistry.is_sink(node) else null
+	_last_shader_type = shader_type
+	_rebuild_context()
+
+
+func sync_shader_type(idx: int) -> void:
+	_last_shader_type = idx
+	rebuild()
+
+
+func get_context_node() -> Node:
+	return _context_node
+
+
+func _rebuild_context() -> void:
+	if not _context_vbox:
+		return
+	for child in _context_vbox.get_children():
+		child.queue_free()
+
+	if not _context_node or not is_instance_valid(_context_node):
+		_context_vbox.visible = false
+		_context_sep.visible = false
+		return
+
+	_context_vbox.visible = true
+	_context_sep.visible = true
+
+	var header_lbl := Label.new()
+	header_lbl.text = "Graph Settings"
+	header_lbl.add_theme_font_size_override("font_size", 10)
+	header_lbl.add_theme_color_override("font_color", Color(0.55, 0.58, 0.62))
+	_context_vbox.add_child(header_lbl)
+
+	_context_vbox.add_child(_build_context_row(
+		"Shader Type", ["Spatial", "Canvas Item", "Particles"], _last_shader_type,
+		func(idx: int) -> void: shader_type_change_requested.emit(idx)
+	))
+
+	if _last_shader_type != 2:
+		var mode_labels: Array = ["Opaque", "Mix", "Add", "Premult Alpha"] \
+			if _last_shader_type == 0 \
+			else ["Default", "Unshaded", "Light Only", "Blend Add", "Blend Premult"]
+		var current_mode: int = _context_node.get_mode() if _context_node.has_method("get_mode") else 0
+		_context_vbox.add_child(_build_context_row(
+			"Render Mode", mode_labels, current_mode,
+			func(idx: int) -> void: render_mode_change_requested.emit(idx)
+		))
+
+
+func _build_context_row(label_text: String, items: Array, current: int, on_select: Callable) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+
+	var lbl := Label.new()
+	lbl.text = label_text
+	lbl.custom_minimum_size.x = 80
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color(0.80, 0.83, 0.88))
+	row.add_child(lbl)
+
+	var opt := OptionButton.new()
+	opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt.add_theme_font_size_override("font_size", 10)
+	for item in items:
+		opt.add_item(item)
+	opt.selected = current
+	opt.item_selected.connect(on_select)
+	row.add_child(opt)
+
+	return row
 
 
 func toggle() -> void:
@@ -159,6 +253,27 @@ func _build() -> void:
 	pad_r.custom_minimum_size = Vector2(2, 0)
 	pad_r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(pad_r)
+
+	# Graph Settings context — hidden until a sink node is selected
+	var context_margin := MarginContainer.new()
+	context_margin.add_theme_constant_override("margin_left", 8)
+	context_margin.add_theme_constant_override("margin_right", 8)
+	context_margin.add_theme_constant_override("margin_top", 6)
+	context_margin.add_theme_constant_override("margin_bottom", 4)
+	vbox.add_child(context_margin)
+
+	_context_vbox = VBoxContainer.new()
+	_context_vbox.add_theme_constant_override("separation", 4)
+	_context_vbox.visible = false
+	context_margin.add_child(_context_vbox)
+
+	_context_sep = HSeparator.new()
+	var context_sep_style := StyleBoxLine.new()
+	context_sep_style.color = Color(0.22, 0.22, 0.28)
+	context_sep_style.thickness = 1
+	_context_sep.add_theme_stylebox_override("separator", context_sep_style)
+	_context_sep.visible = false
+	vbox.add_child(_context_sep)
 
 	# Param list
 	var scroll := ScrollContainer.new()

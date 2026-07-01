@@ -33,7 +33,7 @@ func _ready() -> void:
 	_strength_slider.max_value = 100.0
 	_strength_slider.step = 0.1
 	_strength_slider.value = _strength
-	_strength_slider.custom_minimum_size = Vector2(80, 0)
+	_strength_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_strength_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_strength_slider.value_changed.connect(func(v: float): _strength = v; emit_signal("value_changed"))
 	add_child(_strength_slider)

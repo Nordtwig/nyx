@@ -20,7 +20,7 @@ func _ready() -> void:
 	_spinbox.max_value = 1e9
 	_spinbox.step = 0.001
 	_spinbox.value = _value
-	_spinbox.custom_minimum_size = Vector2(80, 0)
+	_spinbox.custom_minimum_size = Vector2(_s(80), 0)
 	_spinbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_spinbox.value_changed.connect(_on_value_changed)
 	add_child(_spinbox)
@@ -49,7 +49,7 @@ func _setup_param_button() -> void:
 	_param_btn = Button.new()
 	_param_btn.text = "$"
 	_param_btn.flat = true
-	_param_btn.custom_minimum_size = Vector2(20, 0)
+	_param_btn.custom_minimum_size = Vector2(_s(20), 0)
 	_param_btn.pressed.connect(_on_param_btn_pressed)
 	hbox.add_child(_param_btn)
 	_update_param_button()

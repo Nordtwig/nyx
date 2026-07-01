@@ -30,7 +30,7 @@ func _ready() -> void:
 
 	_gradient_rect = TextureRect.new()
 	_gradient_rect.texture = _gradient_texture
-	_gradient_rect.custom_minimum_size = Vector2(0, 24)
+	_gradient_rect.custom_minimum_size = Vector2(0, _s(24))
 	_gradient_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_gradient_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_gradient_rect.stretch_mode = TextureRect.STRETCH_SCALE

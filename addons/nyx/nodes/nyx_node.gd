@@ -186,6 +186,15 @@ static func _type_color(type: int) -> Color:
 	return Color("#90D640")         # vec3  — earthy lime
 
 
+# Scales a 1.0-base pixel constant by the editor's interface scale factor.
+# Every hardcoded pixel size in Nyx is a *logical* (1.0-scale) value; run it
+# through this at apply time so nodes/controls stay proportional to the
+# editor's theme-scaled text on any DPI (laptop 75%, desktop 100%, etc.).
+# See the "editor scale" gotcha in CLAUDE.md.
+static func _s(px: float) -> float:
+	return px * EditorInterface.get_editor_scale()
+
+
 func _apply_style() -> void:
 	var color := _node_color
 

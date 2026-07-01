@@ -19,7 +19,7 @@ func _ready() -> void:
 	_edge0_slider.max_value = 10.0
 	_edge0_slider.step = 0.01
 	_edge0_slider.value = _edge0
-	_edge0_slider.custom_minimum_size = Vector2(80, 0)
+	_edge0_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_edge0_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edge0_slider.value_changed.connect(func(v: float): _edge0 = v; emit_signal("value_changed"))
 	add_child(_edge0_slider)
@@ -30,7 +30,7 @@ func _ready() -> void:
 	_edge1_slider.max_value = 10.0
 	_edge1_slider.step = 0.01
 	_edge1_slider.value = _edge1
-	_edge1_slider.custom_minimum_size = Vector2(80, 0)
+	_edge1_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_edge1_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edge1_slider.value_changed.connect(func(v: float): _edge1 = v; emit_signal("value_changed"))
 	add_child(_edge1_slider)

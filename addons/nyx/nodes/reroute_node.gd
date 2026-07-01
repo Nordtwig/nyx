@@ -7,7 +7,7 @@ func _ready() -> void:
 	title = ""
 
 	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(24, 0)
+	spacer.custom_minimum_size = Vector2(_s(24), 0)
 	add_child(spacer)
 
 	var vec3_color := _type_color(0)

@@ -16,13 +16,11 @@ extends PanelContainer
 signal file_menu_selected(id: int)
 signal recent_file_selected(id: int)
 signal recent_menu_opened
-signal shader_type_changed(idx: int)
-signal render_mode_changed(id: int)
 signal export_pressed
 signal export_menu_selected(id: int)
 signal live_toggled(on: bool)
 signal shortcuts_pressed
-signal properties_pressed
+signal properties_toggled
 signal undo_pressed
 signal redo_pressed
 
@@ -32,10 +30,6 @@ var _file_btn: Button
 var _file_popup: PopupMenu
 var _recent_popup: PopupMenu
 var _filename_label: Label
-var _type_btn: Button
-var _type_popup: PopupMenu
-var _render_mode_btn: Button
-var _render_mode_popup: PopupMenu
 var _export_btn: Button
 var _export_menu: MenuButton
 var _live_btn: CheckButton
@@ -69,29 +63,6 @@ func update_filename(name: String, dirty: bool) -> void:
 	_filename_label.add_theme_color_override("font_color", col)
 
 
-func update_shader_type_label(idx: int) -> void:
-	if _type_btn and _type_popup:
-		_type_btn.text = _type_popup.get_item_text(idx) + "  ▾"
-
-
-# Rebuilds the render mode popup items and syncs the button label.
-# current_mode = output_node.get_mode() (or 0 if no output yet).
-func update_render_mode(shader_type: int, current_mode: int) -> void:
-	if not _render_mode_popup:
-		return
-	_render_mode_popup.clear()
-	if shader_type == 0:
-		for label in ["Opaque", "Mix", "Add", "Premult Alpha"]:
-			_render_mode_popup.add_item(label)
-	elif shader_type == 1:
-		for label in ["Default", "Unshaded", "Light Only", "Blend Add", "Blend Premult"]:
-			_render_mode_popup.add_item(label)
-	if _render_mode_btn:
-		var text := _render_mode_popup.get_item_text(current_mode) if _render_mode_popup.item_count > current_mode else "Opaque"
-		_render_mode_btn.text = text + "  ▾"
-		_render_mode_btn.disabled = shader_type == 2
-
-
 func refresh_recent_menu(files: Array) -> void:
 	_recent_popup.clear()
 	if files.is_empty():
@@ -111,10 +82,18 @@ func set_live_on(on: bool) -> void:
 # ── Build ─────────────────────────────────────────────────────────────────────
 
 func _build() -> void:
+	# Nothing (e.g. a separator's grown StyleBoxLine, see _make_sep) should be
+	# able to paint outside the toolbar's own bounds. PopupMenus attached as
+	# children (_file_popup etc.) are Windows, not Controls, so they render in
+	# their own layer and are unaffected by this.
+	clip_contents = true
+	# Deliberately NOT trying to blend seamlessly into Godot's tab bar above
+	# (that was the source of a visual seam artifact — see CLAUDE.md gotcha,
+	# 2026-07-01). The toolbar is its own distinct panel with a normal top
+	# edge, same as any other toolbar.
 	var bar_bg := StyleBoxFlat.new()
 	var editor_base := get_theme_color("base_color", "Editor")
 	bar_bg.bg_color = editor_base
-	bar_bg.expand_margin_top = 4
 	bar_bg.border_width_bottom = 2
 	bar_bg.border_color = Color(0.12, 0.12, 0.16)
 	add_theme_stylebox_override("panel", bar_bg)
@@ -164,51 +143,6 @@ func _build() -> void:
 	toolbar.add_child(_filename_label)
 
 	toolbar.add_child(_make_sep())
-
-	# Shader type selector
-	_type_popup = PopupMenu.new()
-	_type_popup.add_item("Spatial", 0)
-	_type_popup.add_item("Canvas Item", 1)
-	_type_popup.add_item("Particles", 2)
-	_type_popup.id_pressed.connect(func(id: int) -> void:
-		_type_btn.text = _type_popup.get_item_text(id) + "  ▾"
-		shader_type_changed.emit(id)
-	)
-	_type_btn = Button.new()
-	_type_btn.text = "Spatial  ▾"
-	_type_btn.add_child(_type_popup)
-	_type_btn.pressed.connect(func() -> void:
-		var r := _type_btn.get_screen_position()
-		_type_popup.reset_size()
-		_type_popup.popup(Rect2(Vector2(r.x, r.y + _type_btn.size.y), Vector2(_type_btn.size.x, 0)))
-	)
-	_style_btn(_type_btn)
-	toolbar.add_child(_type_btn)
-
-	# Render mode selector
-	_render_mode_popup = PopupMenu.new()
-	_render_mode_btn = Button.new()
-	_render_mode_btn.text = "Opaque  ▾"
-	_render_mode_btn.add_child(_render_mode_popup)
-	_render_mode_btn.pressed.connect(func() -> void:
-		var r := _render_mode_btn.get_screen_position()
-		_render_mode_popup.reset_size()
-		_render_mode_popup.popup(Rect2(Vector2(r.x, r.y + _render_mode_btn.size.y), Vector2(_render_mode_btn.size.x, 0)))
-	)
-	_render_mode_popup.id_pressed.connect(func(id: int) -> void:
-		_render_mode_btn.text = _render_mode_popup.get_item_text(id) + "  ▾"
-		render_mode_changed.emit(id)
-	)
-	_style_btn(_render_mode_btn)
-	toolbar.add_child(_render_mode_btn)
-
-	toolbar.add_child(_make_sep())
-
-	var params_btn := Button.new()
-	params_btn.text = "Properties"
-	params_btn.pressed.connect(func() -> void: properties_pressed.emit())
-	_style_btn(params_btn)
-	toolbar.add_child(params_btn)
 
 	# Spacer
 	var spacer := Control.new()
@@ -292,6 +226,16 @@ func _style_graph_toolbar() -> void:
 	_style_btn(redo_btn)
 	hbox.add_child(redo_btn)
 	hbox.move_child(redo_btn, 1)
+
+	# Properties toggle — no dedicated icon yet (see Iconography backlog item), plain
+	# text button styled the same as the rest of this icon strip in the meantime.
+	var props_btn := Button.new()
+	props_btn.text = "Props"
+	props_btn.tooltip_text = "Toggle Properties panel"
+	props_btn.pressed.connect(func() -> void: properties_toggled.emit())
+	_style_btn(props_btn)
+	hbox.add_child(props_btn)
+	hbox.move_child(props_btn, 2)
 
 	for child in hbox.get_children():
 		if not child is Button:

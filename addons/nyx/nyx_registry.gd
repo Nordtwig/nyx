@@ -434,7 +434,7 @@ const NODE_CLASSES := {
 }
 
 # Node body colour (all monochrome dark — category expressed via icon, not colour).
-const _NODE_COLOR := Color(0.14, 0.14, 0.18)
+const _NODE_COLOR := Color(0.14, 0.14, 0.18, 0.95)
 const NODE_TYPE_COLORS := {
 	"FloatNode": _NODE_COLOR,    "Vector3Node": _NODE_COLOR,  "UVNode": _NODE_COLOR,
 	"VertexNode": _NODE_COLOR,   "TimeNode": _NODE_COLOR,     "FresnelNode": _NODE_COLOR,
@@ -500,44 +500,49 @@ const NODE_TYPE_CATEGORY := {
 # content-heavy nodes (texture/gradient/curve, Color, Custom Function,
 # Reroute/Relay/Preview Relay) are deliberately left out so they keep growing
 # from their own content exactly as before. Used by _add_node in nyx_main.gd.
+# Values are 1.0-scale LOGICAL widths — multiply by EditorInterface.get_editor_scale()
+# at apply time (done in nyx_main._add_node via NyxNodeBase._s). Originally hand-tuned
+# at 0.75 editor scale on the laptop (100/110/140/160); re-normalized to a 1.0 base
+# (÷0.75, rounded) so the same relationship holds on any DPI. See the "editor scale"
+# gotcha in CLAUDE.md.
 const NODE_WIDTH_TIERS := {
-	# 100 — bare unary/binary math, no inline controls, short title.
-	"AddNode": 100.0,        "SubtractNode": 100.0,   "MultiplyNode": 100.0,
-	"DivideNode": 100.0,     "AbsNode": 100.0,        "CeilNode": 100.0,
-	"FloorNode": 100.0,      "FractNode": 100.0,      "NegateNode": 100.0,
-	"OneMinusNode": 100.0,   "RoundNode": 100.0,      "SqrtNode": 100.0,
-	"SinNode": 100.0,        "CosNode": 100.0,        "NormalizeNode": 100.0,
-	"LengthNode": 100.0,     "DotNode": 100.0,        "ScaleNode": 100.0,
+	# 135 — bare unary/binary math, no inline controls, short title.
+	"AddNode": 135.0,        "SubtractNode": 135.0,   "MultiplyNode": 135.0,
+	"DivideNode": 135.0,     "AbsNode": 135.0,        "CeilNode": 135.0,
+	"FloorNode": 135.0,      "FractNode": 135.0,      "NegateNode": 135.0,
+	"OneMinusNode": 135.0,   "RoundNode": 135.0,      "SqrtNode": 135.0,
+	"SinNode": 135.0,        "CosNode": 135.0,        "NormalizeNode": 135.0,
+	"LengthNode": 135.0,     "DotNode": 135.0,        "ScaleNode": 135.0,
 
-	# 110 — sink/terminal nodes. Measured: even the thickest (Output, 8 labeled
+	# 150 — sink/terminal nodes. Measured: even the thickest (Output, 8 labeled
 	# slots) doesn't need more than this, so a shared floor actually equalizes
 	# the sinks instead of being a no-op on the wider ones.
-	"OutputNode": 110.0,     "VertexOutputNode": 110.0,
-	"ParticleStartNode": 110.0, "ParticleProcessNode": 110.0,
+	"OutputNode": 150.0,     "VertexOutputNode": 150.0,
+	"ParticleStartNode": 150.0, "ParticleProcessNode": 150.0,
 
-	# 140 — a few more ports / a longer title with no controls, OR exactly one
+	# 185 — a few more ports / a longer title with no controls, OR exactly one
 	# simple inline control (EditorSpinSlider/SpinBox draw their label inside
 	# the control and sit on their own row, so one slider isn't any wider than
 	# a bare port row — just taller. That's a height concern, not width.)
-	"ClampNode": 140.0,      "PowerNode": 140.0,      "MinMaxNode": 140.0,
-	"ModNode": 140.0,        "MixNode": 140.0,        "SplitNode": 140.0,
-	"CombineNode": 140.0,    "UVNode": 140.0,         "VertexNode": 140.0,
-	"TimeNode": 140.0,       "ObjectPositionNode": 140.0, "WorldPositionNode": 140.0,
-	"InstanceCustomDataNode": 140.0, "ScreenUVNode": 140.0,
-	"ParticleVelocityNode": 140.0,   "ParticlePositionNode": 140.0,
-	"ParticleDeltaNode": 140.0,      "ParticleIndexNode": 140.0,
-	"ParticleAgeNode": 140.0,        "VertexColorNode": 140.0,
-	"TexturePixelSizeNode": 140.0,
-	"FloatNode": 140.0,      "FresnelNode": 140.0,    "StepNode": 140.0,
-	"RotateUVNode": 140.0,   "WarpNode": 140.0,       "NormalFromHeightNode": 140.0,
-	"DepthFadeNode": 140.0,  "NoiseNode": 140.0,      "BlendNormalsNode": 140.0,
-	"ScreenTextureNode": 140.0,
+	"ClampNode": 185.0,      "PowerNode": 185.0,      "MinMaxNode": 185.0,
+	"ModNode": 185.0,        "MixNode": 185.0,        "SplitNode": 185.0,
+	"CombineNode": 185.0,    "UVNode": 185.0,         "VertexNode": 185.0,
+	"TimeNode": 185.0,       "ObjectPositionNode": 185.0, "WorldPositionNode": 185.0,
+	"InstanceCustomDataNode": 185.0, "ScreenUVNode": 185.0,
+	"ParticleVelocityNode": 185.0,   "ParticlePositionNode": 185.0,
+	"ParticleDeltaNode": 185.0,      "ParticleIndexNode": 185.0,
+	"ParticleAgeNode": 185.0,        "VertexColorNode": 185.0,
+	"TexturePixelSizeNode": 185.0,
+	"FloatNode": 185.0,      "FresnelNode": 185.0,    "StepNode": 185.0,
+	"RotateUVNode": 185.0,   "WarpNode": 185.0,       "NormalFromHeightNode": 185.0,
+	"DepthFadeNode": 185.0,  "NoiseNode": 185.0,      "BlendNormalsNode": 185.0,
+	"ScreenTextureNode": 185.0,
 
-	# 160 — genuinely multi-control nodes (2+ sliders/spinboxes/dropdowns):
+	# 215 — genuinely multi-control nodes (2+ sliders/spinboxes/dropdowns):
 	# visually denser, earns the extra width even though each row alone
 	# wouldn't strictly need it.
-	"SmoothstepNode": 160.0, "FBMNode": 160.0, "TilingOffsetNode": 160.0,
-	"ParticleRandomNode": 160.0,
+	"SmoothstepNode": 215.0, "FBMNode": 215.0, "TilingOffsetNode": 215.0,
+	"ParticleRandomNode": 215.0,
 }
 
 

@@ -52,7 +52,7 @@ func _make_slider(lbl: String, min_v: float, max_v: float, step: float, default:
 	s.max_value = max_v
 	s.step = step
 	s.value = default
-	s.custom_minimum_size = Vector2(80, 0)
+	s.custom_minimum_size = Vector2(_s(80), 0)
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.value_changed.connect(callback)
 	add_child(s)

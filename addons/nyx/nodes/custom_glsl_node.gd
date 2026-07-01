@@ -50,12 +50,12 @@ func _add_preview_controls() -> void:
 	add_child(_chevron)
 
 	_code_spacer = Control.new()
-	_code_spacer.custom_minimum_size = Vector2(0, 4)
+	_code_spacer.custom_minimum_size = Vector2(0, _s(4))
 	add_child(_code_spacer)
 
 	_code_edit = CodeEdit.new()
 	_code_edit.text = _code
-	_code_edit.custom_minimum_size = Vector2(200, 120)
+	_code_edit.custom_minimum_size = Vector2(_s(200), _s(120))
 	_code_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_code_edit.wrap_mode = TextEdit.LINE_WRAPPING_NONE
 	_code_edit.syntax_highlighter = _make_glsl_highlighter()
@@ -166,7 +166,7 @@ func _center_title() -> void:
 
 	var name_edit := LineEdit.new()
 	name_edit.text = _custom_name
-	name_edit.custom_minimum_size = Vector2(80, 0)
+	name_edit.custom_minimum_size = Vector2(_s(80), 0)
 	name_edit.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name_edit.add_theme_color_override("font_color", Color.WHITE)
 	name_edit.visible = false

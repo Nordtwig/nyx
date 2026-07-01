@@ -23,7 +23,7 @@ func _ready() -> void:
 		var row := HBoxContainer.new()
 		var lbl := Label.new()
 		lbl.text = axis[0]
-		lbl.custom_minimum_size = Vector2(12, 0)
+		lbl.custom_minimum_size = Vector2(_s(12), 0)
 		row.add_child(lbl)
 		var spin := SpinBox.new()
 		spin.min_value = -1e9
@@ -63,7 +63,7 @@ func _setup_param_button() -> void:
 	_param_btn = Button.new()
 	_param_btn.text = "$"
 	_param_btn.flat = true
-	_param_btn.custom_minimum_size = Vector2(20, 0)
+	_param_btn.custom_minimum_size = Vector2(_s(20), 0)
 	_param_btn.pressed.connect(_on_param_btn_pressed)
 	hbox.add_child(_param_btn)
 	_update_param_button()
@@ -179,7 +179,7 @@ func get_blackboard_control() -> Control:
 		lbl.text = axis
 		lbl.add_theme_font_size_override("font_size", 10)
 		lbl.add_theme_color_override("font_color", Color(0.65, 0.68, 0.72))
-		lbl.custom_minimum_size = Vector2(12, 0)
+		lbl.custom_minimum_size = Vector2(_s(12), 0)
 		row.add_child(lbl)
 		var sb := SpinBox.new()
 		sb.min_value = -1e9

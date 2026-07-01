@@ -145,7 +145,7 @@ func _center_title() -> void:
 
 	var name_edit := LineEdit.new()
 	name_edit.text = _custom_name
-	name_edit.custom_minimum_size = Vector2(80, 0)
+	name_edit.custom_minimum_size = Vector2(_s(80), 0)
 	name_edit.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name_edit.add_theme_color_override("font_color", Color.WHITE)
 	name_edit.visible = false

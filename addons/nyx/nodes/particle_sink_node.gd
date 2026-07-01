@@ -26,7 +26,7 @@ func _on_deselected() -> void:
 
 
 func _apply_style() -> void:
-	var color := Color(0.14, 0.14, 0.18)
+	var color := Color(0.14, 0.14, 0.18, 0.95)
 	var border := Color("#1A1A26")
 
 	var body := StyleBoxFlat.new()

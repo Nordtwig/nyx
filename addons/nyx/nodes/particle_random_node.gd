@@ -40,7 +40,7 @@ func _ready() -> void:
 	var min_row := HBoxContainer.new()
 	var min_lbl := Label.new()
 	min_lbl.text = "Min"
-	min_lbl.custom_minimum_size = Vector2(30, 0)
+	min_lbl.custom_minimum_size = Vector2(_s(30), 0)
 	min_row.add_child(min_lbl)
 	_spin_min = _make_spin(_min)
 	min_row.add_child(_spin_min)
@@ -49,7 +49,7 @@ func _ready() -> void:
 	var max_row := HBoxContainer.new()
 	var max_lbl := Label.new()
 	max_lbl.text = "Max"
-	max_lbl.custom_minimum_size = Vector2(30, 0)
+	max_lbl.custom_minimum_size = Vector2(_s(30), 0)
 	max_row.add_child(max_lbl)
 	_spin_max = _make_spin(_max)
 	max_row.add_child(_spin_max)
@@ -69,7 +69,7 @@ func _make_spin(initial: float) -> SpinBox:
 	spin.max_value = 1e9
 	spin.step = 0.001
 	spin.value = initial
-	spin.custom_minimum_size = Vector2(48, 0)
+	spin.custom_minimum_size = Vector2(_s(48), 0)
 	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return spin
 

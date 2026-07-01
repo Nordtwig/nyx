@@ -15,7 +15,7 @@ func _ready() -> void:
 	title = "Color"
 
 	var click_area := Control.new()
-	click_area.custom_minimum_size = Vector2(120, 48)
+	click_area.custom_minimum_size = Vector2(_s(120), _s(48))
 	click_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	click_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	click_area.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -37,7 +37,7 @@ func _ready() -> void:
 
 	_picker = ColorPicker.new()
 	_picker.color = _color
-	_picker.custom_minimum_size = Vector2(240, 0)
+	_picker.custom_minimum_size = Vector2(_s(240), 0)
 	# Trim the bulky sections — keep the picker square, sliders and hex field.
 	_picker.presets_visible = false
 	_picker.can_add_swatches = false
@@ -64,7 +64,7 @@ func _setup_param_button() -> void:
 	_param_btn = Button.new()
 	_param_btn.text = "$"
 	_param_btn.flat = true
-	_param_btn.custom_minimum_size = Vector2(20, 0)
+	_param_btn.custom_minimum_size = Vector2(_s(20), 0)
 	_param_btn.pressed.connect(_on_param_btn_pressed)
 	hbox.add_child(_param_btn)
 	_update_param_button()
@@ -214,7 +214,7 @@ func open_picker() -> void:
 func get_blackboard_control() -> Control:
 	var btn := Button.new()
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn.custom_minimum_size = Vector2(0, 32)
+	btn.custom_minimum_size = Vector2(0, _s(32))
 	var _refresh := func() -> void:
 		var s := StyleBoxFlat.new()
 		s.bg_color = _color

@@ -30,7 +30,7 @@ func _ready() -> void:
 	_tex_label = Label.new()
 	_tex_label.text = "(none)"
 	_tex_label.clip_text = true
-	_tex_label.custom_minimum_size = Vector2(140, 0)
+	_tex_label.custom_minimum_size = Vector2(_s(140), 0)
 	add_child(_tex_label)
 
 	_uniform_name = "nrm_" + str(name).to_lower()

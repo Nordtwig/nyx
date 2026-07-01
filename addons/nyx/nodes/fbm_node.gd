@@ -54,7 +54,7 @@ func _ready() -> void:
 	_octaves_slider.max_value = 8
 	_octaves_slider.step = 1
 	_octaves_slider.value = _octaves
-	_octaves_slider.custom_minimum_size = Vector2(80, 0)
+	_octaves_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_octaves_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_octaves_slider.value_changed.connect(_on_octaves_changed)
 	add_child(_octaves_slider)
@@ -65,7 +65,7 @@ func _ready() -> void:
 	_lacunarity_slider.max_value = 4.0
 	_lacunarity_slider.step = 0.1
 	_lacunarity_slider.value = _lacunarity
-	_lacunarity_slider.custom_minimum_size = Vector2(80, 0)
+	_lacunarity_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_lacunarity_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_lacunarity_slider.value_changed.connect(_on_lacunarity_changed)
 	add_child(_lacunarity_slider)
@@ -76,7 +76,7 @@ func _ready() -> void:
 	_gain_slider.max_value = 1.0
 	_gain_slider.step = 0.01
 	_gain_slider.value = _gain
-	_gain_slider.custom_minimum_size = Vector2(80, 0)
+	_gain_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_gain_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_gain_slider.value_changed.connect(_on_gain_changed)
 	add_child(_gain_slider)

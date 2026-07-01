@@ -94,7 +94,7 @@ func _build() -> void:
 	# (TL6/TR12/BL12/BR6), a hunter-green border accent (the card is the active thing
 	# while open), and a titlebar-style "Add Node" header with a hunter-green divider.
 	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.14, 0.14, 0.18)
+	card_style.bg_color = Color(0.14, 0.14, 0.18, 0.95)
 	card_style.border_color = Color(0.24, 0.24, 0.30)
 	card_style.set_border_width_all(1)
 	# The search card sits on the LEFT — round its outer (left) corners hard, keep the
@@ -197,7 +197,7 @@ func _build() -> void:
 	_doc_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var doc_panel_style := StyleBoxFlat.new()
-	doc_panel_style.bg_color = Color(0.14, 0.14, 0.18)
+	doc_panel_style.bg_color = Color(0.14, 0.14, 0.18, 0.95)
 	doc_panel_style.border_color = Color(0.24, 0.24, 0.30)
 	doc_panel_style.set_border_width_all(1)
 	# The doc card sits on the RIGHT — mirror of the search card: round its outer

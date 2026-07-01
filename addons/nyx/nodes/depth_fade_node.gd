@@ -37,7 +37,7 @@ func _ready() -> void:
 	_distance_slider.max_value = 20.0
 	_distance_slider.step = 0.01
 	_distance_slider.value = _distance
-	_distance_slider.custom_minimum_size = Vector2(80, 0)
+	_distance_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_distance_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_distance_slider.value_changed.connect(func(v: float): _distance = v; emit_signal("value_changed"))
 	add_child(_distance_slider)

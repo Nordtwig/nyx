@@ -26,7 +26,7 @@ func _ready() -> void:
 	_scale_slider.max_value = 50.0
 	_scale_slider.step = 0.1
 	_scale_slider.value = _scale
-	_scale_slider.custom_minimum_size = Vector2(80, 0)
+	_scale_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_scale_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scale_slider.value_changed.connect(_on_scale_changed)
 	add_child(_scale_slider)

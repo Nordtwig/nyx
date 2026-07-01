@@ -18,7 +18,7 @@ func _ready() -> void:
 	set_slot(1, true, 0, vec3_color, false, -1, vec3_color)
 	set_slot(2, true, 0, vec3_color, false, -1, vec3_color)
 
-	for label_text in ["Position Offset", "Normal", "Tangent"]:
+	for label_text in ["Offset", "Normal", "Tangent"]:
 		var label := Label.new()
 		label.text = label_text
 		add_child(label)
@@ -48,7 +48,7 @@ func _on_deselected() -> void:
 
 
 func _apply_style() -> void:
-	var color := Color(0.14, 0.14, 0.18)
+	var color := Color(0.14, 0.14, 0.18, 0.95)
 	var border := Color("#1A1A26")
 
 	var body := StyleBoxFlat.new()

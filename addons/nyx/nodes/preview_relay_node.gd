@@ -18,7 +18,7 @@ func _ready() -> void:
 	title = _custom_name
 
 	var port_row := Control.new()
-	port_row.custom_minimum_size = Vector2(140, 0)
+	port_row.custom_minimum_size = Vector2(_s(140), 0)
 	add_child(port_row)
 
 	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
@@ -109,7 +109,7 @@ func _center_title() -> void:
 
 	var name_edit := LineEdit.new()
 	name_edit.text = _custom_name
-	name_edit.custom_minimum_size = Vector2(80, 0)
+	name_edit.custom_minimum_size = Vector2(_s(80), 0)
 	name_edit.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name_edit.add_theme_color_override("font_color", Color.WHITE)
 	name_edit.visible = false

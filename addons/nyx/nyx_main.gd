@@ -120,18 +120,11 @@ func _ready() -> void:
 	_toolbar.file_menu_selected.connect(_on_file_menu_id)
 	_toolbar.recent_file_selected.connect(_on_recent_selected)
 	_toolbar.recent_menu_opened.connect(func() -> void: _toolbar.refresh_recent_menu(_get_recent_files()))
-	_toolbar.shader_type_changed.connect(_on_shader_type_changed)
-	_toolbar.render_mode_changed.connect(func(id: int) -> void:
-		var output := _get_output_node()
-		if output:
-			output.set_mode(id)
-			_request_compile()
-	)
 	_toolbar.export_pressed.connect(_on_export_pressed)
 	_toolbar.export_menu_selected.connect(_on_export_menu_id)
 	_toolbar.live_toggled.connect(_on_live_toggled)
 	_toolbar.shortcuts_pressed.connect(_toggle_shortcuts_overlay)
-	_toolbar.properties_pressed.connect(_toggle_properties_panel)
+	_toolbar.properties_toggled.connect(_toggle_properties_panel)
 	_toolbar.undo_pressed.connect(_undo)
 	_toolbar.redo_pressed.connect(_redo)
 
@@ -217,6 +210,13 @@ func _ready() -> void:
 	_properties_panel = NyxPropertiesPanel.new()
 	add_child(_properties_panel)
 	_properties_panel.setup(_graph, _graph_container)
+	_properties_panel.shader_type_change_requested.connect(_on_shader_type_changed)
+	_properties_panel.render_mode_change_requested.connect(func(id: int) -> void:
+		var output := _get_output_node()
+		if output:
+			output.set_mode(id)
+			_request_compile()
+	)
 	_update_link_ui()  # unlinked: "Export…", Live disabled
 
 	_shortcuts_overlay = _build_shortcuts_overlay()
@@ -271,7 +271,7 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 		node._node_color = NyxRegistry.NODE_TYPE_COLORS[type_name]
 	node._category = NyxRegistry.NODE_TYPE_CATEGORY.get(type_name, "")
 	if NyxRegistry.NODE_WIDTH_TIERS.has(type_name):
-		node.custom_minimum_size.x = NyxRegistry.NODE_WIDTH_TIERS[type_name]
+		node.custom_minimum_size.x = NyxRegistry.NyxNodeBase._s(NyxRegistry.NODE_WIDTH_TIERS[type_name])
 	node.position_offset = offset
 	_graph.add_child(node)
 	if node.has_signal("value_changed"):
@@ -294,6 +294,9 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 			else:
 				_node_previews.open(node, _shader_type)
 		)
+	if node.has_signal("node_selected"):
+		node.node_selected.connect(func(): _on_node_selected(node))
+		node.node_deselected.connect(func(): _on_node_deselected(node))
 	node.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			_pre_drag_snapshot = _serialize_graph()
@@ -376,10 +379,8 @@ func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
 
 
 func _sync_shader_type_ui(idx: int) -> void:
-	_toolbar.update_shader_type_label(idx)
-	_rebuild_render_mode_options()
 	if _properties_panel:
-		_properties_panel.rebuild()
+		_properties_panel.sync_shader_type(idx)
 
 
 func _get_output_node() -> Node:
@@ -391,11 +392,14 @@ func _toggle_properties_panel() -> void:
 		_properties_panel.toggle()
 
 
-func _rebuild_render_mode_options() -> void:
-	if _toolbar:
-		var output := _get_output_node()
-		var mode: int = output.get_mode() if output and output.has_method("get_mode") else 0
-		_toolbar.update_render_mode(_shader_type, mode)
+func _on_node_selected(node: Node) -> void:
+	if _properties_panel:
+		_properties_panel.set_context(node, _shader_type)
+
+
+func _on_node_deselected(node: Node) -> void:
+	if _properties_panel and _properties_panel.get_context_node() == node:
+		_properties_panel.set_context(null, _shader_type)
 
 
 func _on_shader_type_changed(idx: int) -> void:
@@ -723,7 +727,7 @@ func _build_shortcuts_overlay() -> Control:
 	var entries := [
 		["Right-click / A", "Add node"],
 		["X", "Delete selected"],
-		["R", "Add Reroute"],
+		["R", "Add Relay"],
 		["Ctrl+C", "Copy selected"],
 		["Ctrl+V", "Paste"],
 		["Ctrl+D", "Duplicate selected"],
@@ -1074,9 +1078,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_on_delete_nodes_request(selected)
 				accept_event()
 		KEY_R:
+			# Spawns Relay, not Reroute — Reroute's bare-port GraphNode body
+			# fights Godot's titlebar/body layout model (see CLAUDE.md gotcha,
+			# 2026-07-01); Relay looks right by default and needs no custom
+			# node to fix that properly, which is parked for later.
 			_push_undo_state()
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset
-			_add_node(NyxRegistry.RerouteNode.new(), _spawn_position, "Reroute")
+			_add_node(NyxRegistry.RelayNode.new(), _spawn_position, "Relay")
 			accept_event()
 		KEY_A:
 			_spawn_position = _graph.get_local_mouse_position() / _graph.zoom + _graph.scroll_offset

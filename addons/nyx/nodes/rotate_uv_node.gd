@@ -35,7 +35,7 @@ func _ready() -> void:
 	_angle_slider.max_value = 3.14159
 	_angle_slider.step = 0.01
 	_angle_slider.value = _angle
-	_angle_slider.custom_minimum_size = Vector2(80, 0)
+	_angle_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_angle_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_angle_slider.value_changed.connect(func(v: float): _angle = v; emit_signal("value_changed"))
 	add_child(_angle_slider)

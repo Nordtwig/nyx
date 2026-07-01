@@ -17,7 +17,7 @@ func _ready() -> void:
 	_slider.max_value = 20.0
 	_slider.step = 0.1
 	_slider.value = _power
-	_slider.custom_minimum_size = Vector2(80, 0)
+	_slider.custom_minimum_size = Vector2(_s(80), 0)
 	_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_slider.value_changed.connect(_on_value_changed)
 	add_child(_slider)
