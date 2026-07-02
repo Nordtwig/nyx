@@ -54,14 +54,16 @@ func _build() -> void:
 	add_child(backdrop)
 
 	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.14, 0.14, 0.18, 0.95)
-	card_style.border_color = Color("#31614F")
+	card_style.bg_color = Color(0.14, 0.14, 0.18, 0.92)
+	card_style.border_color = Color(0.24, 0.24, 0.30)
 	card_style.set_border_width_all(1)
 	card_style.set_corner_radius_all(NyxNodeBase._s(12))
 	card_style.set_content_margin_all(NyxNodeBase._s(8))
 
 	_card = PanelContainer.new()
-	_card.custom_minimum_size = Vector2(NyxNodeBase._s(420), NyxNodeBase._s(360))
+	# Matches the Add Node search popup's card size exactly (raw, unscaled —
+	# the taller/wider unscaled size read better than the EDSCALE-shrunk one).
+	_card.custom_minimum_size = Vector2(260, 360)
 	_card.add_theme_stylebox_override("panel", card_style)
 
 	var vbox := VBoxContainer.new()
@@ -77,6 +79,10 @@ func _build() -> void:
 
 	_search_input = LineEdit.new()
 	_search_input.placeholder_text = "Type a command..."
+	# Explicit shared height with the Add Node search popup's input — the two
+	# styleboxes already use identical content margins, but pinning this
+	# directly guarantees parity instead of relying on implicit font metrics.
+	_search_input.custom_minimum_size.y = 28
 
 	var input_normal := StyleBoxFlat.new()
 	input_normal.bg_color = Color(0.20, 0.20, 0.26)
@@ -133,7 +139,11 @@ func open(context: Dictionary) -> void:
 	visible = true
 	move_to_front()
 	_card.reset_size()
-	_card.position = ((_graph_container.size - _card.size) * Vector2(0.5, 0.32)).max(Vector2.ZERO)
+	# Anchor at the cursor, same convention as the node-search popup, clamped
+	# so the card stays on-screen.
+	var local_mouse := _graph_container.get_local_mouse_position()
+	var max_pos := _graph_container.size - _card.size
+	_card.position = local_mouse.clamp(Vector2.ZERO, max_pos.max(Vector2.ZERO))
 	_search_input.call_deferred("grab_focus")
 
 

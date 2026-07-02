@@ -188,7 +188,7 @@ func _build() -> void:
 	visible = true
 
 	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.13, 0.13, 0.16, 0.95)
+	bg.bg_color = Color(0.13, 0.13, 0.16, 0.92)
 	bg.corner_radius_top_left = 6
 	bg.corner_radius_top_right = 6
 	bg.corner_radius_bottom_left = 6
@@ -203,7 +203,8 @@ func _build() -> void:
 	# Header with drag handle
 	var prop_header_wrap := PanelContainer.new()
 	var prop_header_bg := StyleBoxFlat.new()
-	prop_header_bg.bg_color = get_theme_color("base_color", "Editor")
+	var prop_header_base := get_theme_color("base_color", "Editor")
+	prop_header_bg.bg_color = Color(prop_header_base.r, prop_header_base.g, prop_header_base.b, 0.95)
 	prop_header_bg.corner_radius_top_left = 6
 	prop_header_bg.corner_radius_top_right = 6
 	prop_header_bg.border_width_bottom = 2

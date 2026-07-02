@@ -129,7 +129,7 @@ func _build() -> void:
 	size = Vector2(220, 200)
 
 	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.13, 0.13, 0.16, 0.95)
+	bg.bg_color = Color(0.13, 0.13, 0.16, 0.92)
 	bg.corner_radius_top_left = 6
 	bg.corner_radius_top_right = 6
 	bg.corner_radius_bottom_left = 6
@@ -142,7 +142,8 @@ func _build() -> void:
 
 	var header_wrap := PanelContainer.new()
 	var header_bg := StyleBoxFlat.new()
-	header_bg.bg_color = get_theme_color("base_color", "Editor")
+	var header_base := get_theme_color("base_color", "Editor")
+	header_bg.bg_color = Color(header_base.r, header_base.g, header_base.b, 0.95)
 	header_bg.corner_radius_top_left = 6
 	header_bg.corner_radius_top_right = 6
 	header_bg.border_width_bottom = 2

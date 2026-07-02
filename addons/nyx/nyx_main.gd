@@ -9,11 +9,14 @@ var _outer_vbox: VBoxContainer
 var _graph_container: VBoxContainer
 var _graph: GraphEdit
 var _shader_type: int = 0
-# Chrome bar (minimal top bar: filename+dirty dot, Live badge, ◈ palette button) and
+# Chrome bar (minimal top bar: filename+dirty dot, Live badge, ◈ palette button),
+# tool rail (floating vertical strip: zoom/grid/minimap + Undo/Redo/Props), and
 # properties panel (floating Panel).
 const NyxChromeBar = preload("res://addons/nyx/nyx_chrome_bar.gd")
+const NyxToolRail = preload("res://addons/nyx/nyx_tool_rail.gd")
 const NyxPropertiesPanel = preload("res://addons/nyx/nyx_properties_panel.gd")
 var _chrome_bar  # NyxChromeBar instance
+var _tool_rail  # NyxToolRail instance
 var _properties_panel  # NyxPropertiesPanel instance
 # Preview panel (floating — owns viewports/materials/mesh-switcher/particles/drag+resize).
 # Per-node preview manager (SubViewport-per-node lifecycle). Both extracted from this file.
@@ -87,7 +90,8 @@ func _ready() -> void:
 	_graph.grid_pattern = GraphEdit.GRID_PATTERN_DOTS
 	_graph.snapping_enabled = false
 	_graph.minimap_enabled = false
-	# _style_graph_toolbar now lives in NyxChromeBar; called via setup() deferred.
+	# The floating toolbar (zoom/grid/minimap) is reparented into NyxToolRail;
+	# see its _populate_from_graph_toolbar(), called via setup() deferred.
 	var graph_bg := StyleBoxFlat.new()
 	graph_bg.bg_color = Color("#0D0D0F")
 	_graph.add_theme_stylebox_override("panel", graph_bg)
@@ -134,11 +138,16 @@ func _ready() -> void:
 	# reserves no layout space (see nyx_chrome_bar.gd header).
 	_chrome_bar = NyxChromeBar.new()
 	_chrome_bar.palette_pressed.connect(_open_command_palette)
-	_chrome_bar.undo_pressed.connect(_undo)
-	_chrome_bar.redo_pressed.connect(_redo)
-	_chrome_bar.properties_toggled.connect(_toggle_properties_panel)
 	add_child(_chrome_bar)
 	_chrome_bar.setup(_graph, _graph_container)
+
+	# Floats vertically centered on the graph's left edge — does NOT sit in
+	# _outer_vbox, reserves no layout space (see nyx_tool_rail.gd header).
+	_tool_rail = NyxToolRail.new()
+	_tool_rail.undo_pressed.connect(_undo)
+	_tool_rail.redo_pressed.connect(_redo)
+	add_child(_tool_rail)
+	_tool_rail.setup(_graph, _graph_container)
 
 	_search_popup = NyxSearchPopup.new()
 	add_child(_search_popup)
@@ -579,23 +588,22 @@ func _do_update() -> void:
 
 func _set_linked(path: String) -> void:
 	_linked_shader_path = path
-	_update_link_ui()
+	_update_link_ui()  # also drives the chrome-bar badge (green/red) off the new path
 	# Linking implies you want to see it live by default — Ctrl+P → Live is the
 	# opt-out for the rarer "edit without disturbing the scene" case.
 	if not path.is_empty():
 		_on_live_toggled(true)
-		if _chrome_bar:
-			_chrome_bar.set_live_badge(true)
 
 
 # Unlinking can't stay "live" — force it off (mirrors the old toolbar's Live
 # checkbox auto-uncheck-on-unlink). Linking itself doesn't force live state;
 # _set_linked/_do_load explicitly turn it on where that's the desired default.
+# Also the single place the chrome-bar badge (green = linked, red = not) syncs.
 func _update_link_ui() -> void:
 	if _linked_shader_path.is_empty() and _live_link_on:
 		_on_live_toggled(false)
 	if _chrome_bar:
-		_chrome_bar.set_live_badge(_live_link_on)
+		_chrome_bar.set_live_badge(_linked_shader_path)
 
 
 # Writes the .gdshader with a provenance stamp (gates artifact → Nyx navigation).
@@ -619,6 +627,11 @@ func _on_export_file_selected(path: String) -> void:
 	if _export_mode != "shader_only":
 		_write_material_file(path)
 	_set_linked(path)
+	# Persist the new link to the .nyx too (mirrors _do_update()) — without this,
+	# the link only exists in memory for the current session; reopening the file
+	# later reads linked_shader_path back empty and Live silently never turns on.
+	if not _current_nyx_path.is_empty():
+		NyxSerializer.write(_current_nyx_path, _serialize_graph())
 	NyxCharon.notify_shader_updated(path, _preview_panel.get_active_material())
 	EditorInterface.get_resource_filesystem().scan()
 	if _export_mode == "shader_only":
@@ -643,6 +656,8 @@ func sync_size(new_size: Vector2) -> void:
 		call_deferred("_reanchor_properties")
 	if _chrome_bar and _chrome_bar.is_placed():
 		call_deferred("_reanchor_chrome_bar")
+	if _tool_rail and _tool_rail.is_placed():
+		call_deferred("_reanchor_tool_rail")
 	if _search_popup:
 		_search_popup.handle_resize()
 	if _command_palette:
@@ -668,6 +683,11 @@ func _reanchor_chrome_bar() -> void:
 		_chrome_bar.reanchor(_graph_top())
 
 
+func _reanchor_tool_rail() -> void:
+	if _tool_rail and _tool_rail.is_placed():
+		_tool_rail.reanchor(_graph_top(), _outer_vbox.size.x)
+
+
 # One-shot initial placement for both floating panels, run once the Nyx tab is
 # actually visible and the editor's post-visibility layout (dock-collapse from
 # entering focus layout) has settled — see _await_layout_ready(). This mirrors
@@ -685,6 +705,8 @@ func _do_setup_initial_panel_layout() -> void:
 		return
 	if is_instance_valid(_chrome_bar):
 		_chrome_bar.place_default(_graph_top())
+	if is_instance_valid(_tool_rail):
+		_tool_rail.place_default(_graph_top())
 	_preview_panel.place_default(_graph_top())
 	var top: float = _graph_top() + 12.0 + _preview_panel.size.y + 8.0
 	_properties_panel.place_default(top)
@@ -861,7 +883,7 @@ func _set_clean() -> void:
 func _update_save_button() -> void:
 	var name := _current_nyx_path.get_file() if not _current_nyx_path.is_empty() else "untitled.nyx"
 	if _chrome_bar:
-		_chrome_bar.update_filename(name, _dirty)
+		_chrome_bar.update_filename(name, _dirty, not _current_nyx_path.is_empty())
 
 
 func _undo() -> void:
@@ -1426,11 +1448,9 @@ func _do_load(path: String) -> void:
 		return
 	_current_nyx_path = path
 	_push_recent(path)
-	_deserialize_graph(data)
+	_deserialize_graph(data)  # also drives the chrome-bar badge, via _update_link_ui()
 	_set_clean()  # freshly loaded from disk
 	# A loaded linked graph goes live by default (same as just-linked).
 	if not _linked_shader_path.is_empty():
 		_on_live_toggled(true)
-		if _chrome_bar:
-			_chrome_bar.set_live_badge(true)
 	print("Nyx: loaded graph ← %s" % path)

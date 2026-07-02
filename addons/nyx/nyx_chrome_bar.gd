@@ -6,28 +6,23 @@ extends PanelContainer
 ## graph fills the whole area beneath/behind it, same as nyx_preview_panel.gd /
 ## nyx_properties_panel.gd float over the top-right.
 ##
-## Holds only: filename + dirty asterisk, a "● Live" status badge (visible only while
-## live-link is on — a status indicator, not a control), and a ◈ button that opens the
-## Ctrl+P command palette. Every action that used to live in the old toolbar
-## (File/Export/Live/View) now lives in nyx_command_palette.gd; this pill is identity +
-## status only, and shrinks to fit its content (the Live badge only takes up space when
-## actually visible). Replaces nyx_graph_toolbar.gd (deleted once this covered its job).
-##
-## Also inherits _style_graph_toolbar() from the old toolbar — injecting Undo/Redo/Props
-## buttons into GraphEdit's own floating toolbar and styling all its buttons. That's a
-## graph-canvas concern, not a chrome-bar one, but this is its home until it earns its own file.
+## Holds only: an eye-spark icon button that opens the Ctrl+P command palette (left side —
+## "click the logo to start acting" is the expected corner convention), filename + dirty
+## asterisk, and a bare "●" status dot — always visible, green when linked to a shader,
+## red when not (a status indicator, not a control; no label, tooltip covers
+## discoverability). Every action that used to live in the old toolbar
+## (File/Export/Live/View) now lives in nyx_command_palette.gd; Undo/Redo/Properties
+## and GraphEdit's native zoom/grid/minimap toolbar live in nyx_tool_rail.gd. This pill
+## is identity + status only, and shrinks to fit its content. Replaces nyx_graph_toolbar.gd
+## (deleted once this and nyx_tool_rail.gd covered its job).
 
 const NyxNodeBase = preload("res://addons/nyx/nodes/nyx_node.gd")
 
 signal palette_pressed
-signal undo_pressed
-signal redo_pressed
-signal properties_toggled
 
 const LEFT_MARGIN := 12.0
 const TOP_MARGIN := 12.0
 
-var _graph: GraphEdit           # for _style_graph_toolbar only
 var _graph_container: Control   # for placement math
 var _top_offset: float = -1.0   # -1 = not yet placed
 
@@ -36,10 +31,8 @@ var _live_badge: Label
 
 
 func setup(graph: GraphEdit, graph_container: Control) -> void:
-	_graph = graph
 	_graph_container = graph_container
 	_build()
-	call_deferred("_style_graph_toolbar")
 
 
 # Floating-placement API — mirrors nyx_preview_panel.gd's place_default/reanchor/
@@ -62,127 +55,126 @@ func is_placed() -> bool:
 
 # ── Public update API (nyx_main calls these to reflect state changes) ─────────
 
-func update_filename(name: String, dirty: bool) -> void:
+# Same 3-color language as the Live dot: bright accent green once it's
+# actually saved to disk and clean, muted Hunter green for a fresh/never-saved
+# graph (nothing wrong, just no file yet — not the same as "safely saved"),
+# amber while dirty.
+func update_filename(name: String, dirty: bool, ever_saved: bool = true) -> void:
 	if not _filename_label:
 		return
 	_filename_label.text = (name + " *") if dirty else name
-	_filename_label.add_theme_color_override("font_color", Color("#D4A017") if dirty else Color("#4AAF78"))
+	var color := Color("#D4A017")
+	if not dirty:
+		color = Color("#4AAF78") if ever_saved else Color("#31614F")
+	_filename_label.add_theme_color_override("font_color", color)
 	reset_size()
 
 
-func set_live_badge(on: bool) -> void:
-	if _live_badge:
-		_live_badge.visible = on
-		reset_size()
+# Always visible now — a 2-state dot (bright accent green = linked, muted
+# Hunter green = not linked yet) rather than showing/hiding, so the pill always
+# communicates link status at a glance instead of only when things are already
+# good. Same-hue intensity shift rather than a second signal color, since
+# "not linked yet" is a normal starting state, not an error. A 3rd "linked but
+# Live paused" state is a separate, not-yet-decided design (feedback.md).
+func set_live_badge(linked_path: String) -> void:
+	if not _live_badge:
+		return
+	_live_badge.visible = true
+	if linked_path.is_empty():
+		_live_badge.add_theme_color_override("font_color", Color("#31614F"))
+		_live_badge.tooltip_text = "Not linked to a shader yet"
+	else:
+		_live_badge.add_theme_color_override("font_color", Color("#4AAF78"))
+		_live_badge.tooltip_text = "Live linked to %s" % linked_path.get_file()
+	reset_size()
 
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
 func _build() -> void:
+	# Outer stylebox: no content margin — the two inner segments below carry
+	# their own padding, same pattern as the other panels' header-vs-body split
+	# (header_wrap sits flush against the outer Panel's edge, body content gets
+	# its own MarginContainer). That's what lets the titlebar-gray segment's
+	# corners align exactly with the pill's own rounded corners, seamlessly.
 	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.13, 0.13, 0.16, 0.95)
-	card_style.border_color = Color(0.24, 0.24, 0.30)
+	card_style.bg_color = Color(0.13, 0.13, 0.16, 0.92)
+	card_style.border_color = Color(0.12, 0.12, 0.16)
 	card_style.set_border_width_all(1)
 	card_style.set_corner_radius_all(NyxNodeBase._s(8))
-	card_style.content_margin_left = NyxNodeBase._s(10)
-	card_style.content_margin_right = NyxNodeBase._s(10)
-	card_style.content_margin_top = NyxNodeBase._s(6)
-	card_style.content_margin_bottom = NyxNodeBase._s(6)
 	add_theme_stylebox_override("panel", card_style)
 
 	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation", NyxNodeBase._s(10))
+	bar.add_theme_constant_override("separation", 0)
 	add_child(bar)
 
-	_filename_label = Label.new()
-	_filename_label.text = "untitled.nyx"
-	_filename_label.add_theme_font_size_override("font_size", 11)
-	_filename_label.add_theme_color_override("font_color", Color("#4AAF78"))
-	_filename_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_child(_filename_label)
-
-	_live_badge = Label.new()
-	_live_badge.text = "● Live"
-	_live_badge.add_theme_font_size_override("font_size", 11)
-	_live_badge.add_theme_color_override("font_color", Color("#4AAF78"))
-	_live_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_live_badge.tooltip_text = "Live link active — shader changes push to the linked artifact in real time."
-	_live_badge.visible = false
-	bar.add_child(_live_badge)
+	# Left segment — titlebar gray (same as the preview/properties/tool-rail
+	# headers), rounded only on the left to match the pill's own left corners,
+	# with a thin right-side divider — the same two-tone panel language as
+	# those, just rotated 90°: this pill IS one of those panels on its side.
+	# "Click the logo to start acting" is the expected corner convention, so
+	# the palette entry point comes before identity/status.
+	var palette_wrap := PanelContainer.new()
+	var palette_bg := StyleBoxFlat.new()
+	var palette_base := get_theme_color("base_color", "Editor")
+	palette_bg.bg_color = Color(palette_base.r, palette_base.g, palette_base.b, 0.95)
+	palette_bg.corner_radius_top_left = NyxNodeBase._s(8)
+	palette_bg.corner_radius_bottom_left = NyxNodeBase._s(8)
+	palette_bg.border_width_right = 2
+	palette_bg.border_color = Color(0.12, 0.12, 0.16)
+	palette_bg.content_margin_left = NyxNodeBase._s(5)
+	palette_bg.content_margin_right = NyxNodeBase._s(10)
+	palette_bg.content_margin_top = NyxNodeBase._s(6)
+	palette_bg.content_margin_bottom = NyxNodeBase._s(6)
+	palette_wrap.add_theme_stylebox_override("panel", palette_bg)
+	bar.add_child(palette_wrap)
 
 	var palette_btn := Button.new()
-	palette_btn.text = "◈"
+	palette_btn.icon = _load_icon("res://addons/nyx/icons/eye-spark.svg", 14)
 	palette_btn.tooltip_text = "Commands (Ctrl+P)"
 	palette_btn.pressed.connect(func() -> void: palette_pressed.emit())
 	_style_btn(palette_btn)
-	bar.add_child(palette_btn)
+	palette_wrap.add_child(palette_btn)
 
+	# Right segment — the rest of the pill (filename, dot), in the darker
+	# body gray inherited from the outer stylebox; its own MarginContainer
+	# supplies the padding the outer stylebox used to.
+	var rest_margin := MarginContainer.new()
+	rest_margin.add_theme_constant_override("margin_left", NyxNodeBase._s(10))
+	rest_margin.add_theme_constant_override("margin_right", NyxNodeBase._s(5))
+	rest_margin.add_theme_constant_override("margin_top", NyxNodeBase._s(6))
+	rest_margin.add_theme_constant_override("margin_bottom", NyxNodeBase._s(6))
+	bar.add_child(rest_margin)
 
-# Injects undo/redo/properties icon buttons into the GraphEdit's built-in floating
-# toolbar and applies the Nyx visual style to all its buttons. Called deferred so the
-# graph is fully in the tree and get_menu_hbox() returns the real HBox. Moved verbatim
-# from nyx_graph_toolbar.gd — this is a graph-canvas concern, unrelated to the chrome
-# bar redesign above.
-func _style_graph_toolbar() -> void:
-	var hbox := _graph.get_menu_hbox()
+	var rest_bar := HBoxContainer.new()
+	rest_bar.add_theme_constant_override("separation", NyxNodeBase._s(10))
+	rest_margin.add_child(rest_bar)
 
-	var undo_btn := Button.new()
-	undo_btn.icon = _load_icon("res://addons/nyx/icons/undo.svg", 12)
-	undo_btn.tooltip_text = "Undo"
-	undo_btn.pressed.connect(func() -> void: undo_pressed.emit())
-	_style_btn(undo_btn)
-	hbox.add_child(undo_btn)
-	hbox.move_child(undo_btn, 0)
+	_filename_label = Label.new()
+	_filename_label.add_theme_font_size_override("font_size", 11)
+	_filename_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rest_bar.add_child(_filename_label)
+	update_filename("untitled.nyx", false, false)  # starts muted green — no file on disk yet
 
-	var redo_btn := Button.new()
-	redo_btn.icon = _load_icon("res://addons/nyx/icons/redo.svg", 12)
-	redo_btn.tooltip_text = "Redo"
-	redo_btn.pressed.connect(func() -> void: redo_pressed.emit())
-	_style_btn(redo_btn)
-	hbox.add_child(redo_btn)
-	hbox.move_child(redo_btn, 1)
+	# Bare status dot, no label — a plain colored dot is a standard "status
+	# indicator" idiom (recording lights, connection dots), and now that the
+	# dirty flag is a "*" suffix instead of a dot, there's no more ambiguity
+	# between two differently-meaning dots. Tooltip still covers discoverability.
+	# Wrapped in a MarginContainer so it can be nudged down a couple pixels —
+	# a raw position offset on the Label itself would just get overwritten by
+	# the HBoxContainer's own layout pass every frame.
+	var live_badge_wrap := MarginContainer.new()
+	live_badge_wrap.add_theme_constant_override("margin_top", NyxNodeBase._s(2))
+	rest_bar.add_child(live_badge_wrap)
 
-	# Properties toggle — no dedicated icon yet (see Iconography backlog item), plain
-	# text button styled the same as the rest of this icon strip in the meantime.
-	var props_btn := Button.new()
-	props_btn.text = "Props"
-	props_btn.tooltip_text = "Toggle Properties panel"
-	props_btn.pressed.connect(func() -> void: properties_toggled.emit())
-	_style_btn(props_btn)
-	hbox.add_child(props_btn)
-	hbox.move_child(props_btn, 2)
-
-	for child in hbox.get_children():
-		if not child is Button:
-			continue
-		_style_btn(child)
-		# Default grid off
-		if "grid" in child.tooltip_text.to_lower() or "grid" in child.text.to_lower():
-			if child.button_pressed:
-				child.button_pressed = false
-				child.pressed.emit()
-		# Icon-only buttons in the floating toolbar get tighter margins
-		var icon_normal := StyleBoxFlat.new()
-		icon_normal.bg_color = Color(0, 0, 0, 0)
-		icon_normal.set_corner_radius_all(4)
-		icon_normal.content_margin_left = 4
-		icon_normal.content_margin_right = 4
-		icon_normal.content_margin_top = 2
-		icon_normal.content_margin_bottom = 2
-		child.add_theme_stylebox_override("normal", icon_normal)
-		var icon_hover := icon_normal.duplicate()
-		icon_hover.bg_color = Color(0.20, 0.20, 0.26)
-		icon_hover.set_border_width_all(1)
-		icon_hover.border_color = Color("#31614F")
-		child.add_theme_stylebox_override("hover", icon_hover)
-		var icon_press := icon_normal.duplicate()
-		icon_press.bg_color = Color(0.16, 0.32, 0.26)
-		child.add_theme_stylebox_override("pressed", icon_press)
-		child.add_theme_stylebox_override("hover_pressed", icon_hover)
-		child.add_theme_stylebox_override("focus", icon_normal)
-		child.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
-		child.add_theme_color_override("font_pressed_color", Color("#4AAF78"))
-		child.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
+	_live_badge = Label.new()
+	_live_badge.text = "●"
+	_live_badge.add_theme_font_size_override("font_size", 9)
+	# STOP, not IGNORE — a tooltip needs mouse-enter events to fire, which an
+	# IGNORE control never receives regardless of tooltip_text being set.
+	_live_badge.mouse_filter = Control.MOUSE_FILTER_STOP
+	live_badge_wrap.add_child(_live_badge)
+	set_live_badge("")  # starts red/"not linked" — set_live_badge() drives color+tooltip
 
 
 # ── Styling helpers ────────────────────────────────────────────────────────────
