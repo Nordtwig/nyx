@@ -9,7 +9,6 @@ const _CANVAS_LABELS := ["Color", "Alpha", "Normal Map", "", "", "", "", ""]
 
 var _mode: int = 0
 var _shader_type: int = 0
-var _option_btn: OptionButton
 var _slot_labels: Array = []
 
 
@@ -19,7 +18,7 @@ func _add_preview_controls() -> void:
 
 func _ready() -> void:
 	super._ready()
-	title = "Output"
+	title = "Fragment Output"
 	var vec3_color := _type_color(0)
 	var float_color := _type_color(1)
 
@@ -37,20 +36,6 @@ func _ready() -> void:
 		label.text = label_text
 		add_child(label)
 		_slot_labels.append(label)
-
-	_option_btn = OptionButton.new()
-	_option_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_option_btn.item_selected.connect(_on_mode_selected)
-	_option_btn.visible = false  # Blackboard owns the render mode UI
-	add_child(_option_btn)
-
-	_rebuild_mode_options()
-
-
-func _on_mode_selected(idx: int) -> void:
-	emit_signal("edit_started")
-	_mode = idx
-	emit_signal("value_changed")
 
 
 func set_shader_type(type: int) -> void:
@@ -86,20 +71,8 @@ func set_shader_type(type: int) -> void:
 			_slot_labels[i].text = _CANVAS_LABELS[i]
 			_slot_labels[i].visible = _CANVAS_LABELS[i] != ""
 
-	_rebuild_mode_options()
 	call_deferred("reset_size")
 	emit_signal("value_changed")
-
-
-func _rebuild_mode_options() -> void:
-	_option_btn.clear()
-	if _shader_type == 0:
-		for label in ["Opaque", "Mix", "Add", "Premult Alpha"]:
-			_option_btn.add_item(label)
-	else:
-		for label in ["Default", "Unshaded", "Light Only", "Blend Add", "Blend Premult"]:
-			_option_btn.add_item(label)
-	_option_btn.selected = _mode
 
 
 func get_mode() -> int:
@@ -109,7 +82,6 @@ func get_mode() -> int:
 func set_mode(idx: int) -> void:
 	emit_signal("edit_started")
 	_mode = idx
-	_option_btn.selected = idx
 	emit_signal("value_changed")
 
 
@@ -130,14 +102,6 @@ func set_state(state: Dictionary) -> void:
 	if st <= 1 and st != _shader_type:
 		set_shader_type(st)
 	_mode = state.get("mode", 0)
-	_option_btn.selected = _mode
-
-
-func _on_hover_exit() -> void:
-	if selected:
-		return
-	_body_style.border_color = Color("#1A1A26")
-	_titlebar_style.border_color = Color("#1A1A26")
 
 
 func _on_deselected() -> void:

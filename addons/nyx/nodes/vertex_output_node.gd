@@ -32,13 +32,6 @@ func get_default_inputs() -> Array:
 	return []
 
 
-func _on_hover_exit() -> void:
-	if selected:
-		return
-	_body_style.border_color = Color("#1A1A26")
-	_titlebar_style.border_color = Color("#1A1A26")
-
-
 func _on_deselected() -> void:
 	var hovered := get_global_rect().has_point(get_global_mouse_position())
 	var c := Color("#31614F") if hovered else Color("#1A1A26")

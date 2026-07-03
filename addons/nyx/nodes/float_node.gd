@@ -5,8 +5,6 @@ var _value: float = 1.0
 var _param_mode: bool = false
 var _param_name: String = ""
 var _spinbox: SpinBox
-var _param_btn: Button
-var _param_name_edit: LineEdit
 
 
 func _ready() -> void:
@@ -25,53 +23,14 @@ func _ready() -> void:
 	_spinbox.value_changed.connect(_on_value_changed)
 	add_child(_spinbox)
 
-	_param_name_edit = LineEdit.new()
-	_param_name_edit.placeholder_text = "param name"
-	_param_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_param_name_edit.visible = false
-	_param_name_edit.text_changed.connect(_on_param_name_changed)
-	add_child(_param_name_edit)
-
 	set_slot(0, false, -1, _type_color(0), true, 1, float_color)
 
 	call_deferred("_init_default_param_name")
-	call_deferred("_setup_param_button")
 
 
 func _init_default_param_name() -> void:
 	if _param_name == "":
 		_param_name = "param_" + str(name).to_lower()
-		_param_name_edit.text = _param_name
-
-
-func _setup_param_button() -> void:
-	var hbox := get_titlebar_hbox()
-	_param_btn = Button.new()
-	_param_btn.text = "$"
-	_param_btn.flat = true
-	_param_btn.custom_minimum_size = Vector2(_s(20), 0)
-	_param_btn.pressed.connect(_on_param_btn_pressed)
-	hbox.add_child(_param_btn)
-	_update_param_button()
-
-
-func _on_param_btn_pressed() -> void:
-	_param_mode = not _param_mode
-	_param_name_edit.visible = _param_mode
-	if not _param_mode:
-		call_deferred("reset_size")
-	_update_param_button()
-	_update_param_tooltip()
-	value_changed.emit()
-
-
-func _update_param_button() -> void:
-	if not _param_btn:
-		return
-	if _param_mode:
-		_param_btn.add_theme_color_override("font_color", _type_color(1))
-	else:
-		_param_btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.35))
 
 
 func _on_value_changed(val: float) -> void:
@@ -79,17 +38,14 @@ func _on_value_changed(val: float) -> void:
 	value_changed.emit()
 
 
-func _on_param_name_changed(new_name: String) -> void:
-	_param_name = new_name
-	_update_param_tooltip()
+func set_param_mode(v: bool) -> void:
+	_param_mode = v
 	value_changed.emit()
 
 
-func _update_param_tooltip() -> void:
-	if _param_mode:
-		_param_name_edit.tooltip_text = 'material.set_shader_parameter("%s", value)' % _param_name
-	else:
-		_param_name_edit.tooltip_text = ""
+func set_param_name(n: String) -> void:
+	_param_name = n
+	value_changed.emit()
 
 
 func _add_preview_controls() -> void:
@@ -130,11 +86,7 @@ func set_state(state: Dictionary) -> void:
 	var pname = state.get("param_name", "")
 	if pname != "":
 		_param_name = pname
-		_param_name_edit.text = _param_name
 	_param_mode = state.get("param_mode", false)
-	_param_name_edit.visible = _param_mode
-	_update_param_button()
-	_update_param_tooltip()
 
 
 func is_param_mode() -> bool:

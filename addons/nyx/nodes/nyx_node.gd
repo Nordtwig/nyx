@@ -4,6 +4,7 @@ extends GraphNode
 signal value_changed
 signal edit_started
 signal preview_toggled
+signal inspector_requested(node)
 
 var _node_color: Color = Color("#2E8266")
 var _category: String = ""
@@ -13,6 +14,9 @@ var _preview_wrapper: Panel
 var _preview_spacer: Control
 var _preview_chevron: Button
 var _preview_unavailable_label: Label
+var _inspector_cog: Button
+var _cog_hover_shown: bool = false
+var _inspector_popup_open: bool = false
 var _body_style: StyleBoxFlat
 var _titlebar_style: StyleBoxFlat
 var _halo_style: StyleBoxFlat
@@ -22,8 +26,10 @@ func _ready() -> void:
 	_apply_style()
 	_build_halo_style()
 	call_deferred("_add_preview_controls")
+	call_deferred("_add_inspector_trigger")
 	call_deferred("_apply_input_styles")
 	resized.connect(_update_body_for_preview)
+	gui_input.connect(_on_node_gui_input)
 	if not is_connected("node_selected", Callable(self, "_on_selected")):
 		connect("node_selected", Callable(self, "_on_selected"))
 		connect("node_deselected", Callable(self, "_on_deselected"))
@@ -160,6 +166,103 @@ func get_preview_slot() -> TextureRect:
 	return _preview_slot
 
 
+# Universal node-inspector trigger (Step 5): a hover-revealed cog button in the
+# titlebar, top-right (same slot the old per-node "$" param buttons used to sit
+# in), plus a double-click anywhere on the node (titlebar included — single-click
+# dragging is unaffected since Godot distinguishes a double_click press from a
+# press-and-hold-drag at the event level). Both just emit inspector_requested(self)
+# — nyx_main.gd owns what actually opens (curated EditorInspector / ColorPicker /
+# meta-only), this node doesn't need to know.
+func _add_inspector_trigger() -> void:
+	var hbox := get_titlebar_hbox()
+	_inspector_cog = Button.new()
+	_inspector_cog.icon = _get_cog_icon()
+	_inspector_cog.flat = true
+	_inspector_cog.toggle_mode = true
+	_inspector_cog.focus_mode = Control.FOCUS_NONE
+	_inspector_cog.custom_minimum_size = Vector2(_s(20), 0)
+	_inspector_cog.tooltip_text = "Open inspector"
+	_inspector_cog.add_theme_color_override("icon_normal_color", Color(0.85, 0.85, 0.9, 0.7))
+	_inspector_cog.add_theme_color_override("icon_hover_color", Color(0.95, 0.95, 1.0))
+	_inspector_cog.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
+	var empty := StyleBoxEmpty.new()
+	_inspector_cog.add_theme_stylebox_override("normal", empty)
+	_inspector_cog.add_theme_stylebox_override("hover", empty)
+	_inspector_cog.add_theme_stylebox_override("pressed", empty)
+	_inspector_cog.add_theme_stylebox_override("focus", empty)
+	_inspector_cog.pressed.connect(func(): emit_signal("inspector_requested", self))
+	hbox.add_child(_inspector_cog)
+	# Stays visible=true (always laid out — reserves its column width in the
+	# titlebar hbox) forever. Hover show/hide is done via opacity + mouse_filter
+	# instead of Control.visible, so the titlebar/title-label width never jumps
+	# when the cog fades in/out (toggling .visible would remove it from the
+	# HBoxContainer's layout pass entirely, reflowing the title label wider).
+	# Set directly (not via _set_cog_hover_visible) — a fresh Button defaults to
+	# modulate.a = 1.0 and mouse_filter = STOP, and _cog_hover_shown already
+	# defaults to false, so the toggle helper's "no change" guard would skip
+	# ever actually applying the hidden state on this first call.
+	_inspector_cog.modulate.a = 0.0
+	_inspector_cog.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cog_hover_shown = false
+
+
+func _set_cog_hover_visible(v: bool) -> void:
+	if not _inspector_cog or _cog_hover_shown == v:
+		return
+	_cog_hover_shown = v
+	_inspector_cog.modulate.a = 1.0 if v else 0.0
+	_inspector_cog.mouse_filter = Control.MOUSE_FILTER_STOP if v else Control.MOUSE_FILTER_IGNORE
+
+
+# Called by nyx_node_inspector.gd when its popup opens/closes on this node —
+# pins the cog visible for the duration (a clear "this node's popup is open"
+# indicator) regardless of where the cursor wanders in the meantime, AND
+# renders it in its toggled/active state (icon_pressed_color, the brand
+# green) instead of the passive hover grey — set_pressed_no_signal since this
+# is a state sync, not a real click, and must not re-fire "pressed" (which
+# would loop back into emitting inspector_requested). Going back to false
+# doesn't force a hide; it just hands control back to the normal hover-driven
+# show/hide (_process/_on_hover_enter/_on_hover_exit).
+func set_inspector_popup_open(v: bool) -> void:
+	_inspector_popup_open = v
+	if v:
+		_set_cog_hover_visible(true)
+	if _inspector_cog:
+		_inspector_cog.set_pressed_no_signal(v)
+
+
+static var _cog_icon_cache: ImageTexture
+
+
+# Cached at the class level (static) — every node instance shares one decoded/
+# resized texture instead of re-rasterizing the SVG per node.
+static func _get_cog_icon() -> ImageTexture:
+	if _cog_icon_cache:
+		return _cog_icon_cache
+	var tex := load("res://addons/nyx/icons/tool.svg") as Texture2D
+	if not tex:
+		return null
+	var img := tex.get_image()
+	# Rasterized smaller than the button's own custom_minimum_size (20) on
+	# purpose — the button's layout footprint (titlebar width reservation)
+	# is independent of the icon's own pixel size, so this only shrinks the
+	# glyph visually, centered in the same clickable area.
+	img.resize(10, 10, Image.INTERPOLATE_LANCZOS)
+	for y in img.get_height():
+		for x in img.get_width():
+			var px := img.get_pixel(x, y)
+			if px.a > 0.0:
+				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, px.a))
+	_cog_icon_cache = ImageTexture.create_from_image(img)
+	return _cog_icon_cache
+
+
+func _on_node_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.double_click \
+			and event.button_index == MOUSE_BUTTON_LEFT:
+		emit_signal("inspector_requested", self)
+
+
 # Hide/show the per-node preview chevron. Particle mode disables previews
 # (per-particle values have no per-pixel meaning); force any open one closed.
 func set_preview_chevron_visible(v: bool) -> void:
@@ -263,6 +366,7 @@ func _on_deselected() -> void:
 
 
 func _on_hover_enter() -> void:
+	_set_cog_hover_visible(true)
 	if selected:
 		return
 	_body_style.border_color = Color("#31614F")
@@ -270,10 +374,44 @@ func _on_hover_enter() -> void:
 
 
 func _on_hover_exit() -> void:
+	# mouse_exited fires whenever a child control (spinbox, titlebar label, even
+	# the cog button itself) becomes the topmost control under the cursor, not
+	# just on a true geometric exit — so a raw mouse_exited alone flickers the
+	# cog off while the cursor is still over the node. Only actually treat this
+	# as a hover-exit if the cursor is truly outside the node's rect (same
+	# defensive check _on_deselected() already uses).
+	if get_global_rect().has_point(get_global_mouse_position()):
+		return
+	# The cog stays pinned visible for as long as this node's inspector popup
+	# is open, regardless of cursor position — see set_inspector_popup_open().
+	if not _inspector_popup_open:
+		_set_cog_hover_visible(false)
 	if selected:
 		return
 	_body_style.border_color = Color("#1A1A26")
 	_titlebar_style.border_color = Color("#1A1A26")
+
+
+# mouse_entered/mouse_exited turned out too unreliable to be the sole source of
+# truth for the cog's visibility — two distinct ways to miss an exit found in
+# testing: (1) the node-inspector popup covering the node on a click, with no
+# further mouse motion for Godot to recompute hover on; (2) leaving the node via
+# a port dot, which overhangs the node's actual Control rect by ~12px for
+# GraphEdit's own connection grab zone (see nyx_main.gd's _is_mouse_over_node) —
+# that zone is hit-tested by GraphEdit itself, not ordinary Control hover
+# tracking, so crossing it doesn't reliably produce a clean mouse_exited. Rather
+# than patch each case, this is a lightweight per-frame correctness backstop:
+# the signal handlers above are still the fast reactive path (no visible lag on
+# the common case), this just guarantees the state is never stuck wrong for more
+# than a frame regardless of what the signals did.
+func _process(_delta: float) -> void:
+	if not _inspector_cog or not is_visible_in_tree() or _inspector_popup_open:
+		return
+	var hovered := get_global_rect().has_point(get_global_mouse_position())
+	if hovered and not _cog_hover_shown:
+		_on_hover_enter()
+	elif not hovered and _cog_hover_shown:
+		_on_hover_exit()
 
 
 func _center_title() -> void:

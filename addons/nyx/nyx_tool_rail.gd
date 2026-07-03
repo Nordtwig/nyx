@@ -129,7 +129,7 @@ func _build() -> void:
 	header.add_child(handle_icon_wrap)
 
 	var handle_icon := TextureRect.new()
-	handle_icon.texture = _load_icon("res://addons/nyx/icons/tool.svg", 14)
+	handle_icon.texture = _load_icon("res://addons/nyx/icons/grid-3x3.svg", 14)
 	handle_icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	handle_icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	handle_icon.modulate = get_theme_color("font_color", "Label").darkened(0.15)

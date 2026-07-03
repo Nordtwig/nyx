@@ -34,6 +34,11 @@ var _compile_timer: Timer
 const NyxSearchPopup = preload("res://addons/nyx/nyx_search_popup.gd")
 var _search_popup  # NyxSearchPopup instance
 
+# Node-inspector popup. Step 1 shell wired to Curve only — see nyx_node_inspector.gd
+# header + memory/project_properties_panel.md for the full staged build plan.
+const NyxNodeInspector = preload("res://addons/nyx/nyx_node_inspector.gd")
+var _node_inspector  # NyxNodeInspector instance
+
 # Ctrl+P command palette — same overlay pattern as the search popup, single card.
 # Emits the same signal names the old toolbar used to, so it reuses the same
 # handlers unchanged (see nyx_command_palette.gd header). This is now the only
@@ -154,6 +159,10 @@ func _ready() -> void:
 	_search_popup.setup(_graph_container)
 	_search_popup.node_chosen.connect(_on_search_node_chosen)
 
+	_node_inspector = NyxNodeInspector.new()
+	add_child(_node_inspector)
+	_node_inspector.setup(_graph_container)
+
 	_command_palette = NyxCommandPalette.new()
 	add_child(_command_palette)
 	_command_palette.setup(_graph_container)
@@ -237,13 +246,6 @@ func _ready() -> void:
 	_properties_panel = NyxPropertiesPanel.new()
 	add_child(_properties_panel)
 	_properties_panel.setup(_graph, _graph_container)
-	_properties_panel.shader_type_change_requested.connect(_on_shader_type_changed)
-	_properties_panel.render_mode_change_requested.connect(func(id: int) -> void:
-		var output := _get_output_node()
-		if output:
-			output.set_mode(id)
-			_request_compile()
-	)
 	_update_link_ui()  # unlinked: "Export…", Live disabled
 
 	_shortcuts_overlay = _build_shortcuts_overlay()
@@ -312,6 +314,31 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 		node.edit_started.connect(_push_undo_state)
 	if node.has_signal("texture_pick_requested"):
 		node.texture_pick_requested.connect(_on_texture_pick_requested)
+	if node.has_signal("inspector_requested"):
+		node.inspector_requested.connect(func(n: Node):
+			# Same trigger (cog / double-click) on a node whose popup is already
+			# open closes it instead of just re-opening the same content.
+			if _node_inspector.is_open_for(n):
+				_node_inspector.close()
+				return
+			if n.has_method("get_curve"):
+				_node_inspector.open_for_resource(n.get_curve(), "Curve", n)
+			elif n.has_method("get_gradient"):
+				_node_inspector.open_for_resource(n.get_gradient(), "Gradient", n)
+			elif n.has_method("get_color"):
+				_node_inspector.open_for_color(
+					Callable(n, "get_color"), Callable(n, "set_color_from_inspector"), "Color", n)
+			elif NyxRegistry.is_sink(n):
+				_node_inspector.open_for_sink(
+					n.title, n, _shader_type, _shader_type != 2, _get_render_mode_index(),
+					_render_mode_labels(_shader_type),
+					func(idx: int):
+						_on_shader_type_changed(idx)
+						_node_inspector.close(),
+					Callable(self, "_set_render_mode_index"))
+			else:
+				_node_inspector.open_meta_only(n.title, n)
+		)
 	if node.has_signal("pair_removed"):
 		node.pair_removed.connect(func(idx: int): _on_relay_pair_removed(node, idx))
 	if node.has_signal("preview_toggled"):
@@ -321,9 +348,6 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 			else:
 				_node_previews.open(node, _shader_type)
 		)
-	if node.has_signal("node_selected"):
-		node.node_selected.connect(func(): _on_node_selected(node))
-		node.node_deselected.connect(func(): _on_node_deselected(node))
 	node.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			_pre_drag_snapshot = _serialize_graph()
@@ -405,28 +429,43 @@ func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
 	_request_compile()
 
 
-func _sync_shader_type_ui(idx: int) -> void:
+func _sync_shader_type_ui(_idx: int) -> void:
+	# Shader-type-change can hide/show nodes (particle mode swaps sinks), which
+	# can change which param-mode nodes exist — refresh the params list. Graph
+	# Settings itself no longer lives on this panel (migrated to the node-
+	# inspector popup's open_for_sink).
 	if _properties_panel:
-		_properties_panel.sync_shader_type(idx)
+		_properties_panel.rebuild()
 
 
 func _get_output_node() -> Node:
 	return _graph.get_node_or_null("OutputNode")
 
 
+# Render mode is true graph-wide state (there's only ever one OutputNode, the
+# actual owner) — these are the shared read/write path the node-inspector
+# popup calls through regardless of which sink (Output/Vertex Output/particle
+# sinks) the user actually opened the popup on.
+func _get_render_mode_index() -> int:
+	var output := _get_output_node()
+	return output.get_mode() if output else 0
+
+
+func _render_mode_labels(shader_type: int) -> Array:
+	return ["Opaque", "Mix", "Add", "Premult Alpha"] if shader_type == 0 \
+		else ["Default", "Unshaded", "Light Only", "Blend Add", "Blend Premult"]
+
+
+func _set_render_mode_index(idx: int) -> void:
+	var output := _get_output_node()
+	if output:
+		output.set_mode(idx)
+		_request_compile()
+
+
 func _toggle_properties_panel() -> void:
 	if _properties_panel:
 		_properties_panel.toggle()
-
-
-func _on_node_selected(node: Node) -> void:
-	if _properties_panel:
-		_properties_panel.set_context(node, _shader_type)
-
-
-func _on_node_deselected(node: Node) -> void:
-	if _properties_panel and _properties_panel.get_context_node() == node:
-		_properties_panel.set_context(null, _shader_type)
 
 
 func _on_shader_type_changed(idx: int) -> void:
@@ -662,6 +701,8 @@ func sync_size(new_size: Vector2) -> void:
 		_search_popup.handle_resize()
 	if _command_palette:
 		_command_palette.handle_resize()
+	if _node_inspector:
+		_node_inspector.handle_resize()
 
 
 func _graph_top() -> float:

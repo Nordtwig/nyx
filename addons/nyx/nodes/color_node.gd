@@ -6,8 +6,6 @@ var _param_mode: bool = false
 var _param_name: String = ""
 var _popup: PopupPanel
 var _picker: ColorPicker
-var _param_btn: Button
-var _param_name_edit: LineEdit
 
 
 func _ready() -> void:
@@ -21,13 +19,6 @@ func _ready() -> void:
 	click_area.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	click_area.gui_input.connect(_on_clicked)
 	add_child(click_area)
-
-	_param_name_edit = LineEdit.new()
-	_param_name_edit.placeholder_text = "param name"
-	_param_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_param_name_edit.visible = false
-	_param_name_edit.text_changed.connect(_on_param_name_changed)
-	add_child(_param_name_edit)
 
 	# PopupPanel (not bare Popup): the bare Popup dismissed inconsistently in the
 	# embedded editor — it took two clicks to close. PopupPanel matches every other
@@ -50,56 +41,17 @@ func _ready() -> void:
 	_apply_node_color()
 
 	call_deferred("_init_default_param_name")
-	call_deferred("_setup_param_button")
 
 
 func _init_default_param_name() -> void:
 	if _param_name == "":
 		_param_name = "color_" + str(name).to_lower()
-		_param_name_edit.text = _param_name
-
-
-func _setup_param_button() -> void:
-	var hbox := get_titlebar_hbox()
-	_param_btn = Button.new()
-	_param_btn.text = "$"
-	_param_btn.flat = true
-	_param_btn.custom_minimum_size = Vector2(_s(20), 0)
-	_param_btn.pressed.connect(_on_param_btn_pressed)
-	hbox.add_child(_param_btn)
-	_update_param_button()
-
-
-func _on_param_btn_pressed() -> void:
-	_param_mode = not _param_mode
-	_param_name_edit.visible = _param_mode
-	if not _param_mode:
-		call_deferred("reset_size")
-	_update_param_button()
-	_update_param_tooltip()
-	value_changed.emit()
-
-
-func _update_param_button() -> void:
-	if not _param_btn:
-		return
-	var luminance := _color.r * 0.299 + _color.g * 0.587 + _color.b * 0.114
-	var base_color := Color.BLACK if luminance > 0.5 else Color.WHITE
-	if _param_mode:
-		_param_btn.add_theme_color_override("font_color", _type_color(1))
-	else:
-		_param_btn.add_theme_color_override("font_color", Color(base_color.r, base_color.g, base_color.b, 0.4))
 
 
 func _on_clicked(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if _popup.visible:
-			_popup.hide()
-			return
 		emit_signal("edit_started")
-		_popup.reset_size()  # shrink to the trimmed picker's content
-		var pos := get_screen_position() + Vector2(0, size.y)
-		_popup.popup(Rect2(pos, _popup.size))
+		inspector_requested.emit(self)
 
 
 func _on_color_changed(color: Color) -> void:
@@ -108,17 +60,26 @@ func _on_color_changed(color: Color) -> void:
 	value_changed.emit()
 
 
-func _on_param_name_changed(new_name: String) -> void:
-	_param_name = new_name
-	_update_param_tooltip()
+func get_color() -> Color:
+	return _color
+
+
+# Counterpart to get_color() — the node-inspector popup calls this on every
+# ColorPicker drag, since Color is a plain Variant with no shared .changed
+# signal (unlike Curve/Gradient) to propagate edits back automatically.
+func set_color_from_inspector(c: Color) -> void:
+	_picker.color = c  # keep the Blackboard-triggered local picker in sync too
+	_on_color_changed(c)
+
+
+func set_param_mode(v: bool) -> void:
+	_param_mode = v
 	value_changed.emit()
 
 
-func _update_param_tooltip() -> void:
-	if _param_mode:
-		_param_name_edit.tooltip_text = 'material.set_shader_parameter("%s", Color(r, g, b, a))' % _param_name
-	else:
-		_param_name_edit.tooltip_text = ""
+func set_param_name(n: String) -> void:
+	_param_name = n
+	value_changed.emit()
 
 
 func _apply_node_color() -> void:
@@ -141,7 +102,18 @@ func _update_title_color() -> void:
 	for child in hbox.get_children():
 		if child is Label:
 			child.add_theme_color_override("font_color", text_color)
-	_update_param_button()
+	# The inspector cog's fixed light-grey icon washes out against a bright/
+	# white picked color, same problem the title text has — but pure black
+	# (text_color's dark option) reads too harsh for an icon, so use a softer
+	# dark grey instead. The base class's hardcoded near-white icon_hover_color
+	# has the identical problem on a light body (hover would vanish), so this
+	# needs its own luminance-aware pair, not just a reuse of text_color.
+	if _inspector_cog:
+		var icon_normal := Color(0.16, 0.16, 0.19) if luminance > 0.5 else Color(0.92, 0.92, 0.95)
+		var icon_hover := Color(0.05, 0.05, 0.07) if luminance > 0.5 else Color.WHITE
+		_inspector_cog.add_theme_color_override(
+			"icon_normal_color", Color(icon_normal.r, icon_normal.g, icon_normal.b, 0.7))
+		_inspector_cog.add_theme_color_override("icon_hover_color", icon_hover)
 
 
 func _add_preview_controls() -> void:
@@ -189,11 +161,7 @@ func set_state(state: Dictionary) -> void:
 	var pname = state.get("param_name", "")
 	if pname != "":
 		_param_name = pname
-		_param_name_edit.text = _param_name
 	_param_mode = state.get("param_mode", false)
-	_param_name_edit.visible = _param_mode
-	_update_param_button()
-	_update_param_tooltip()
 
 
 func is_param_mode() -> bool:
