@@ -2,17 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cg6fjtdmt107w"
-path="res://.godot/imported/nyx.svg-0d161937f16d1696bc58e5f163b1e654.ctex"
+uid="uid://cy60icjtaxxi3"
+path="res://.godot/imported/circle-dot.svg-d3c62bcd9737edc44c15855563df51a9.ctex"
 metadata={
-"has_editor_variant": true,
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/nyx/icons/nyx.svg"
-dest_files=["res://.godot/imported/nyx.svg-0d161937f16d1696bc58e5f163b1e654.ctex"]
+source_file="res://addons/nyx/icons/circle-dot.svg"
+dest_files=["res://.godot/imported/circle-dot.svg-d3c62bcd9737edc44c15855563df51a9.ctex"]
 
 [params]
 
@@ -40,5 +39,5 @@ process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1
 svg/scale=1.0
-editor/scale_with_editor_scale=true
+editor/scale_with_editor_scale=false
 editor/convert_colors_with_editor_theme=false

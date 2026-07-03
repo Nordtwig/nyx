@@ -185,6 +185,10 @@ func _add_inspector_trigger() -> void:
 	_inspector_cog.add_theme_color_override("icon_normal_color", Color(0.85, 0.85, 0.9, 0.7))
 	_inspector_cog.add_theme_color_override("icon_hover_color", Color(0.95, 0.95, 1.0))
 	_inspector_cog.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
+	# Godot uses a SEPARATE icon color for "hovering while toggled on" —
+	# without this it falls back to the editor theme's default (a blue
+	# accent), so hovering the cog while its popup is open flashed blue.
+	_inspector_cog.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
 	var empty := StyleBoxEmpty.new()
 	_inspector_cog.add_theme_stylebox_override("normal", empty)
 	_inspector_cog.add_theme_stylebox_override("hover", empty)

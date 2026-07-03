@@ -13,6 +13,9 @@ extends Control
 ## a node; nyx_main listens and spawns it (push-undo + factory). The popup never reaches
 ## back into nyx_main — it pulls its catalog from NyxRegistry and reads graph geometry
 ## from the `_graph_container` reference handed to `setup()`. Extracted from nyx_main.gd.
+##
+## Rows are hand-built Controls, not an ItemList — matches nyx_command_palette.gd's row
+## approach exactly (same style constants) so the two overlays share one visual language.
 
 const NyxRegistry = preload("res://addons/nyx/nyx_registry.gd")
 
@@ -24,12 +27,42 @@ var _category_icons: Dictionary = {}
 
 var _search_cards: HBoxContainer       # the floating [search | doc] cards, positioned at cursor
 var _search_input: LineEdit
-var _search_list: ItemList
-var _search_item_ids: Array = []
+var _scroll: ScrollContainer
+var _rows_vbox: VBoxContainer
+var _search_item_ids: Array = []       # parallel to rows; -1 for category headers
+var _row_selectable: Array = []        # parallel to rows; false for headers + disabled entries
+var _row_nodes: Array = []             # parallel to rows; the row Control itself
+var _selected_index: int = -1
+
+var _row_highlight_style: StyleBoxFlat
+var _row_empty_style: StyleBoxEmpty
+
 var _doc_panel: PanelContainer
 var _doc_label: RichTextLabel
 var _doc_hover_timer: Timer
 var _doc_pending_id: int = -1
+
+const HEADER_COLOR := Color("#6BCF96")
+const LABEL_COLOR := Color(0.90, 0.90, 0.90)
+const LABEL_SELECTED_COLOR := Color.WHITE
+const LABEL_DISABLED_COLOR := Color(1, 1, 1, 0.25)
+
+const CARD_TITLE_FONT_SIZE := 11
+const CATEGORY_FONT_SIZE := 10
+const ITEM_FONT_SIZE := 10
+
+# Fixed row heights, not content-driven — a Label's natural minimum height comes
+# from the font's ascent+descent metrics, which reserves far more vertical space
+# than the glyphs actually need at these small sizes. Plain Panel (not
+# PanelContainer) never auto-sizes to its children's minimum size (see the
+# Panel-vs-Container gotcha), so it's used here deliberately to pin each row to
+# an exact height regardless of font metrics.
+const ITEM_ROW_HEIGHT := 18
+const CATEGORY_ROW_HEIGHT := 16
+const ROW_INSET := 4.0
+
+const AUTO_SCROLL_ZONE := 20.0    # px band at the top/bottom of the list that triggers scrolling
+const AUTO_SCROLL_SPEED := 300.0  # px/sec while hovering in the zone
 
 
 # Called once by nyx_main right after instancing + add_child. Stores the graph-container
@@ -54,16 +87,13 @@ func _load_category_icons() -> void:
 		var img := tex.get_image()
 		if not img:
 			continue
-		img.resize(14, 14, Image.INTERPOLATE_LANCZOS)
+		img.resize(10, 10, Image.INTERPOLATE_LANCZOS)
 		for y in img.get_height():
 			for x in img.get_width():
 				var px := img.get_pixel(x, y)
 				if px.a > 0.0:
 					img.set_pixel(x, y, Color(1.0, 1.0, 1.0, px.a))
-		# Add 2 transparent rows at bottom — shifts visual content up when ItemList centers the icon.
-		var padded := Image.create(14, 20, false, Image.FORMAT_RGBA8)
-		padded.blit_rect(img, Rect2i(0, 0, 14, 14), Vector2i(0, 2))
-		_category_icons[cat_name] = ImageTexture.create_from_image(padded)
+		_category_icons[cat_name] = ImageTexture.create_from_image(img)
 
 
 func _build() -> void:
@@ -117,7 +147,7 @@ func _build() -> void:
 	var header := Label.new()
 	header.text = "Add Node"
 	header.add_theme_color_override("font_color", Color.WHITE)
-	header.add_theme_font_size_override("font_size", 13)
+	header.add_theme_font_size_override("font_size", CARD_TITLE_FONT_SIZE)
 	vbox.add_child(header)
 
 	_search_input = LineEdit.new()
@@ -151,43 +181,34 @@ func _build() -> void:
 	_search_input.add_theme_stylebox_override("focus", input_focus)
 	_search_input.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
 	_search_input.add_theme_color_override("font_placeholder_color", Color(0.45, 0.45, 0.52))
+	_search_input.add_theme_font_size_override("font_size", ITEM_FONT_SIZE)
 	_search_input.text_changed.connect(_on_search_changed)
 	_search_input.gui_input.connect(_on_search_input_key)
 	vbox.add_child(_search_input)
 
-	_search_list = ItemList.new()
-	_search_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_search_list.add_theme_constant_override("icon_max_width", 12)
+	# Shared stylebox resources (same object reused across every row) — rows are
+	# Panel (not PanelContainer), so insetting/height comes from the row's own
+	# fixed size + the label's anchors, not from content_margin here. Same
+	# values as nyx_command_palette.gd's rows, so the two overlays read as one
+	# shared visual language.
+	_row_highlight_style = StyleBoxFlat.new()
+	_row_highlight_style.bg_color = Color("#31614F")
+	_row_highlight_style.set_corner_radius_all(3)
 
-	var list_bg := StyleBoxFlat.new()
-	list_bg.bg_color = Color(0.0, 0.0, 0.0, 0.0)
-	list_bg.set_border_width_all(0)
-	_search_list.add_theme_stylebox_override("panel", list_bg)
+	_row_empty_style = StyleBoxEmpty.new()
 
-	# Hovering an item auto-selects it (see _on_search_list_hover), so the visible
-	# style for a hovered row is actually "hovered_selected" — all selection/hover
-	# states must be overridden to Hunter green or the editor's muddy default bleeds
-	# through. One shared green stylebox covers every highlighted state.
-	var highlight := StyleBoxFlat.new()
-	highlight.bg_color = Color("#31614F")
-	highlight.set_corner_radius_all(3)
-	highlight.content_margin_left = 4
-	highlight.content_margin_right = 4
-	for state in ["selected", "selected_focus", "hovered_selected", "hovered_selected_focus"]:
-		_search_list.add_theme_stylebox_override(state, highlight)
-	# Plain "hovered" (mouse over a row that ISN'T selected) only ever applies to the
-	# disabled category headers — real node rows auto-select on hover (→ hovered_selected,
-	# above). Keep it empty so categories don't get the green fill.
-	_search_list.add_theme_stylebox_override("hovered", StyleBoxEmpty.new())
+	_scroll = ScrollContainer.new()
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# Backstop so a click on a header/disabled row (mouse_filter IGNORE/STOP with
+	# no handler) can never fall through to the backdrop and dismiss the popup.
+	_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	_search_list.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
-	_search_list.add_theme_color_override("font_selected_color", Color.WHITE)
-	_search_list.add_theme_color_override("font_hovered_color", Color.WHITE)
-	_search_list.add_theme_color_override("font_disabled_color", Color("#6BCF96"))
-
-	_search_list.item_selected.connect(_on_search_item_selected_by_mouse)
-	_search_list.gui_input.connect(_on_search_list_hover)
-	vbox.add_child(_search_list)
+	_rows_vbox = VBoxContainer.new()
+	_rows_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_rows_vbox.add_theme_constant_override("separation", 0)
+	_scroll.add_child(_rows_vbox)
+	vbox.add_child(_scroll)
 
 	search_card.add_child(vbox)
 	hbox.add_child(search_card)
@@ -274,6 +295,29 @@ func handle_resize() -> void:
 		size = _graph_container.size
 
 
+# Auto-scrolls the list while the cursor hovers within AUTO_SCROLL_ZONE of the
+# ScrollContainer's top/bottom edge — geometric check against the mouse
+# position rather than a hover-zone Control overlay, since an overlay would
+# need to sit on top of the rows to catch the edge but MOUSE_FILTER_PASS only
+# bubbles up a control's own parent chain (see the backdrop-dismiss gotcha),
+# not sideways into the row tree below it. scroll_vertical self-clamps, so no
+# manual range check is needed.
+func _process(delta: float) -> void:
+	if not visible:
+		return
+	if _rows_vbox.get_combined_minimum_size().y <= _scroll.size.y:
+		return
+	var rect := _scroll.get_global_rect()
+	var mouse := get_global_mouse_position()
+	if not rect.has_point(mouse):
+		return
+	var local_y := mouse.y - rect.position.y
+	if local_y < AUTO_SCROLL_ZONE:
+		_scroll.scroll_vertical -= int(AUTO_SCROLL_SPEED * delta)
+	elif local_y > rect.size.y - AUTO_SCROLL_ZONE:
+		_scroll.scroll_vertical += int(AUTO_SCROLL_SPEED * delta)
+
+
 func _is_node_unavailable(entry: Dictionary) -> bool:
 	if _shader_type == 2:
 		# Particle mode: only particle nodes plus nodes that operate on plain
@@ -290,41 +334,151 @@ func _is_node_unavailable(entry: Dictionary) -> bool:
 		   (entry.get("canvas_only", false) and _shader_type == 0)
 
 
-func _populate_search_grouped() -> void:
-	_search_list.clear()
+# remove_child (synchronous detach) before queue_free (deferred cleanup) — queue_free
+# alone leaves the old rows as children for the rest of the frame, so a populate-then-
+# repopulate in the same call would briefly double them up.
+func _clear_rows() -> void:
+	for child in _rows_vbox.get_children():
+		_rows_vbox.remove_child(child)
+		child.queue_free()
 	_search_item_ids.clear()
+	_row_selectable.clear()
+	_row_nodes.clear()
+	_selected_index = -1
+
+
+func _populate_search_grouped() -> void:
+	_clear_rows()
 	for category in NyxRegistry.NODE_REGISTRY:
 		var cat_name: String = category["category"]
-		var header_idx: int = _search_list.add_item(category["category"])
-		_search_list.set_item_disabled(header_idx, true)
-		_search_item_ids.append(-1)
-		_search_list.set_item_custom_fg_color(header_idx, Color("#6BCF96"))
-		if _category_icons.has(cat_name):
-			_search_list.set_item_icon(header_idx, _category_icons[cat_name])
-			_search_list.set_item_icon_modulate(header_idx, Color("#6BCF96"))
+		_add_header_row(cat_name, _category_icons.get(cat_name))
 		for entry in category["nodes"]:
-			var item_idx := _search_list.add_item("  " + entry["label"])
-			_search_item_ids.append(entry["id"])
-			if _is_node_unavailable(entry):
-				_search_list.set_item_disabled(item_idx, true)
-				_search_list.set_item_custom_fg_color(item_idx, Color(1, 1, 1, 0.25))
+			_add_item_row(entry)
 
 
 func _populate_search_filtered(query: String) -> void:
-	_search_list.clear()
-	_search_item_ids.clear()
+	_clear_rows()
 	for category in NyxRegistry.NODE_REGISTRY:
 		var category_matches := _fuzzy_match(query, category["category"])
-		var cat_name: String = category["category"]
 		for entry in category["nodes"]:
 			if category_matches or _fuzzy_match(query, entry["label"]):
-				var item_idx := _search_list.add_item(entry["label"])
-				_search_item_ids.append(entry["id"])
-				if _is_node_unavailable(entry):
-					_search_list.set_item_disabled(item_idx, true)
-					_search_list.set_item_custom_fg_color(item_idx, Color(1, 1, 1, 0.25))
-	if _search_list.item_count > 0:
-		_search_list.select(0)
+				_add_item_row(entry)
+	if _search_item_ids.size() > 0:
+		_select_index(0)
+
+
+# Anchors `control` to span the row horizontally (inset by `inset` on each
+# side) but, vertically, only to its own natural content height, centered —
+# NOT stretched to fill the row's fixed height. Forcing a Label/HBoxContainer
+# to fill a row shorter than the font's natural line height and relying on
+# vertical_alignment=CENTER to compensate reads as bottom-heavy in practice;
+# anchoring to the real content height sidesteps that entirely. Call this
+# after all children are added so get_combined_minimum_size() is final.
+func _center_row_content(control: Control, inset: float) -> void:
+	control.anchor_left = 0.0
+	control.anchor_right = 1.0
+	control.offset_left = inset
+	control.offset_right = -inset
+	var h: float = control.get_combined_minimum_size().y
+	control.anchor_top = 0.5
+	control.anchor_bottom = 0.5
+	control.offset_top = -h / 2.0
+	control.offset_bottom = h / 2.0
+
+
+func _add_header_row(category: String, icon) -> void:
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 0)
+	if icon:
+		var icon_rect := TextureRect.new()
+		icon_rect.texture = icon
+		icon_rect.custom_minimum_size = Vector2(10, 10)
+		# Default stretch_mode (STRETCH_SCALE) fills whatever rect the HBoxContainer's
+		# cross-axis stretch hands it, distorting the square texture — pin it to keep
+		# aspect and never grow past its own minimum size.
+		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		icon_rect.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_rect.modulate = HEADER_COLOR
+		hbox.add_child(icon_rect)
+
+	var label := Label.new()
+	label.text = category
+	label.add_theme_color_override("font_color", HEADER_COLOR)
+	label.add_theme_font_size_override("font_size", CATEGORY_FONT_SIZE)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hbox.add_child(label)
+	_center_row_content(hbox, ROW_INSET)
+
+	var row := Panel.new()
+	row.custom_minimum_size = Vector2(0, CATEGORY_ROW_HEIGHT)
+	row.clip_contents = true
+	row.add_theme_stylebox_override("panel", _row_empty_style)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(hbox)
+	_rows_vbox.add_child(row)
+
+	_search_item_ids.append(-1)
+	_row_selectable.append(false)
+	_row_nodes.append(row)
+
+
+func _add_item_row(entry: Dictionary) -> void:
+	var disabled := _is_node_unavailable(entry)
+
+	var row := Panel.new()
+	row.custom_minimum_size = Vector2(0, ITEM_ROW_HEIGHT)
+	row.clip_contents = true
+	row.add_theme_stylebox_override("panel", _row_empty_style)
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var label := Label.new()
+	label.text = "  " + entry["label"]
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.clip_text = true
+	label.add_theme_color_override("font_color", LABEL_DISABLED_COLOR if disabled else LABEL_COLOR)
+	label.add_theme_font_size_override("font_size", ITEM_FONT_SIZE)
+	_center_row_content(label, ROW_INSET)
+	row.add_child(label)
+	row.set_meta("main_label", label)
+	_rows_vbox.add_child(row)
+
+	var idx := _search_item_ids.size()
+	_search_item_ids.append(entry["id"])
+	_row_selectable.append(not disabled)
+	_row_nodes.append(row)
+
+	if not disabled:
+		row.mouse_entered.connect(_select_index.bind(idx))
+		row.gui_input.connect(_on_row_gui_input.bind(idx))
+
+
+func _on_row_gui_input(event: InputEvent, idx: int) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_select_index(idx)
+		_confirm_search_selection()
+		get_viewport().set_input_as_handled()
+
+
+func _select_index(idx: int) -> void:
+	if idx == _selected_index:
+		return
+	if _selected_index >= 0 and _selected_index < _row_nodes.size():
+		var prev: Control = _row_nodes[_selected_index]
+		prev.add_theme_stylebox_override("panel", _row_empty_style)
+		var prev_label: Label = prev.get_meta("main_label", null)
+		if prev_label:
+			prev_label.add_theme_color_override("font_color", LABEL_COLOR)
+	_selected_index = idx
+	if idx >= 0 and idx < _row_nodes.size():
+		var row: Control = _row_nodes[idx]
+		row.add_theme_stylebox_override("panel", _row_highlight_style)
+		var label: Label = row.get_meta("main_label", null)
+		if label:
+			label.add_theme_color_override("font_color", LABEL_SELECTED_COLOR)
+		_scroll.ensure_control_visible(row)
+		_show_doc_for(_search_item_ids[idx])
 
 
 func _fuzzy_match(query: String, candidate: String) -> bool:
@@ -337,26 +491,26 @@ func _fuzzy_match(query: String, candidate: String) -> bool:
 	return qi == query.length()
 
 
+func _is_unselectable(idx: int) -> bool:
+	return not _row_selectable[idx]
+
+
 func _move_search_selection(delta: int) -> void:
-	var count := _search_list.item_count
+	var count := _search_item_ids.size()
 	if count == 0:
 		return
-	var sel := _search_list.get_selected_items()
-	var idx: int = sel[0] + delta if not sel.is_empty() else (0 if delta > 0 else count - 1)
-	while idx >= 0 and idx < count and _search_list.is_item_disabled(idx):
+	var idx: int = _selected_index + delta if _selected_index >= 0 else (0 if delta > 0 else count - 1)
+	while idx >= 0 and idx < count and _is_unselectable(idx):
 		idx += delta
 	if idx < 0 or idx >= count:
 		return
-	_search_list.select(idx)
-	_search_list.ensure_current_is_visible()
-	_show_doc_for(_search_item_ids[idx])
+	_select_index(idx)
 
 
 func _confirm_search_selection() -> void:
-	var sel := _search_list.get_selected_items()
-	if sel.is_empty():
+	if _selected_index < 0 or _selected_index >= _search_item_ids.size():
 		return
-	var id: int = _search_item_ids[sel[0]]
+	var id: int = _search_item_ids[_selected_index]
 	if id < 0:
 		return
 	close()
@@ -386,26 +540,6 @@ func _on_search_input_key(event: InputEvent) -> void:
 		KEY_ESCAPE:
 			close()
 			_search_input.accept_event()
-
-
-func _on_search_item_selected_by_mouse(index: int) -> void:
-	_show_doc_for(_search_item_ids[index])
-
-
-func _on_search_list_hover(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		var idx := _search_list.get_item_at_position(event.position, true)
-		if idx >= 0 and not _search_list.is_item_disabled(idx):
-			_search_list.select(idx)
-			_show_doc_for(_search_item_ids[idx])
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var idx := _search_list.get_item_at_position(event.position, true)
-		if idx >= 0 and not _search_list.is_item_disabled(idx):
-			var id: int = _search_item_ids[idx]
-			if id >= 0:
-				close()
-				node_chosen.emit(id)
-				get_viewport().set_input_as_handled()
 
 
 func _show_doc_for(id: int) -> void:

@@ -8,8 +8,8 @@ extends PanelContainer
 ##
 ## Holds only: an eye-spark icon button that opens the Ctrl+P command palette (left side —
 ## "click the logo to start acting" is the expected corner convention), filename + dirty
-## asterisk, and a bare "●" status dot — always visible, green when linked to a shader,
-## red when not (a status indicator, not a control; no label, tooltip covers
+## asterisk, and a circle-dot status icon — always visible, green when linked to a shader,
+## muted when not (a status indicator, not a control; no label, tooltip covers
 ## discoverability). Every action that used to live in the old toolbar
 ## (File/Export/Live/View) now lives in nyx_command_palette.gd; Undo/Redo/Properties
 ## and GraphEdit's native zoom/grid/minimap toolbar live in nyx_tool_rail.gd. This pill
@@ -27,7 +27,8 @@ var _graph_container: Control   # for placement math
 var _top_offset: float = -1.0   # -1 = not yet placed
 
 var _filename_label: Label
-var _live_badge: Label
+var _live_badge: TextureRect
+var _palette_btn: Button
 
 
 func setup(graph: GraphEdit, graph_container: Control) -> void:
@@ -51,6 +52,22 @@ func reanchor(graph_top: float) -> void:
 
 func is_placed() -> bool:
 	return _top_offset >= 0.0
+
+
+# Global-space anchor for dropdown-style popups triggered by the palette
+# button (as opposed to Ctrl+P, which opens at the cursor) — just under the
+# pill's bottom-left corner.
+func get_palette_anchor_global_pos() -> Vector2:
+	var r := get_global_rect()
+	return Vector2(r.position.x, r.position.y + r.size.y + 4.0)
+
+
+# Driven externally by the command palette's own visibility_changed, mirroring
+# nyx_node.gd's set_inspector_popup_open — set_pressed_no_signal so this state
+# sync never re-fires "pressed" and loops back into re-opening the palette.
+func set_palette_open(v: bool) -> void:
+	if _palette_btn:
+		_palette_btn.set_pressed_no_signal(v)
 
 
 # ── Public update API (nyx_main calls these to reflect state changes) ─────────
@@ -81,10 +98,10 @@ func set_live_badge(linked_path: String) -> void:
 		return
 	_live_badge.visible = true
 	if linked_path.is_empty():
-		_live_badge.add_theme_color_override("font_color", Color("#31614F"))
+		_live_badge.modulate = Color("#31614F")
 		_live_badge.tooltip_text = "Not linked to a shader yet"
 	else:
-		_live_badge.add_theme_color_override("font_color", Color("#4AAF78"))
+		_live_badge.modulate = Color("#4AAF78")
 		_live_badge.tooltip_text = "Live linked to %s" % linked_path.get_file()
 	reset_size()
 
@@ -129,12 +146,31 @@ func _build() -> void:
 	palette_wrap.add_theme_stylebox_override("panel", palette_bg)
 	bar.add_child(palette_wrap)
 
-	var palette_btn := Button.new()
-	palette_btn.icon = _load_icon("res://addons/nyx/icons/eye-spark.svg", 14)
-	palette_btn.tooltip_text = "Commands (Ctrl+P)"
-	palette_btn.pressed.connect(func() -> void: palette_pressed.emit())
-	_style_btn(palette_btn)
-	palette_wrap.add_child(palette_btn)
+	# Same icon-color-only treatment as the node-inspector cog (nyx_node.gd's
+	# _add_inspector_trigger) instead of the box-hover styling _style_btn gives
+	# other buttons — light grey passive, white hover, brand green pressed, and
+	# stays toggled green (via set_palette_open, driven by the palette's own
+	# visibility_changed) while the command palette is open.
+	_palette_btn = Button.new()
+	_palette_btn.icon = _load_icon("res://addons/nyx/icons/eye-spark.svg", 14)
+	_palette_btn.tooltip_text = "Commands (Ctrl+P)"
+	_palette_btn.flat = true
+	_palette_btn.toggle_mode = true
+	_palette_btn.focus_mode = Control.FOCUS_NONE
+	_palette_btn.add_theme_color_override("icon_normal_color", Color(0.85, 0.85, 0.9, 0.7))
+	_palette_btn.add_theme_color_override("icon_hover_color", Color(0.95, 0.95, 1.0))
+	_palette_btn.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
+	# Godot uses a SEPARATE icon color for "hovering while toggled on" —
+	# without this it falls back to the editor theme's default (a blue
+	# accent), so hovering the icon while the palette is open flashed blue.
+	_palette_btn.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
+	var palette_btn_empty := StyleBoxEmpty.new()
+	_palette_btn.add_theme_stylebox_override("normal", palette_btn_empty)
+	_palette_btn.add_theme_stylebox_override("hover", palette_btn_empty)
+	_palette_btn.add_theme_stylebox_override("pressed", palette_btn_empty)
+	_palette_btn.add_theme_stylebox_override("focus", palette_btn_empty)
+	_palette_btn.pressed.connect(func() -> void: palette_pressed.emit())
+	palette_wrap.add_child(_palette_btn)
 
 	# Right segment — the rest of the pill (filename, dot), in the darker
 	# body gray inherited from the outer stylebox; its own MarginContainer
@@ -156,20 +192,27 @@ func _build() -> void:
 	rest_bar.add_child(_filename_label)
 	update_filename("untitled.nyx", false, false)  # starts muted green — no file on disk yet
 
-	# Bare status dot, no label — a plain colored dot is a standard "status
+	# Bare status icon, no label — a plain colored dot is a standard "status
 	# indicator" idiom (recording lights, connection dots), and now that the
 	# dirty flag is a "*" suffix instead of a dot, there's no more ambiguity
 	# between two differently-meaning dots. Tooltip still covers discoverability.
 	# Wrapped in a MarginContainer so it can be nudged down a couple pixels —
-	# a raw position offset on the Label itself would just get overwritten by
-	# the HBoxContainer's own layout pass every frame.
+	# a raw position offset on the TextureRect itself would just get overwritten
+	# by the HBoxContainer's own layout pass every frame.
 	var live_badge_wrap := MarginContainer.new()
 	live_badge_wrap.add_theme_constant_override("margin_top", NyxNodeBase._s(2))
+	live_badge_wrap.add_theme_constant_override("margin_right", NyxNodeBase._s(7))
 	rest_bar.add_child(live_badge_wrap)
 
-	_live_badge = Label.new()
-	_live_badge.text = "●"
-	_live_badge.add_theme_font_size_override("font_size", 9)
+	_live_badge = TextureRect.new()
+	_live_badge.texture = _load_icon("res://addons/nyx/icons/circle-dot.svg", 10)
+	_live_badge.custom_minimum_size = Vector2(10, 10)
+	# Default stretch_mode (STRETCH_SCALE) fills whatever rect the HBoxContainer's
+	# cross-axis stretch hands it, distorting the square texture — pin it to keep
+	# aspect and never grow past its own minimum size.
+	_live_badge.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_live_badge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_live_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	# STOP, not IGNORE — a tooltip needs mouse-enter events to fire, which an
 	# IGNORE control never receives regardless of tooltip_text being set.
 	_live_badge.mouse_filter = Control.MOUSE_FILTER_STOP

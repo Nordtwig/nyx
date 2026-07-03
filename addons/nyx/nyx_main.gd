@@ -142,7 +142,16 @@ func _ready() -> void:
 	# Floats over the graph's top-left corner — does NOT sit in _outer_vbox,
 	# reserves no layout space (see nyx_chrome_bar.gd header).
 	_chrome_bar = NyxChromeBar.new()
-	_chrome_bar.palette_pressed.connect(_open_command_palette)
+	_chrome_bar.palette_pressed.connect(func() -> void:
+		# toggle_mode auto-flips the button's own pressed visual on every click,
+		# but our external sync (below) only fires when the palette's .visible
+		# actually changes — so a second click while it's already open must
+		# close it here, not just re-open/refresh it, or the button would show
+		# grey while the palette stays open.
+		if _command_palette.visible:
+			_command_palette.close()
+		else:
+			_open_command_palette(_chrome_bar.get_palette_anchor_global_pos()))
 	add_child(_chrome_bar)
 	_chrome_bar.setup(_graph, _graph_container)
 
@@ -175,6 +184,11 @@ func _ready() -> void:
 	_command_palette.properties_toggled.connect(_toggle_properties_panel)
 	_command_palette.undo_pressed.connect(_undo)
 	_command_palette.redo_pressed.connect(_redo)
+	# Keeps the chrome-bar palette icon's toggled-green state in sync with the
+	# palette's actual visibility, however it closes (backdrop click, Escape,
+	# running a command) — not just the button-click path above.
+	_command_palette.visibility_changed.connect(func() -> void:
+		_chrome_bar.set_palette_open(_command_palette.visible))
 
 	_export_dialog = EditorFileDialog.new()
 	_export_dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
@@ -834,6 +848,7 @@ func _build_shortcuts_overlay() -> Control:
 		["Ctrl+S", "Save (+ Update if linked)"],
 		["Ctrl+Shift+S", "Save As"],
 		["Ctrl+E", "Export / Update linked shader"],
+		["Ctrl+Shift+E", "Export As… (re-link)"],
 		["Ctrl+U", "Reload Nyx"],
 		["Ctrl+P", "Command palette"],
 		["?", "Toggle this chart"],
@@ -1108,9 +1123,11 @@ func _shortcut_input(event: InputEvent) -> void:
 				_load_dialog.popup_centered_ratio(0.5)
 				accept_event()
 		KEY_E:
-			if not shift:
+			if shift:
+				_on_export_menu_id(2)  # Export As… (re-link)
+			else:
 				_on_export_pressed()
-				accept_event()
+			accept_event()
 		KEY_P:
 			if not shift:
 				_open_command_palette()
@@ -1195,12 +1212,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			accept_event()
 
 
-func _open_command_palette() -> void:
+func _open_command_palette(anchor_global_pos = null) -> void:
 	_command_palette.open({
 		"linked": not _linked_shader_path.is_empty(),
 		"live_on": _live_link_on,
 		"recent_files": _get_recent_files(),
-	})
+	}, anchor_global_pos)
 
 
 func _toggle_shortcuts_overlay() -> void:
