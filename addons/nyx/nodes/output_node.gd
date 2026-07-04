@@ -139,6 +139,10 @@ func _apply_style() -> void:
 	titlebar.corner_radius_top_right = 12
 	titlebar.corner_radius_bottom_left = 0
 	titlebar.corner_radius_bottom_right = 0
+	# Cedes its bottom 2px to body's expand_margin_top=2 overlap — see
+	# nyx_node.gd's matching comment (translucent double-paint of the same
+	# seam strip visibly brightens it vs. everywhere else).
+	titlebar.expand_margin_bottom = -2
 	titlebar.border_width_left = 1
 	titlebar.border_width_right = 1
 	titlebar.border_width_top = 1

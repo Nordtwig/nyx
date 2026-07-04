@@ -231,25 +231,36 @@ func _get_node_snippet(node: Node, from_port: int, connections: Array) -> Array:
 	return [node.get_output_snippet(from_port, inputs), output_type]
 
 
+# Resolves what a single input port's type actually is: whatever's connected
+# to it (recursively resolved through the source, if that source is itself
+# polymorphic), or the node's own declared default for that port if nothing's
+# connected. Shared by resolve_output_type() (to compute a poly node's own
+# output) and update_all_polymorphic_ports() (to recolor input ports so they
+# reflect what's really flowing in, not just the node's nominal declaration).
+func resolve_input_type(node: Node, port: int, connections: Array) -> int:
+	var default_types: Array = node.get_default_input_types() if node.has_method("get_default_input_types") else []
+	var in_type: int = default_types[port] if port < default_types.size() else node.get_input_port_type(port)
+	for conn in connections:
+		if str(conn["to_node"]) == node.name and conn["to_port"] == port:
+			var from_n := graph.get_node_or_null(str(conn["from_node"]))
+			if from_n:
+				in_type = resolve_output_type(from_n, conn["from_port"])
+			break
+	return in_type
+
+
 func resolve_output_type(node: Node, from_port: int) -> int:
 	if not node.has_method("is_polymorphic") or not node.is_polymorphic():
 		return node.get_output_port_type(from_port)
-	var c := graph.get_connection_list()
-	var default_types: Array = node.get_default_input_types() if node.has_method("get_default_input_types") else []
+	var connections := graph.get_connection_list()
 	var input_types := []
 	for i in range(node.get_input_port_count()):
-		var in_type: int = default_types[i] if i < default_types.size() else node.get_input_port_type(i)
-		for conn in c:
-			if str(conn["to_node"]) == node.name and conn["to_port"] == i:
-				var from_n := graph.get_node_or_null(str(conn["from_node"]))
-				if from_n:
-					in_type = resolve_output_type(from_n, conn["from_port"])
-				break
-		input_types.append(in_type)
+		input_types.append(resolve_input_type(node, i, connections))
 	return node.get_output_type(from_port, input_types) if node.has_method("get_output_type") else node.get_output_port_type(from_port)
 
 
 func update_all_polymorphic_ports() -> void:
+	var connections := graph.get_connection_list()
 	for child in graph.get_children():
 		if not (child is GraphNode):
 			continue
@@ -263,6 +274,22 @@ func update_all_polymorphic_ports() -> void:
 			child.set_slot(port,
 				child.is_slot_enabled_left(port), child.get_slot_type_left(port), child.get_slot_color_left(port),
 				child.is_slot_enabled_right(port), resolved_type, port_color)
+		# Input side: recolor only, never retype. A poly node's nominal input
+		# type (e.g. Relay's declared vec3) already accepts every real type
+		# via the promotion matrix (float/vec2/vec3 widen to it, vec4 narrows
+		# to it) — changing the type ID to match whatever's momentarily
+		# connected would only ever *restrict* future reconnections (nothing
+		# narrows down TO float, for instance), for zero benefit. Unlike the
+		# output side, the input's registered type isn't load-bearing for any
+		# validation, so there's nothing to keep correct except the color.
+		for port in range(child.get_input_port_count()):
+			var resolved_type := resolve_input_type(child, port, connections)
+			var port_color := NyxNodeBase._type_color(resolved_type)
+			if child.get_slot_color_left(port) == port_color:
+				continue
+			child.set_slot(port,
+				child.is_slot_enabled_left(port), child.get_slot_type_left(port), port_color,
+				child.is_slot_enabled_right(port), child.get_slot_type_right(port), child.get_slot_color_right(port))
 
 
 ## Generic post-connection-change hook for nodes whose UI reads the graph beyond

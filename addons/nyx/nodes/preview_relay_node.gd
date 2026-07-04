@@ -1,141 +1,42 @@
 @tool
 extends "res://addons/nyx/nodes/nyx_node.gd"
 
-var _custom_name: String = "Preview"
-var _color: Color = Color("#3C4655")
-
-var _name_label: Label
-var _name_edit_field: LineEdit
-var _settings_toggle: Button
-var _settings_popup: PopupPanel
-var _color_picker: ColorPicker
-var _embedded_preview: TextureRect
+var _color: Color = Color(0.14, 0.14, 0.18, 0.95)
 
 
 func _ready() -> void:
 	_node_color = _color
 	super._ready()
-	title = _custom_name
+	title = "Preview"
 
-	var port_row := Control.new()
-	port_row.custom_minimum_size = Vector2(_s(140), 0)
+	# An empty-text Label, not a bare Control — a Label's minimum height comes
+	# from font ascent/descent metrics (one line's worth of vertical space),
+	# independent of the actual string content, so this inherits the exact
+	# same height every other node's Label-based row gets, on any machine,
+	# with no hardcoded/scaled number to keep in sync. (A hardcoded _s(23)
+	# was tried first and was wrong: that "23" was measured with no editor
+	# scale applied at all, since Label sizing is font-driven and already
+	# scales on its own — wrapping it in _s() scaled it a second time,
+	# shrinking it below the real row height on an actual running editor.)
+	var port_row := Label.new()
 	add_child(port_row)
 
 	set_slot(0, true, 0, _type_color(0), true, 0, _type_color(0))
 
-	var bottom_row := HBoxContainer.new()
-	var bottom_spacer := Control.new()
-	bottom_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bottom_row.add_child(bottom_spacer)
-	_settings_toggle = Button.new()
-	_settings_toggle.text = "⚙"
-	_settings_toggle.flat = true
-	_settings_toggle.pressed.connect(_on_settings_toggled)
-	bottom_row.add_child(_settings_toggle)
-	add_child(bottom_row)
-
-	_settings_popup = PopupPanel.new()
-	_settings_popup.size = Vector2(220, 260)
-	_color_picker = ColorPicker.new()
-	_color_picker.color = _color
-	_color_picker.edit_alpha = false
-	_color_picker.color_changed.connect(_on_color_changed)
-	_settings_popup.add_child(_color_picker)
-	add_child(_settings_popup)
-
 	_apply_node_color()
 
-
-func _add_preview_controls() -> void:
-	_embedded_preview = TextureRect.new()
-	_embedded_preview.custom_minimum_size = Vector2(0, 100)
-	_embedded_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_embedded_preview.stretch_mode = TextureRect.STRETCH_SCALE
-	_embedded_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-
-	var corner_shader := Shader.new()
-	corner_shader.code = "shader_type canvas_item;\nvoid fragment() {\n\tvec2 size = 1.0 / TEXTURE_PIXEL_SIZE;\n\tvec2 pos = UV * size;\n\tfloat r = 5.0;\n\tvec2 d = max(abs(pos - size * 0.5) - (size * 0.5 - r), vec2(0.0));\n\tCOLOR = texture(TEXTURE, UV);\n\tCOLOR.a *= clamp(-(length(d) - r), 0.0, 1.0);\n}"
-	var corner_mat := ShaderMaterial.new()
-	corner_mat.shader = corner_shader
-	_embedded_preview.material = corner_mat
-
-	add_child(_embedded_preview)
-	_preview_slot = _embedded_preview
-
-	var bottom_row: Node = _settings_toggle.get_parent()
-	if bottom_row and bottom_row.get_parent() == self:
-		move_child(bottom_row, get_child_count() - 1)
-
-	set_slot(get_children().find(_embedded_preview), false, -1, _type_color(0), false, -1, _type_color(0))
-
-	call_deferred("_request_preview_open")
+	# Preview Relay's preview isn't a secondary, occasionally-toggled feature
+	# like every other node's — it's the whole point of the node, so it
+	# should already be open the moment it's spawned or loaded, not require
+	# a manual click. Reuses the real toggle handler (not a state copy) so
+	# preview_toggled fires correctly and nyx_main.gd's existing per-node
+	# preview wiring opens the SubViewport for it exactly as if clicked.
+	call_deferred("_auto_open_preview")
 
 
-func _request_preview_open() -> void:
-	emit_signal("preview_toggled")
-
-
-func get_preview_slot() -> TextureRect:
-	return _embedded_preview
-
-
-func _on_settings_toggled() -> void:
-	if _settings_popup.visible:
-		_settings_popup.hide()
-	else:
-		var btn_pos := _settings_toggle.get_screen_position()
-		_settings_popup.popup(Rect2(btn_pos + Vector2(-180, _settings_toggle.size.y), _settings_popup.size))
-
-
-func _center_title() -> void:
-	var hbox := get_titlebar_hbox()
-	for child in hbox.get_children():
-		if child is Label:
-			child.hide()
-			break
-
-	var lbl := Label.new()
-	lbl.text = _custom_name
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.add_theme_color_override("font_color", Color.WHITE)
-	lbl.add_theme_constant_override("outline_size", 0)
-	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0))
-	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-	lbl.add_theme_constant_override("shadow_offset_x", 0)
-	lbl.add_theme_constant_override("shadow_offset_y", 0)
-	lbl.mouse_filter = Control.MOUSE_FILTER_STOP
-	hbox.add_child(lbl)
-	_name_label = lbl
-
-	var name_edit := LineEdit.new()
-	name_edit.text = _custom_name
-	name_edit.custom_minimum_size = Vector2(_s(80), 0)
-	name_edit.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	name_edit.add_theme_color_override("font_color", Color.WHITE)
-	name_edit.visible = false
-	_name_edit_field = name_edit
-	name_edit.text_submitted.connect(_on_name_submitted.bind(name_edit, lbl))
-	name_edit.focus_exited.connect(func(): _on_name_submitted(name_edit.text, name_edit, lbl))
-	hbox.add_child(name_edit)
-
-	lbl.gui_input.connect(func(event: InputEvent):
-		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			lbl.hide()
-			name_edit.text = _custom_name
-			name_edit.show()
-			name_edit.grab_focus()
-			name_edit.select_all()
-	)
-
-
-func _on_name_submitted(new_name: String, name_edit: LineEdit, lbl: Label) -> void:
-	_custom_name = new_name if new_name.strip_edges() != "" else _custom_name
-	title = _custom_name
-	if _name_label: _name_label.text = _custom_name
-	lbl.show()
-	name_edit.hide()
-	call_deferred("reset_size")
-	emit_signal("value_changed")
+func _auto_open_preview() -> void:
+	if _preview_chevron and not _preview_open:
+		_on_preview_chevron_pressed(_preview_chevron)
 
 
 func _on_color_changed(color: Color) -> void:
@@ -145,21 +46,22 @@ func _on_color_changed(color: Color) -> void:
 	emit_signal("value_changed")
 
 
+func get_color() -> Color:
+	return _color
+
+
+# Counterpart to get_color() — the node-inspector popup calls this on every
+# ColorPicker drag (see color_node.gd for why this Callable pair exists).
+func set_color_from_inspector(c: Color) -> void:
+	_on_color_changed(c)
+
+
 func _apply_node_color() -> void:
-	var body := get_theme_stylebox("panel").duplicate() as StyleBoxFlat
-	body.bg_color = _color
-	add_theme_stylebox_override("panel", body)
-	var titlebar := get_theme_stylebox("titlebar").duplicate() as StyleBoxFlat
-	titlebar.bg_color = _color
-	add_theme_stylebox_override("titlebar", titlebar)
-	_apply_selection_style(body, titlebar)
-	call_deferred("_update_title_color")
+	_apply_body_color(_color)
 
 
 func _update_title_color() -> void:
-	var luminance := _color.r * 0.299 + _color.g * 0.587 + _color.b * 0.114
-	var text_color := Color.BLACK if luminance > 0.5 else Color.WHITE
-	if _name_label: _name_label.add_theme_color_override("font_color", text_color)
+	_apply_luminance_title_color(_color)
 
 
 func is_polymorphic() -> bool:
@@ -188,19 +90,15 @@ func get_default_inputs() -> Array:
 
 func get_state() -> Dictionary:
 	return {
-		"custom_name": _custom_name,
+		"custom_name": title,
 		"color": [_color.r, _color.g, _color.b, _color.a],
 	}
 
 
 func set_state(state: Dictionary) -> void:
-	_custom_name = state.get("custom_name", "Preview")
+	title = state.get("custom_name", "Preview")
 	var c = state.get("color")
 	if c is Array and c.size() >= 4:
 		_color = Color(c[0], c[1], c[2], c[3])
 		_node_color = _color
-		if _color_picker: _color_picker.color = _color
-	title = _custom_name
-	if _name_label: _name_label.text = _custom_name
-	if _name_edit_field: _name_edit_field.text = _custom_name
 	_apply_node_color()

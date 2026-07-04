@@ -506,13 +506,47 @@ const NODE_TYPE_CATEGORY := {
 # (÷0.75, rounded) so the same relationship holds on any DPI. See the "editor scale"
 # gotcha in CLAUDE.md.
 const NODE_WIDTH_TIERS := {
-	# 135 — bare unary/binary math, no inline controls, short title.
+	# 135 — every row's own content (port labels, a single unlabeled widget)
+	# is short/single-word. Port COUNT doesn't push a node out of this tier by
+	# itself (2026-07-04 revision) — each port is its own row, so more of them
+	# just adds height, not width, as long as no individual row's content is
+	# long. Includes the bare math ops, the "few short labels stacked
+	# vertically" multi-port nodes (Clamp/Power/MinMax/Mod/Mix/Split/Combine/
+	# Time/BlendNormals — labels are all things like "A"/"Min"/"Exp"/"Sin"),
+	# and single-port nodes with a short title and no widget (UV/Vertex/
+	# Screen UV/the particle value readers/Vertex Color/Pixel Size), plus
+	# Float (a bare SpinBox with no separate label at all).
 	"AddNode": 135.0,        "SubtractNode": 135.0,   "MultiplyNode": 135.0,
 	"DivideNode": 135.0,     "AbsNode": 135.0,        "CeilNode": 135.0,
 	"FloorNode": 135.0,      "FractNode": 135.0,      "NegateNode": 135.0,
 	"OneMinusNode": 135.0,   "RoundNode": 135.0,      "SqrtNode": 135.0,
 	"SinNode": 135.0,        "CosNode": 135.0,        "NormalizeNode": 135.0,
 	"LengthNode": 135.0,     "DotNode": 135.0,        "ScaleNode": 135.0,
+	"RelayNode": 135.0,      "PreviewRelayNode": 135.0,
+	"ClampNode": 135.0,      "PowerNode": 135.0,      "MinMaxNode": 135.0,
+	"ModNode": 135.0,        "MixNode": 135.0,        "SplitNode": 135.0,
+	"CombineNode": 135.0,    "TimeNode": 135.0,       "BlendNormalsNode": 135.0,
+	"UVNode": 135.0,         "VertexNode": 135.0,     "ScreenUVNode": 135.0,
+	"ParticleVelocityNode": 135.0,   "ParticlePositionNode": 135.0,
+	"ParticleDeltaNode": 135.0,      "ParticleIndexNode": 135.0,
+	"ParticleAgeNode": 135.0,        "VertexColorNode": 135.0,
+	"TexturePixelSizeNode": 135.0,   "FloatNode": 135.0,
+	# Every remaining "content-heavy" node also gets the same 135 FLOOR
+	# (2026-07-04) — nothing in Nyx should render narrower than the smallest
+	# tier just because its own content happens to be simpler/unconstrained.
+	# A floor never fights content that genuinely needs more: Vector3's 3
+	# stacked X/Y/Z rows, Texture Sample/Normal Map's texture-path label
+	# (140), and Custom Function's code editor (200) already exceed 135 on
+	# their own, so this is a no-op for them — added for consistency, not
+	# because they measured narrow. Color/Curve/Gradient's own explicit
+	# widths (120 / unset / unset) genuinely were narrower than 135 before
+	# this, a real inconsistency Noah caught in the live graph. Reroute gets
+	# it too on the same principle, though its shape is the documented
+	# special/parked case (see the Reroute known-gotcha) — worth a look if
+	# the floor visibly fights its intentionally minimal pill.
+	"Vector3Node": 135.0,    "ColorNode": 135.0,      "CurveNode": 135.0,
+	"GradientNode": 135.0,   "TextureSampleNode": 135.0, "NormalMapNode": 135.0,
+	"SpriteTextureNode": 135.0, "CustomGLSLNode": 135.0, "RerouteNode": 135.0,
 
 	# 150 — sink/terminal nodes. Measured: even the thickest (Output, 8 labeled
 	# slots) doesn't need more than this, so a shared floor actually equalizes
@@ -520,23 +554,18 @@ const NODE_WIDTH_TIERS := {
 	"OutputNode": 150.0,     "VertexOutputNode": 150.0,
 	"ParticleStartNode": 150.0, "ParticleProcessNode": 150.0,
 
-	# 185 — a few more ports / a longer title with no controls, OR exactly one
-	# simple inline control (EditorSpinSlider/SpinBox draw their label inside
-	# the control and sit on their own row, so one slider isn't any wider than
-	# a bare port row — just taller. That's a height concern, not width.)
-	"ClampNode": 185.0,      "PowerNode": 185.0,      "MinMaxNode": 185.0,
-	"ModNode": 185.0,        "MixNode": 185.0,        "SplitNode": 185.0,
-	"CombineNode": 185.0,    "UVNode": 185.0,         "VertexNode": 185.0,
-	"TimeNode": 185.0,       "ObjectPositionNode": 185.0, "WorldPositionNode": 185.0,
-	"InstanceCustomDataNode": 185.0, "ScreenUVNode": 185.0,
-	"ParticleVelocityNode": 185.0,   "ParticlePositionNode": 185.0,
-	"ParticleDeltaNode": 185.0,      "ParticleIndexNode": 185.0,
-	"ParticleAgeNode": 185.0,        "VertexColorNode": 185.0,
-	"TexturePixelSizeNode": 185.0,
-	"FloatNode": 185.0,      "FresnelNode": 185.0,    "StepNode": 185.0,
-	"RotateUVNode": 185.0,   "WarpNode": 185.0,       "NormalFromHeightNode": 185.0,
-	"DepthFadeNode": 185.0,  "NoiseNode": 185.0,      "BlendNormalsNode": 185.0,
-	"ScreenTextureNode": 185.0,
+	# 185 — a genuinely long title (Object/World Position, Instance Custom
+	# Data, Screen Texture — 14+ characters, well past what 135 comfortably
+	# holds), OR a labeled EditorSpinSlider/OptionButton alongside its own
+	# separately labeled port rows (Fresnel/Step/RotateUV/Warp/
+	# NormalFromHeight/DepthFade/Noise) — the slider's own internal
+	# composition (label + value + arrows in one control) needs more room
+	# than a bare port row, unlike Float's label-less SpinBox above.
+	"ObjectPositionNode": 185.0, "WorldPositionNode": 185.0,
+	"InstanceCustomDataNode": 185.0, "ScreenTextureNode": 185.0,
+	"FresnelNode": 185.0,    "StepNode": 185.0,       "RotateUVNode": 185.0,
+	"WarpNode": 185.0,       "NormalFromHeightNode": 185.0,
+	"DepthFadeNode": 185.0,  "NoiseNode": 185.0,
 
 	# 215 — genuinely multi-control nodes (2+ sliders/spinboxes/dropdowns):
 	# visually denser, earns the extra width even though each row alone

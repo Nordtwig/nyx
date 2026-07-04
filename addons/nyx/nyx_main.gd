@@ -341,7 +341,7 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 				_node_inspector.open_for_resource(n.get_gradient(), "Gradient", n)
 			elif n.has_method("get_color"):
 				_node_inspector.open_for_color(
-					Callable(n, "get_color"), Callable(n, "set_color_from_inspector"), "Color", n)
+					Callable(n, "get_color"), Callable(n, "set_color_from_inspector"), n.title, n)
 			elif NyxRegistry.is_sink(n):
 				_node_inspector.open_for_sink(
 					n.title, n, _shader_type, _shader_type != 2, _get_render_mode_index(),

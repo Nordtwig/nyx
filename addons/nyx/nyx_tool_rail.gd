@@ -88,7 +88,7 @@ func is_placed() -> bool:
 
 func _build() -> void:
 	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.13, 0.13, 0.16, 0.92)
+	card_style.bg_color = Color(0.14, 0.14, 0.18, 0.92)
 	# Top corners match the command bar's corner radius (_s(8)); bottom-left
 	# stays at the rail's own original _s(6), bottom-right doubled for accent.
 	card_style.corner_radius_top_left = NyxNodeBase._s(8)
@@ -109,7 +109,7 @@ func _build() -> void:
 	header_bg.bg_color = Color(header_base.r, header_base.g, header_base.b, 0.95)
 	header_bg.corner_radius_top_left = NyxNodeBase._s(8)
 	header_bg.corner_radius_top_right = NyxNodeBase._s(8)
-	header_bg.border_width_bottom = 2
+	header_bg.border_width_bottom = 1
 	header_bg.border_color = Color(0.12, 0.12, 0.16)
 	header_bg.content_margin_top = NyxNodeBase._s(12)
 	header_bg.content_margin_bottom = NyxNodeBase._s(12)

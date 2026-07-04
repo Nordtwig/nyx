@@ -83,37 +83,11 @@ func set_param_name(n: String) -> void:
 
 
 func _apply_node_color() -> void:
-	var body := get_theme_stylebox("panel").duplicate() as StyleBoxFlat
-	body.bg_color = _color
-	add_theme_stylebox_override("panel", body)
-
-	var titlebar := get_theme_stylebox("titlebar").duplicate() as StyleBoxFlat
-	titlebar.bg_color = _color
-	add_theme_stylebox_override("titlebar", titlebar)
-
-	_apply_selection_style(body, titlebar)
-	call_deferred("_update_title_color")
+	_apply_body_color(_color)
 
 
 func _update_title_color() -> void:
-	var luminance := _color.r * 0.299 + _color.g * 0.587 + _color.b * 0.114
-	var text_color := Color.BLACK if luminance > 0.5 else Color.WHITE
-	var hbox := get_titlebar_hbox()
-	for child in hbox.get_children():
-		if child is Label:
-			child.add_theme_color_override("font_color", text_color)
-	# The inspector cog's fixed light-grey icon washes out against a bright/
-	# white picked color, same problem the title text has — but pure black
-	# (text_color's dark option) reads too harsh for an icon, so use a softer
-	# dark grey instead. The base class's hardcoded near-white icon_hover_color
-	# has the identical problem on a light body (hover would vanish), so this
-	# needs its own luminance-aware pair, not just a reuse of text_color.
-	if _inspector_cog:
-		var icon_normal := Color(0.16, 0.16, 0.19) if luminance > 0.5 else Color(0.92, 0.92, 0.95)
-		var icon_hover := Color(0.05, 0.05, 0.07) if luminance > 0.5 else Color.WHITE
-		_inspector_cog.add_theme_color_override(
-			"icon_normal_color", Color(icon_normal.r, icon_normal.g, icon_normal.b, 0.7))
-		_inspector_cog.add_theme_color_override("icon_hover_color", icon_hover)
+	_apply_luminance_title_color(_color)
 
 
 func _add_preview_controls() -> void:

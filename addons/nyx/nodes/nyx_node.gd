@@ -60,7 +60,11 @@ func _draw() -> void:
 	if not (selected and _halo_style):
 		return
 	var e := 1.0
-	draw_style_box(_halo_style, Rect2(Vector2(-e, -e), size + Vector2(e * 2.0, e * 2.0)))
+	# Hugs just the body — when the per-node preview is open, it floats as
+	# its own separate card below (see _update_body_for_preview), so the
+	# selection halo shouldn't stretch down to wrap that too.
+	var halo_size := size - Vector2(0, _preview_added_height())
+	draw_style_box(_halo_style, Rect2(Vector2(-e, -e), halo_size + Vector2(e * 2.0, e * 2.0)))
 	# The halo draws on top of GraphNode's content, so re-stamp the port dots over
 	# it — they overhang the node edge and the ring would otherwise cross them.
 	var tex := get_theme_icon("port")
@@ -147,6 +151,7 @@ func _on_preview_chevron_pressed(chevron: Button) -> void:
 	chevron.text = "▴" if _preview_open else "▾"
 	_preview_spacer.visible = _preview_open
 	_preview_wrapper.visible = _preview_open
+	queue_redraw()  # so the selection halo (if selected) resizes immediately
 	if _preview_open:
 		_update_body_for_preview()
 	else:
@@ -154,10 +159,27 @@ func _on_preview_chevron_pressed(chevron: Button) -> void:
 	emit_signal("preview_toggled")
 
 
+# Height _preview_spacer + _preview_wrapper add to the node once they go
+# from hidden (0 height, 0 "separation" gap — same as any collapsed
+# container row) to visible: their own height plus the 2 NEW separation gaps
+# that only appear once those rows actually take up a slot each. Computed,
+# not hardcoded (was -108, quietly wrong by 8px — see the known-gotchas
+# writeup), and shared by both the body-size compensation and the selection
+# halo below, so "how tall is the preview, once open" only lives in one place.
+func _preview_added_height() -> float:
+	if not _preview_open:
+		return 0.0
+	return _preview_spacer.custom_minimum_size.y + _preview_wrapper.custom_minimum_size.y \
+		+ 2 * get_theme_constant("separation")
+
+
 func _update_body_for_preview() -> void:
 	var body := get_theme_stylebox("panel") as StyleBoxFlat
 	if body:
-		body.expand_margin_bottom = -108 if _preview_open else 0
+		# Cancels out the added height so the body's own painted background
+		# stays the same size regardless of preview state — it should never
+		# grow/shrink just because the preview below it opened.
+		body.expand_margin_bottom = -_preview_added_height()
 		body.corner_radius_bottom_left = 12
 		body.corner_radius_bottom_right = 6
 
@@ -287,10 +309,10 @@ func set_preview_chevron_visible(v: bool) -> void:
 
 static func _type_color(type: int) -> Color:
 	match type:
-		1: return Color("#4BB896")  # float — sage-teal
-		2: return Color("#5CC96A")  # vec2  — muted green
-		3: return Color("#C0E030")  # vec4  — earthy chartreuse
-	return Color("#90D640")         # vec3  — earthy lime
+		1: return Color("#4FC4B0")  # float — teal
+		2: return Color("#5CA8E0")  # vec2  — Iris light blue
+		3: return Color("#E8735F")  # vec4  — Hephaestus coral
+	return Color("#6FCF5C")         # vec3  — green
 
 
 # Scales a 1.0-base pixel constant by the editor's interface scale factor.
@@ -311,6 +333,11 @@ func _apply_style() -> void:
 	_body_style.corner_radius_top_right = 0
 	_body_style.corner_radius_bottom_left = 12
 	_body_style.corner_radius_bottom_right = 6
+	# Closes the titlebar/body render gap by painting 2px into it. The titlebar
+	# stylebox below cedes that same strip via a matching negative
+	# expand_margin_bottom, so only one of the two ever paints it — see that
+	# comment for why (translucent double-paint would visibly darken/brighten
+	# the seam vs. everywhere else).
 	_body_style.expand_margin_top = 2
 	_body_style.content_margin_left = 2
 	_body_style.content_margin_right = 2
@@ -328,6 +355,12 @@ func _apply_style() -> void:
 	titlebar.corner_radius_top_right = 12
 	titlebar.corner_radius_bottom_left = 0
 	titlebar.corner_radius_bottom_right = 0
+	# Cedes its bottom 2px to the body's expand_margin_top=2 overlap above,
+	# rather than both painting it — with translucent bodies (post-opacity-
+	# pass), double-painting the same semi-transparent color over that shared
+	# strip composited to a visibly denser/brighter 1px seam line than the
+	# single-layer color everywhere else. See the matching body comment.
+	titlebar.expand_margin_bottom = -2
 	titlebar.content_margin_bottom = -1
 	titlebar.content_margin_left = 6
 	titlebar.border_width_top = 1
@@ -344,6 +377,41 @@ func _apply_style() -> void:
 	add_theme_stylebox_override("titlebar_selected", _titlebar_style)
 	add_theme_icon_override("port", _create_port_texture(10, 1))
 	call_deferred("_center_title")
+
+
+# Overrides this node's body/titlebar background to a specific color instead of
+# the type's registry default — for nodes whose body IS a user-picked color
+# (Color, Relay, Preview Relay). Keeps the selection-halo link intact via
+# _apply_selection_style, and re-derives title/cog contrast via the deferred
+# _update_title_color() every subclass defines (see _apply_luminance_title_color).
+func _apply_body_color(color: Color) -> void:
+	var body := get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+	body.bg_color = color
+	add_theme_stylebox_override("panel", body)
+	var titlebar := get_theme_stylebox("titlebar").duplicate() as StyleBoxFlat
+	titlebar.bg_color = color
+	add_theme_stylebox_override("titlebar", titlebar)
+	_apply_selection_style(body, titlebar)
+	call_deferred("_update_title_color")
+
+
+# Luminance-based title/cog contrast for nodes using _apply_body_color above —
+# dark text on light bodies, white on dark. The cog gets its own softer pair
+# since pure black/white reads too harsh for a small icon, and needs its own
+# override since the base class's hover color assumes a dark body.
+func _apply_luminance_title_color(bg_color: Color) -> void:
+	var luminance := bg_color.r * 0.299 + bg_color.g * 0.587 + bg_color.b * 0.114
+	var text_color := Color.BLACK if luminance > 0.5 else Color.WHITE
+	var hbox := get_titlebar_hbox()
+	for child in hbox.get_children():
+		if child is Label:
+			child.add_theme_color_override("font_color", text_color)
+	if _inspector_cog:
+		var icon_normal := Color(0.16, 0.16, 0.19) if luminance > 0.5 else Color(0.92, 0.92, 0.95)
+		var icon_hover := Color(0.05, 0.05, 0.07) if luminance > 0.5 else Color.WHITE
+		_inspector_cog.add_theme_color_override(
+			"icon_normal_color", Color(icon_normal.r, icon_normal.g, icon_normal.b, 0.7))
+		_inspector_cog.add_theme_color_override("icon_hover_color", icon_hover)
 
 
 func _apply_selection_style(body: StyleBoxFlat, titlebar: StyleBoxFlat) -> void:

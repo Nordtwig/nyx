@@ -115,7 +115,7 @@ func _build() -> void:
 	# its own MarginContainer). That's what lets the titlebar-gray segment's
 	# corners align exactly with the pill's own rounded corners, seamlessly.
 	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.13, 0.13, 0.16, 0.92)
+	card_style.bg_color = Color(0.14, 0.14, 0.18, 0.92)
 	card_style.border_color = Color(0.12, 0.12, 0.16)
 	card_style.set_border_width_all(1)
 	card_style.set_corner_radius_all(NyxNodeBase._s(8))
@@ -137,7 +137,7 @@ func _build() -> void:
 	palette_bg.bg_color = Color(palette_base.r, palette_base.g, palette_base.b, 0.95)
 	palette_bg.corner_radius_top_left = NyxNodeBase._s(8)
 	palette_bg.corner_radius_bottom_left = NyxNodeBase._s(8)
-	palette_bg.border_width_right = 2
+	palette_bg.border_width_right = 1
 	palette_bg.border_color = Color(0.12, 0.12, 0.16)
 	palette_bg.content_margin_left = NyxNodeBase._s(5)
 	palette_bg.content_margin_right = NyxNodeBase._s(10)
