@@ -1,20 +1,24 @@
 @tool
 extends Control
 
-## Nyx command palette — Ctrl+P overlay for File/Edit/View/Live actions.
+## Nyx command palette - Ctrl+P overlay for File/Edit/View/Live actions.
 ##
 ## Same overlay pattern as nyx_search_popup.gd (a plain Control subtree rendered in the
 ## main viewport, not a Popup window, so the live graph shows through) but a single card
-## instead of the paired search+doc cards — commands don't need a hover doc panel.
+## instead of the paired search+doc cards - commands don't need a hover doc panel.
 ##
 ## Emits the same signal names the old top toolbar (nyx_graph_toolbar.gd, deleted once
 ## this + nyx_chrome_bar.gd covered its job) used to emit, so nyx_main's existing
 ## handlers (_on_file_menu_id, _on_export_pressed, etc.) connect to this unchanged. The
 ## palette holds no state of its own: nyx_main passes a small context dict to open()
-## (linked/live_on/recent_files) so items like "Export…" vs "Update" or "Enable/Disable
-## Live Link" render correctly — this is now the *only* way to reach those actions.
+## (exported/live_on/has_live_target/recent_files) so items like "Export Shader File…" vs
+## "Update Shader File" or "Enable/Disable Live Link" render correctly - this is now the
+## *only* way to reach those actions. Note: "exported"/"has_live_target" are about the
+## exported .gdshader / Live-push target respectively - a `.nyx` needs neither to be
+## directly usable on a material once saved (see backlog.md -> "`.nyx` as a directly-
+## usable Shader"); these context keys only gate the export/Live UI specifically.
 ##
-## Rows are hand-built Controls, not an ItemList — ItemList only supports a single text
+## Rows are hand-built Controls, not an ItemList - ItemList only supports a single text
 ## column, and each row here needs a right-aligned keybind hint alongside its label.
 
 const NyxNodeBase = preload("res://addons/nyx/nodes/nyx_node.gd")
@@ -55,7 +59,7 @@ const CATEGORY_FONT_SIZE := 10
 const ITEM_FONT_SIZE := 10
 const SHORTCUT_FONT_SIZE := 9
 
-# Fixed row heights, not content-driven — a Label's natural minimum height comes
+# Fixed row heights, not content-driven - a Label's natural minimum height comes
 # from the font's ascent+descent metrics, which reserves far more vertical space
 # than the glyphs actually need at these small sizes. Plain Panel (not
 # PanelContainer) never auto-sizes to its children's minimum size (see the
@@ -119,7 +123,7 @@ func _build() -> void:
 	card_style.set_content_margin_all(NyxNodeBase._s(8))
 
 	_card = PanelContainer.new()
-	# Matches the Add Node search popup's card size exactly (raw, unscaled —
+	# Matches the Add Node search popup's card size exactly (raw, unscaled -
 	# the taller/wider unscaled size read better than the EDSCALE-shrunk one).
 	_card.custom_minimum_size = Vector2(260, 360)
 	_card.add_theme_stylebox_override("panel", card_style)
@@ -137,7 +141,7 @@ func _build() -> void:
 
 	_search_input = LineEdit.new()
 	_search_input.placeholder_text = "Type a command..."
-	# Explicit shared height with the Add Node search popup's input — the two
+	# Explicit shared height with the Add Node search popup's input - the two
 	# styleboxes already use identical content margins, but pinning this
 	# directly guarantees parity instead of relying on implicit font metrics.
 	_search_input.custom_minimum_size.y = 28
@@ -160,7 +164,7 @@ func _build() -> void:
 	_search_input.gui_input.connect(_on_search_input_key)
 	vbox.add_child(_search_input)
 
-	# Shared stylebox resources (same object reused across every row) — rows are
+	# Shared stylebox resources (same object reused across every row) - rows are
 	# Panel (not PanelContainer), so insetting/height comes from the row's own
 	# fixed size + the label's anchors, not from content_margin here.
 	_row_highlight_style = StyleBoxFlat.new()
@@ -174,7 +178,7 @@ func _build() -> void:
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	# Backstop so a click on a header/disabled row (mouse_filter IGNORE/STOP
 	# with no handler) can never fall through to the backdrop and dismiss the
-	# palette — mirrors the old ItemList capturing every click in its rect.
+	# palette - mirrors the old ItemList capturing every click in its rect.
 	_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	_rows_vbox = VBoxContainer.new()
@@ -218,7 +222,7 @@ func handle_resize() -> void:
 
 
 # Auto-scrolls the list while the cursor hovers within AUTO_SCROLL_ZONE of the
-# ScrollContainer's top/bottom edge — geometric check against the mouse
+# ScrollContainer's top/bottom edge - geometric check against the mouse
 # position rather than a hover-zone Control overlay, since an overlay would
 # need to sit on top of the rows to catch the edge but MOUSE_FILTER_PASS only
 # bubbles up a control's own parent chain (see the backdrop-dismiss gotcha),
@@ -240,12 +244,15 @@ func _process(delta: float) -> void:
 		_scroll.scroll_vertical += int(AUTO_SCROLL_SPEED * delta)
 
 
-# Builds the full command set for this open() call. Context keys: linked (bool),
-# live_on (bool), recent_files (Array[String]). Each entry may carry a "shortcut"
-# string, rendered as a muted hint on the row's right edge.
+# Builds the full command set for this open() call. Context keys: exported (bool -
+# has an exported .gdshader), live_on (bool), has_live_target (bool - Live has
+# somewhere to push: the .nyx itself once saved, and/or an exported shader),
+# recent_files (Array[String]). Each entry may carry a "shortcut" string,
+# rendered as a muted hint on the row's right edge.
 func _build_commands(context: Dictionary) -> Array:
-	var linked: bool = context.get("linked", false)
+	var exported: bool = context.get("exported", false)
 	var live_on: bool = context.get("live_on", false)
+	var has_live_target: bool = context.get("has_live_target", false)
 	var recent_files: Array = context.get("recent_files", [])
 
 	var cmds := []
@@ -254,11 +261,16 @@ func _build_commands(context: Dictionary) -> Array:
 	cmds.append({"category": "File", "label": "Save", "action": "file_menu_selected", "arg": 2, "shortcut": "Ctrl+S"})
 	cmds.append({"category": "File", "label": "Save As…", "action": "file_menu_selected", "arg": 3, "shortcut": "Ctrl+Shift+S"})
 
-	cmds.append({"category": "Export", "label": ("Update" if linked else "Export…"), "action": "export_pressed", "shortcut": "Ctrl+E"})
-	cmds.append({"category": "Export", "label": "Export As… (re-link)", "action": "export_menu_selected", "arg": 2, "shortcut": "Ctrl+Shift+E"})
-	cmds.append({"category": "Export", "label": "Export new material", "action": "export_menu_selected", "arg": 0, "disabled": not linked})
-	cmds.append({"category": "Export", "label": "Export shader only", "action": "export_menu_selected", "arg": 1})
-	cmds.append({"category": "Export", "label": "Unlink", "action": "export_menu_selected", "arg": 3, "disabled": not linked})
+	# A saved `.nyx` is always directly usable on a material on its own (see
+	# backlog.md -> "`.nyx` as a directly-usable Shader") - everything in this
+	# category is about the SEPARATE, optional exported .gdshader artifact.
+	cmds.append({"category": "Export", "label": ("Update Shader File" if exported else "Export Shader + Material…"), "action": "export_pressed", "shortcut": "Ctrl+E"})
+	cmds.append({"category": "Export", "label": "Export Shader + Material As…", "action": "export_menu_selected", "arg": 2, "shortcut": "Ctrl+Shift+E"})
+	# Points at the exported .gdshader if one exists, otherwise the .nyx itself
+	# (both are valid Shader references) - only truly disabled pre-any-save.
+	cmds.append({"category": "Export", "label": "Export Material", "action": "export_menu_selected", "arg": 0, "disabled": not has_live_target})
+	cmds.append({"category": "Export", "label": "Export Shader Only", "action": "export_menu_selected", "arg": 1})
+	cmds.append({"category": "Export", "label": "Remove Exported Shader File", "action": "export_menu_selected", "arg": 3, "disabled": not exported})
 
 	cmds.append({"category": "Edit", "label": "Undo", "action": "undo_pressed"})
 	cmds.append({"category": "Edit", "label": "Redo", "action": "redo_pressed"})
@@ -266,11 +278,11 @@ func _build_commands(context: Dictionary) -> Array:
 	cmds.append({"category": "View", "label": "Toggle Properties Panel", "action": "properties_toggled"})
 	cmds.append({"category": "View", "label": "Keyboard Shortcuts", "action": "shortcuts_pressed", "shortcut": "?"})
 
-	if linked:
+	if has_live_target:
 		var live_label := "Disable Live Link" if live_on else "Enable Live Link"
 		cmds.append({"category": "Live", "label": live_label, "action": "live_toggled", "arg": not live_on})
 	else:
-		cmds.append({"category": "Live", "label": "Live Link (link a shader first)", "action": "", "disabled": true})
+		cmds.append({"category": "Live", "label": "Live Link (save the graph first)", "action": "", "disabled": true})
 
 	if recent_files.is_empty():
 		cmds.append({"category": "Recent Files", "label": "(empty)", "action": "", "disabled": true})
@@ -286,7 +298,7 @@ func _build_commands(context: Dictionary) -> Array:
 	return cmds
 
 
-# remove_child (synchronous detach) before queue_free (deferred cleanup) —
+# remove_child (synchronous detach) before queue_free (deferred cleanup) -
 # queue_free alone leaves the old rows as children for the rest of the frame,
 # so a populate-then-repopulate in the same call would briefly double them up.
 func _clear_rows() -> void:
@@ -321,7 +333,7 @@ func _populate_filtered(query: String) -> void:
 
 
 # Anchors `control` to span the row horizontally (inset by `inset` on each
-# side) but, vertically, only to its own natural content height, centered —
+# side) but, vertically, only to its own natural content height, centered -
 # NOT stretched to fill the row's fixed height. Forcing a Label/HBoxContainer
 # to fill a row shorter than the font's natural line height and relying on
 # vertical_alignment=CENTER to compensate reads as bottom-heavy in practice;
@@ -348,7 +360,7 @@ func _add_header_row(category: String) -> void:
 		icon_rect.texture = _category_icons[category]
 		icon_rect.custom_minimum_size = Vector2(10, 10)
 		# Default stretch_mode (STRETCH_SCALE) fills whatever rect the HBoxContainer's
-		# cross-axis stretch hands it, distorting the square texture — pin it to keep
+		# cross-axis stretch hands it, distorting the square texture - pin it to keep
 		# aspect and never grow past its own minimum size.
 		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

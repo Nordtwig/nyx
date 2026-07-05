@@ -1,20 +1,22 @@
 @tool
 extends PanelContainer
 
-## Nyx chrome bar — a small floating pill in the graph's top-left corner (command-palette
-## redesign, Stage 2/3). NOT a docked toolbar strip — it reserves no layout space; the
+## Nyx chrome bar - a small floating pill in the graph's top-left corner (command-palette
+## redesign, Stage 2/3). NOT a docked toolbar strip - it reserves no layout space; the
 ## graph fills the whole area beneath/behind it, same as nyx_preview_panel.gd /
 ## nyx_properties_panel.gd float over the top-right.
 ##
-## Holds only: an eye-spark icon button that opens the Ctrl+P command palette (left side —
+## Holds only: an eye-spark icon button that opens the Ctrl+P command palette (left side -
 ## "click the logo to start acting" is the expected corner convention), filename + dirty
-## asterisk, and a circle-dot status icon — always visible, green when linked to a shader,
-## muted when not (a status indicator, not a control; no label, tooltip covers
-## discoverability). Every action that used to live in the old toolbar
-## (File/Export/Live/View) now lives in nyx_command_palette.gd; Undo/Redo/Properties
-## and GraphEdit's native zoom/grid/minimap toolbar live in nyx_tool_rail.gd. This pill
-## is identity + status only, and shrinks to fit its content. Replaces nyx_graph_toolbar.gd
-## (deleted once this and nyx_tool_rail.gd covered its job).
+## asterisk, a link icon that only appears once something in the project actually
+## references this graph (hover to see what - set_references(), 2026-07-05), and a
+## circle-dot status icon - always visible, green when Live push is active, muted when
+## not (a status indicator, not a control; no label, tooltip covers discoverability).
+## Every action that used to live in the old toolbar (File/Export/Live/View) now lives
+## in nyx_command_palette.gd; Undo/Redo/Properties and GraphEdit's native zoom/grid/
+## minimap toolbar live in nyx_tool_rail.gd. This pill is identity + status only, and
+## shrinks to fit its content. Replaces nyx_graph_toolbar.gd (deleted once this and
+## nyx_tool_rail.gd covered its job).
 
 const NyxNodeBase = preload("res://addons/nyx/nodes/nyx_node.gd")
 
@@ -28,6 +30,7 @@ var _top_offset: float = -1.0   # -1 = not yet placed
 
 var _filename_label: Label
 var _live_badge: TextureRect
+var _ref_icon: TextureRect
 var _palette_btn: Button
 
 
@@ -36,7 +39,7 @@ func setup(graph: GraphEdit, graph_container: Control) -> void:
 	_build()
 
 
-# Floating-placement API — mirrors nyx_preview_panel.gd's place_default/reanchor/
+# Floating-placement API - mirrors nyx_preview_panel.gd's place_default/reanchor/
 # is_placed trio, just anchored top-left (fixed) instead of top-right (draggable).
 func place_default(graph_top: float) -> void:
 	_top_offset = graph_top + TOP_MARGIN
@@ -55,7 +58,7 @@ func is_placed() -> bool:
 
 
 # Global-space anchor for dropdown-style popups triggered by the palette
-# button (as opposed to Ctrl+P, which opens at the cursor) — just under the
+# button (as opposed to Ctrl+P, which opens at the cursor) - just under the
 # pill's bottom-left corner.
 func get_palette_anchor_global_pos() -> Vector2:
 	var r := get_global_rect()
@@ -63,7 +66,7 @@ func get_palette_anchor_global_pos() -> Vector2:
 
 
 # Driven externally by the command palette's own visibility_changed, mirroring
-# nyx_node.gd's set_inspector_popup_open — set_pressed_no_signal so this state
+# nyx_node.gd's set_inspector_popup_open - set_pressed_no_signal so this state
 # sync never re-fires "pressed" and loops back into re-opening the palette.
 func set_palette_open(v: bool) -> void:
 	if _palette_btn:
@@ -74,7 +77,7 @@ func set_palette_open(v: bool) -> void:
 
 # Same 3-color language as the Live dot: bright accent green once it's
 # actually saved to disk and clean, muted Hunter green for a fresh/never-saved
-# graph (nothing wrong, just no file yet — not the same as "safely saved"),
+# graph (nothing wrong, just no file yet - not the same as "safely saved"),
 # amber while dirty.
 func update_filename(name: String, dirty: bool, ever_saved: bool = true) -> void:
 	if not _filename_label:
@@ -87,29 +90,53 @@ func update_filename(name: String, dirty: bool, ever_saved: bool = true) -> void
 	reset_size()
 
 
-# Always visible now — a 2-state dot (bright accent green = linked, muted
-# Hunter green = not linked yet) rather than showing/hiding, so the pill always
-# communicates link status at a glance instead of only when things are already
-# good. Same-hue intensity shift rather than a second signal color, since
-# "not linked yet" is a normal starting state, not an error. A 3rd "linked but
-# Live paused" state is a separate, not-yet-decided design (feedback.md).
-func set_live_badge(linked_path: String) -> void:
+# Always visible now - a 2-state dot (bright accent green = Live push active,
+# muted Hunter green = off) rather than showing/hiding, so the pill always
+# communicates Live status at a glance instead of only when things are already
+# good. Meaning shifted 2026-07-05: used to mean "linked to an exported
+# shader," now means "in-memory push active" - every saved `.nyx` is directly
+# usable on its own now, so "linked" stopped being the informative signal;
+# whether Live is actually pushing is. Same-hue intensity shift rather than a
+# second signal color, matching the existing convention elsewhere in this bar.
+# A 3rd "on but nothing to push to" state is a separate, not-yet-decided
+# design (feedback.md) - nyx_main's _has_live_target() already prevents this
+# from actually happening (Live gets forced off when nothing's saved/exported).
+func set_live_badge(live_on: bool) -> void:
 	if not _live_badge:
 		return
 	_live_badge.visible = true
-	if linked_path.is_empty():
-		_live_badge.modulate = Color("#31614F")
-		_live_badge.tooltip_text = "Not linked to a shader yet"
-	else:
+	if live_on:
 		_live_badge.modulate = Color("#4AAF78")
-		_live_badge.tooltip_text = "Live linked to %s" % linked_path.get_file()
+		_live_badge.tooltip_text = "Live push active"
+	else:
+		_live_badge.modulate = Color("#31614F")
+		_live_badge.tooltip_text = "Live push off"
+	reset_size()
+
+
+# Only visible once something actually references this graph - an empty list
+# hides the icon entirely rather than showing a "0 references" state, since
+# most graphs won't be referenced by anything yet and a near-permanent muted
+# icon would just be noise. paths is the Array[String] nyx_main._find_referencing_files()
+# returns; recomputed at save/export/load time (see nyx_main._update_export_ui),
+# so this is a plain, already-known tooltip rather than a hover-triggered scan.
+func set_references(paths: Array) -> void:
+	if not _ref_icon:
+		return
+	_ref_icon.visible = not paths.is_empty()
+	if paths.is_empty():
+		_ref_icon.tooltip_text = ""
+	elif paths.size() == 1:
+		_ref_icon.tooltip_text = "Used by:\n%s" % paths[0]
+	else:
+		_ref_icon.tooltip_text = "Used by %d files:\n%s" % [paths.size(), "\n".join(paths)]
 	reset_size()
 
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
 func _build() -> void:
-	# Outer stylebox: no content margin — the two inner segments below carry
+	# Outer stylebox: no content margin - the two inner segments below carry
 	# their own padding, same pattern as the other panels' header-vs-body split
 	# (header_wrap sits flush against the outer Panel's edge, body content gets
 	# its own MarginContainer). That's what lets the titlebar-gray segment's
@@ -125,9 +152,9 @@ func _build() -> void:
 	bar.add_theme_constant_override("separation", 0)
 	add_child(bar)
 
-	# Left segment — titlebar gray (same as the preview/properties/tool-rail
+	# Left segment - titlebar gray (same as the preview/properties/tool-rail
 	# headers), rounded only on the left to match the pill's own left corners,
-	# with a thin right-side divider — the same two-tone panel language as
+	# with a thin right-side divider - the same two-tone panel language as
 	# those, just rotated 90°: this pill IS one of those panels on its side.
 	# "Click the logo to start acting" is the expected corner convention, so
 	# the palette entry point comes before identity/status.
@@ -148,7 +175,7 @@ func _build() -> void:
 
 	# Same icon-color-only treatment as the node-inspector cog (nyx_node.gd's
 	# _add_inspector_trigger) instead of the box-hover styling _style_btn gives
-	# other buttons — light grey passive, white hover, brand green pressed, and
+	# other buttons - light grey passive, white hover, brand green pressed, and
 	# stays toggled green (via set_palette_open, driven by the palette's own
 	# visibility_changed) while the command palette is open.
 	_palette_btn = Button.new()
@@ -160,7 +187,7 @@ func _build() -> void:
 	_palette_btn.add_theme_color_override("icon_normal_color", Color(0.85, 0.85, 0.9, 0.7))
 	_palette_btn.add_theme_color_override("icon_hover_color", Color(0.95, 0.95, 1.0))
 	_palette_btn.add_theme_color_override("icon_pressed_color", Color("#4AAF78"))
-	# Godot uses a SEPARATE icon color for "hovering while toggled on" —
+	# Godot uses a SEPARATE icon color for "hovering while toggled on" -
 	# without this it falls back to the editor theme's default (a blue
 	# accent), so hovering the icon while the palette is open flashed blue.
 	_palette_btn.add_theme_color_override("icon_hover_pressed_color", Color("#4AAF78"))
@@ -172,7 +199,7 @@ func _build() -> void:
 	_palette_btn.pressed.connect(func() -> void: palette_pressed.emit())
 	palette_wrap.add_child(_palette_btn)
 
-	# Right segment — the rest of the pill (filename, dot), in the darker
+	# Right segment - the rest of the pill (filename, dot), in the darker
 	# body gray inherited from the outer stylebox; its own MarginContainer
 	# supplies the padding the outer stylebox used to.
 	var rest_margin := MarginContainer.new()
@@ -190,13 +217,29 @@ func _build() -> void:
 	_filename_label.add_theme_font_size_override("font_size", 11)
 	_filename_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rest_bar.add_child(_filename_label)
-	update_filename("untitled.nyx", false, false)  # starts muted green — no file on disk yet
+	update_filename("untitled.nyx", false, false)  # starts muted green - no file on disk yet
 
-	# Bare status icon, no label — a plain colored dot is a standard "status
+	# Small link icon, only visible once something in the project actually
+	# references this graph (its `.nyx` and/or its exported .gdshader) - hover
+	# lists the referencing files. Hidden by default (set_references([]) at
+	# startup); nyx_main recomputes the list at save/export/load time, not on
+	# every hover, so this stays a plain instant tooltip.
+	_ref_icon = TextureRect.new()
+	_ref_icon.texture = _load_icon("res://addons/nyx/icons/link.svg", 10)
+	_ref_icon.custom_minimum_size = Vector2(10, 10)
+	_ref_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_ref_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_ref_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_ref_icon.mouse_filter = Control.MOUSE_FILTER_STOP
+	_ref_icon.modulate = Color(0.85, 0.85, 0.9, 0.8)
+	rest_bar.add_child(_ref_icon)
+	set_references([])
+
+	# Bare status icon, no label - a plain colored dot is a standard "status
 	# indicator" idiom (recording lights, connection dots), and now that the
 	# dirty flag is a "*" suffix instead of a dot, there's no more ambiguity
 	# between two differently-meaning dots. Tooltip still covers discoverability.
-	# Wrapped in a MarginContainer so it can be nudged down a couple pixels —
+	# Wrapped in a MarginContainer so it can be nudged down a couple pixels -
 	# a raw position offset on the TextureRect itself would just get overwritten
 	# by the HBoxContainer's own layout pass every frame.
 	var live_badge_wrap := MarginContainer.new()
@@ -208,16 +251,16 @@ func _build() -> void:
 	_live_badge.texture = _load_icon("res://addons/nyx/icons/circle-dot.svg", 10)
 	_live_badge.custom_minimum_size = Vector2(10, 10)
 	# Default stretch_mode (STRETCH_SCALE) fills whatever rect the HBoxContainer's
-	# cross-axis stretch hands it, distorting the square texture — pin it to keep
+	# cross-axis stretch hands it, distorting the square texture - pin it to keep
 	# aspect and never grow past its own minimum size.
 	_live_badge.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_live_badge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_live_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	# STOP, not IGNORE — a tooltip needs mouse-enter events to fire, which an
+	# STOP, not IGNORE - a tooltip needs mouse-enter events to fire, which an
 	# IGNORE control never receives regardless of tooltip_text being set.
 	_live_badge.mouse_filter = Control.MOUSE_FILTER_STOP
 	live_badge_wrap.add_child(_live_badge)
-	set_live_badge("")  # starts red/"not linked" — set_live_badge() drives color+tooltip
+	set_live_badge(false)  # starts muted/off - set_live_badge() drives color+tooltip
 
 
 # ── Styling helpers ────────────────────────────────────────────────────────────

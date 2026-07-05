@@ -1,0 +1,14 @@
+[remap]
+
+importer="nyx.shader_importer"
+type="Shader"
+uid="uid://cr7cl8ppqsc3x"
+path="res://.godot/imported/node_gallery.nyx-e9a8d8d741e21389aa33cd5bae98be5c.res"
+
+[deps]
+
+source_file="res://dev_tools/node_gallery.nyx"
+dest_files=["res://.godot/imported/node_gallery.nyx-e9a8d8d741e21389aa33cd5bae98be5c.res"]
+
+[params]
+

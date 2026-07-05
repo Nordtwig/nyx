@@ -18,7 +18,7 @@ const NyxPropertiesPanel = preload("res://addons/nyx/nyx_properties_panel.gd")
 var _chrome_bar  # NyxChromeBar instance
 var _tool_rail  # NyxToolRail instance
 var _properties_panel  # NyxPropertiesPanel instance
-# Preview panel (floating — owns viewports/materials/mesh-switcher/particles/drag+resize).
+# Preview panel (floating - owns viewports/materials/mesh-switcher/particles/drag+resize).
 # Per-node preview manager (SubViewport-per-node lifecycle). Both extracted from this file.
 const NyxPreviewPanel = preload("res://addons/nyx/nyx_preview_panel.gd")
 const NyxNodePreviews = preload("res://addons/nyx/nyx_node_previews.gd")
@@ -32,19 +32,19 @@ var _pan_moved: bool = false  # did the cursor move during the current empty-can
 var _clipboard: Dictionary = {}  # {nodes, connections} from the last copy
 var _compile_timer: Timer
 # Node-search popup. Self-contained Control component (owns its overlay/cards/doc/icons);
-# emits node_chosen(id) → _on_search_node_chosen spawns. See nyx_search_popup.gd.
+# emits node_chosen(id) -> _on_search_node_chosen spawns. See nyx_search_popup.gd.
 const NyxSearchPopup = preload("res://addons/nyx/nyx_search_popup.gd")
 var _search_popup  # NyxSearchPopup instance
 
-# Node-inspector popup. Step 1 shell wired to Curve only — see nyx_node_inspector.gd
+# Node-inspector popup. Step 1 shell wired to Curve only - see nyx_node_inspector.gd
 # header + memory/project_properties_panel.md for the full staged build plan.
 const NyxNodeInspector = preload("res://addons/nyx/nyx_node_inspector.gd")
 var _node_inspector  # NyxNodeInspector instance
 
-# Ctrl+P command palette — same overlay pattern as the search popup, single card.
+# Ctrl+P command palette - same overlay pattern as the search popup, single card.
 # Emits the same signal names the old toolbar used to, so it reuses the same
 # handlers unchanged (see nyx_command_palette.gd header). This is now the only
-# way to reach File/Export/Live/View actions — the toolbar has been replaced by
+# way to reach File/Export/Live/View actions - the toolbar has been replaced by
 # nyx_chrome_bar.gd's minimal filename+dot / Live badge / ◈ bar.
 const NyxCommandPalette = preload("res://addons/nyx/nyx_command_palette.gd")
 var _command_palette  # NyxCommandPalette instance
@@ -60,21 +60,25 @@ var _pending_load_path: String = ""   # path awaiting the discard-changes confir
 var _pending_after_save: Callable = Callable()  # run after a "Save & …" completes
 var _texture_target: Node = null
 var _spawn_position: Vector2
-# Shader compiler (graph → GLSL). Extracted from this file; holds a reference to
+# Shader compiler (graph -> GLSL). Extracted from this file; holds a reference to
 # _graph and is constructed once in _ready. See nyx_compiler.gd.
 const NyxCompiler = preload("res://addons/nyx/nyx_compiler.gd")
 var _compiler  # NyxCompiler instance
 
 # Persistence layer (.nyx disk format + dict↔resource bridge). Stateless/static.
-# graph→dict (_serialize_graph) and dict→graph (_deserialize_graph) stay here; this
+# graph->dict (_serialize_graph) and dict->graph (_deserialize_graph) stay here; this
 # only owns disk↔format. See nyx_serializer.gd.
 const NyxSerializer = preload("res://addons/nyx/nyx_serializer.gd")
 
-# Live link / linked artifact state.
+# Live link / exported-shader-file state. `.nyx` is directly usable as a Shader
+# the moment it's ever saved (see core/nyx_shader_importer.gd) - there's no
+# "linked/unlinked" gate on usability anymore. An exported .gdshader is now an
+# independent, optional second target: a graph may have neither, either, or
+# both. See backlog.md -> "`.nyx` as a directly-usable Shader".
 const NyxCharon = preload("res://addons/nyx/core/charon.gd")
 var _export_mode: String = "full"         # "full" | "shader_only" (drives _on_export_file_selected)
 var _current_nyx_path: String = ""        # working .nyx file on disk ("" = unsaved)
-var _linked_shader_path: String = ""      # linked exported .gdshader ("" = unlinked)
+var _exported_shader_path: String = ""    # optional exported .gdshader ("" = none exported yet)
 var _live_link_on: bool = false
 var _undo_stack: Array = []
 var _redo_stack: Array = []
@@ -108,7 +112,7 @@ func _ready() -> void:
 	_graph.delete_nodes_request.connect(_on_delete_nodes_request)
 	# GraphEdit owns Ctrl+C/V/D when focused (it intercepts them in its own gui_input and
 	# emits these signals), so handling them in _shortcut_input never fires. Wire the
-	# signals instead — a focused text field consumes the keys first, so node copy/paste
+	# signals instead - a focused text field consumes the keys first, so node copy/paste
 	# only triggers when the graph itself has focus. No manual text-field guard needed.
 	_graph.copy_nodes_request.connect(_copy_selected_nodes)
 	_graph.paste_nodes_request.connect(_paste_clipboard)
@@ -121,14 +125,14 @@ func _ready() -> void:
 	_graph.add_valid_connection_type(2, 2)
 	_graph.add_valid_connection_type(3, 3)
 	# Implicit promotion (widening only):
-	_graph.add_valid_connection_type(1, 2)  # float → vec2
-	_graph.add_valid_connection_type(1, 0)  # float → vec3
-	_graph.add_valid_connection_type(1, 3)  # float → vec4
-	_graph.add_valid_connection_type(2, 0)  # vec2  → vec3
-	_graph.add_valid_connection_type(2, 3)  # vec2  → vec4
-	_graph.add_valid_connection_type(0, 3)  # vec3  → vec4
-	# The one sanctioned narrowing — dropping alpha is unambiguous (.rgb):
-	_graph.add_valid_connection_type(3, 0)  # vec4  → vec3
+	_graph.add_valid_connection_type(1, 2)  # float -> vec2
+	_graph.add_valid_connection_type(1, 0)  # float -> vec3
+	_graph.add_valid_connection_type(1, 3)  # float -> vec4
+	_graph.add_valid_connection_type(2, 0)  # vec2  -> vec3
+	_graph.add_valid_connection_type(2, 3)  # vec2  -> vec4
+	_graph.add_valid_connection_type(0, 3)  # vec3  -> vec4
+	# The one sanctioned narrowing - dropping alpha is unambiguous (.rgb):
+	_graph.add_valid_connection_type(3, 0)  # vec4  -> vec3
 
 	_graph_container = VBoxContainer.new()
 	_graph_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -141,13 +145,13 @@ func _ready() -> void:
 	_outer_vbox.add_child(_graph_container)
 	add_child(_outer_vbox)
 
-	# Floats over the graph's top-left corner — does NOT sit in _outer_vbox,
+	# Floats over the graph's top-left corner - does NOT sit in _outer_vbox,
 	# reserves no layout space (see nyx_chrome_bar.gd header).
 	_chrome_bar = NyxChromeBar.new()
 	_chrome_bar.palette_pressed.connect(func() -> void:
 		# toggle_mode auto-flips the button's own pressed visual on every click,
 		# but our external sync (below) only fires when the palette's .visible
-		# actually changes — so a second click while it's already open must
+		# actually changes - so a second click while it's already open must
 		# close it here, not just re-open/refresh it, or the button would show
 		# grey while the palette stays open.
 		if _command_palette.visible:
@@ -157,7 +161,7 @@ func _ready() -> void:
 	add_child(_chrome_bar)
 	_chrome_bar.setup(_graph, _graph_container)
 
-	# Floats vertically centered on the graph's left edge — does NOT sit in
+	# Floats vertically centered on the graph's left edge - does NOT sit in
 	# _outer_vbox, reserves no layout space (see nyx_tool_rail.gd header).
 	_tool_rail = NyxToolRail.new()
 	_tool_rail.undo_pressed.connect(_undo)
@@ -188,7 +192,7 @@ func _ready() -> void:
 	_command_palette.redo_pressed.connect(_redo)
 	# Keeps the chrome-bar palette icon's toggled-green state in sync with the
 	# palette's actual visibility, however it closes (backdrop click, Escape,
-	# running a command) — not just the button-click path above.
+	# running a command) - not just the button-click path above.
 	_command_palette.visibility_changed.connect(func() -> void:
 		_chrome_bar.set_palette_open(_command_palette.visible))
 
@@ -265,7 +269,7 @@ func _ready() -> void:
 	_properties_panel = NyxPropertiesPanel.new()
 	add_child(_properties_panel)
 	_properties_panel.setup(_graph, _graph_container)
-	_update_link_ui()  # unlinked: "Export…", Live disabled
+	_update_export_ui()  # nothing exported yet: "Export Shader + Material…", Live has no target
 
 	_shortcuts_overlay = _build_shortcuts_overlay()
 	add_child(_shortcuts_overlay)
@@ -281,7 +285,7 @@ func _ready() -> void:
 # layout has settled (the dock-collapse from entering focus layout, kicked off
 # in plugin.gd's _make_visible right as visibility flips true, takes a couple
 # frames to actually resize the editor). This is the state a freshly created
-# main screen is already in when Ctrl+U recreates it — its first layout pass
+# main screen is already in when Ctrl+U recreates it - its first layout pass
 # never races the dock collapse, which is why that path always lands correctly.
 func _await_layout_ready() -> void:
 	# Wait for the deferred node resize pass; GraphEdit re-clamps scroll_offset
@@ -395,12 +399,27 @@ func _compile_shader() -> void:
 	if _graph.get_node_or_null("OutputNode") or _graph.get_node_or_null("VertexOutputNode") or _shader_type == 2:
 		var code: String = _compiler.build_shader_code(_shader_type)
 		if _preview_panel.compile(code, _shader_type):
-			if _live_link_on and not _linked_shader_path.is_empty():
-				NyxCharon.notify_shader_updated(_linked_shader_path, _preview_panel.get_active_material())
+			if _live_link_on:
+				_push_live_updates()
 		_preview_panel.apply_uniforms()
 	if _shader_type != 2:
 		_node_previews.refresh_all(_shader_type)
 	_value_relay_previews.refresh_all(_shader_type)
+
+
+# Live pushes to every real target at once: the `.nyx` itself (its cached
+# imported Shader, once it's ever been saved - the direct-reference case) and
+# a separately exported .gdshader, if one also exists. notify_shader_updated()
+# is already fully generic (ResourceLoader.load(path, "Shader") doesn't care
+# whether path is a plain .gdshader or an imported `.nyx` - both are cached
+# Shader resources by the time they're loaded), so this needed no Charon
+# changes, only calling it for both possible targets.
+func _push_live_updates() -> void:
+	var material: Material = _preview_panel.get_active_material()
+	if not _current_nyx_path.is_empty():
+		NyxCharon.notify_shader_updated(_current_nyx_path, material)
+	if not _exported_shader_path.is_empty():
+		NyxCharon.notify_shader_updated(_exported_shader_path, material)
 
 
 func _update_sink_visibility() -> void:
@@ -451,7 +470,7 @@ func _on_relay_pair_removed(relay: Node, removed_idx: int) -> void:
 
 func _sync_shader_type_ui(_idx: int) -> void:
 	# Shader-type-change can hide/show nodes (particle mode swaps sinks), which
-	# can change which param-mode nodes exist — refresh the params list. Graph
+	# can change which param-mode nodes exist - refresh the params list. Graph
 	# Settings itself no longer lives on this panel (migrated to the node-
 	# inspector popup's open_for_sink).
 	if _properties_panel:
@@ -463,7 +482,7 @@ func _get_output_node() -> Node:
 
 
 # Render mode is true graph-wide state (there's only ever one OutputNode, the
-# actual owner) — these are the shared read/write path the node-inspector
+# actual owner) - these are the shared read/write path the node-inspector
 # popup calls through regardless of which sink (Output/Vertex Output/particle
 # sinks) the user actually opened the popup on.
 func _get_render_mode_index() -> int:
@@ -543,39 +562,53 @@ func _on_texture_file_selected(path: String) -> void:
 	_texture_target = null
 
 
-# --- Linked-artifact export / live link ---
+# --- Exported shader file / live push ---
+# The exported .gdshader is now an independent, optional target - a graph is
+# always directly usable via its `.nyx` once saved, whether or not this exists.
 
-# Contextual primary button: Export… when unlinked, Update when linked.
+# Contextual primary button: "Export Shader + Material…" when nothing's been
+# exported yet, "Update Shader File" once it has.
 func _on_export_pressed() -> void:
-	if _linked_shader_path.is_empty():
+	if _exported_shader_path.is_empty():
 		_export_mode = "full"
 		_popup_export_dialog()
 	else:
 		_do_update()
 
 
+# The .nyx itself is a valid Shader-typed reference target once saved (same
+# ext_resource type="Shader" line works either way - write_material() doesn't
+# need to know or care which kind of path it's given), so "Export Material"
+# points at whichever real target exists: the exported .gdshader if there is
+# one, otherwise the .nyx directly. Only truly unavailable when neither exists
+# (the graph has never been saved at all).
+func _material_export_target() -> String:
+	return _exported_shader_path if not _exported_shader_path.is_empty() else _current_nyx_path
+
+
 # Caret dropdown: rarer export ops.
 func _on_export_menu_id(id: int) -> void:
 	match id:
-		0:  # Export new material (resets material parameters)
-			if _linked_shader_path.is_empty():
-				push_warning("Nyx: link a shader first (Export…) before writing a material.")
+		0:  # Export material (resets material parameters)
+			var target := _material_export_target()
+			if target.is_empty():
+				push_warning("Nyx: save the graph first before writing a material.")
 				return
-			if _write_material_file(_linked_shader_path):
+			if _write_material_file(target):
 				EditorInterface.get_resource_filesystem().scan()
-				print("Nyx: wrote material (parameters reset) → %s" % (_linked_shader_path.get_basename() + ".tres"))
+				print("Nyx: wrote material (parameters reset) -> %s" % (target.get_basename() + ".tres"))
 		1:  # Export shader only
-			if _linked_shader_path.is_empty():
+			if _exported_shader_path.is_empty():
 				_export_mode = "shader_only"
 				_popup_export_dialog()
 			else:
 				_do_update()
-		2:  # Export as… (re-link to a new path)
+		2:  # Export shader + material as… (re-export to a new path)
 			_export_mode = "full"
 			_popup_export_dialog()
-		3:  # Unlink
-			_set_linked("")
-			print("Nyx: unlinked")
+		3:  # Remove exported shader file (stop syncing it; the .nyx itself is unaffected)
+			_set_exported_shader("")
+			print("Nyx: removed exported shader file")
 
 
 func _get_recent_files() -> Array:
@@ -610,17 +643,17 @@ func _on_file_menu_id(id: int) -> void:
 		2:  _on_save_pressed()
 		3:  _popup_save_dialog()
 		4:  _on_export_pressed()
-		5:  _on_export_menu_id(2)  # Export As… (re-link)
-		6:  _on_export_menu_id(0)  # Export new material
-		7:  _on_export_menu_id(1)  # Export shader only
-		8:  _on_export_menu_id(3)  # Unlink
+		5:  _on_export_menu_id(2)  # Export Shader + Material As…
+		6:  _on_export_menu_id(0)  # Export Material
+		7:  _on_export_menu_id(1)  # Export Shader Only
+		8:  _on_export_menu_id(3)  # Remove Exported Shader File
 
 
 func _on_live_toggled(on: bool) -> void:
 	_live_link_on = on
-	# Toggling on immediately reflects the current graph state in the scene.
-	if on and not _linked_shader_path.is_empty():
-		NyxCharon.notify_shader_updated(_linked_shader_path, _preview_panel.get_active_material())
+	# Toggling on immediately reflects the current graph state in every real target.
+	if on:
+		_push_live_updates()
 
 
 func _popup_export_dialog() -> void:
@@ -630,42 +663,100 @@ func _popup_export_dialog() -> void:
 	_export_dialog.popup_centered_ratio(0.5)
 
 
-# Update the linked shader in place (no dialog, no material rewrite — material
-# values are the user's to keep). Persists the .nyx too, the way Ctrl+S does.
+# Update the exported shader file in place (no dialog, no material rewrite -
+# material values are the user's to keep). Persists the .nyx too, the way
+# Ctrl+S does.
 func _do_update() -> void:
-	if _linked_shader_path.is_empty():
+	if _exported_shader_path.is_empty():
 		return
 	var code: String = _compiler.build_shader_code(_shader_type)
-	if not _write_shader_file(_linked_shader_path, code):
+	if not _write_shader_file(_exported_shader_path, code):
 		return
 	if not _current_nyx_path.is_empty():
-		NyxSerializer.write(_current_nyx_path, _serialize_graph())
-	NyxCharon.notify_shader_updated(_linked_shader_path, _preview_panel.get_active_material())
+		NyxSerializer.write(_current_nyx_path, _serialize_graph_for_save())
+	NyxCharon.notify_shader_updated(_exported_shader_path, _preview_panel.get_active_material())
 	EditorInterface.get_resource_filesystem().scan()
-	print("Nyx: updated shader → %s" % _linked_shader_path)
+	print("Nyx: updated shader -> %s" % _exported_shader_path)
 
 
-func _set_linked(path: String) -> void:
-	_linked_shader_path = path
-	_update_link_ui()  # also drives the chrome-bar badge (green/red) off the new path
-	# Linking implies you want to see it live by default — Ctrl+P → Live is the
+# True whenever Live has a real place to push to: the .nyx itself (once saved)
+# and/or a separately exported .gdshader. Replaces the old "is it linked" gate,
+# which only ever considered the exported path - now that a saved `.nyx` is
+# its own valid target, Live shouldn't be forced off just because no shader
+# was ever exported.
+func _has_live_target() -> bool:
+	return not _current_nyx_path.is_empty() or not _exported_shader_path.is_empty()
+
+
+func _set_exported_shader(path: String) -> void:
+	_exported_shader_path = path
+	_update_export_ui()  # also drives the chrome-bar badge off the new state
+	# Exporting implies you want to see it live by default - Ctrl+P -> Live is the
 	# opt-out for the rarer "edit without disturbing the scene" case.
 	if not path.is_empty():
 		_on_live_toggled(true)
 
 
-# Unlinking can't stay "live" — force it off (mirrors the old toolbar's Live
-# checkbox auto-uncheck-on-unlink). Linking itself doesn't force live state;
-# _set_linked/_do_load explicitly turn it on where that's the desired default.
-# Also the single place the chrome-bar badge (green = linked, red = not) syncs.
-func _update_link_ui() -> void:
-	if _linked_shader_path.is_empty() and _live_link_on:
+# Live can't stay on with nowhere to push to - force it off (mirrors the old
+# toolbar's Live checkbox auto-uncheck-on-unlink, generalized to the new dual-
+# target model). _set_exported_shader/_do_load/_on_save_file_selected
+# explicitly turn it on where that's the desired default. Also the single
+# place the chrome-bar badge + reference list sync.
+func _update_export_ui() -> void:
+	if not _has_live_target() and _live_link_on:
 		_on_live_toggled(false)
 	if _chrome_bar:
-		_chrome_bar.set_live_badge(_linked_shader_path)
+		_chrome_bar.set_live_badge(_live_link_on)
+		_chrome_bar.set_references(_find_referencing_files() if _has_live_target() else [])
 
 
-# Writes the .gdshader with a provenance stamp (gates artifact → Nyx navigation).
+# Finds every .tscn/.tres in the project whose ResourceLoader.get_dependencies()
+# lists the `.nyx` and/or its exported .gdshader - i.e. "what's actually using
+# this shader." Recomputed at save/export/load time (not on every hover) so the
+# chrome bar's reference-list tooltip can be a plain, instant tooltip rather
+# than needing to fight Godot's native hover-timing with an async scan.
+# ResourceLoader.get_dependencies() is a per-file, forward-dependency query
+# (what THIS file depends on) - Godot has no reverse-dependency API, so this
+# builds one by walking every project resource and checking each one's forward
+# deps for our own path. Confirmed via ClassDB reflection that EditorFileSystem
+# itself exposes no "who references this" query.
+func _find_referencing_files() -> Array:
+	var targets := []
+	if not _current_nyx_path.is_empty():
+		targets.append(_current_nyx_path)
+	if not _exported_shader_path.is_empty():
+		targets.append(_exported_shader_path)
+	if targets.is_empty():
+		return []
+	var candidates := []
+	_walk_filesystem(EditorInterface.get_resource_filesystem().get_filesystem(), candidates)
+	var matches := []
+	for path in candidates:
+		if path == _current_nyx_path or path == _exported_shader_path:
+			continue  # don't list the file against itself
+		if path.get_extension() != "tscn" and path.get_extension() != "tres":
+			continue
+		var deps: PackedStringArray = ResourceLoader.get_dependencies(path)
+		for d in deps:
+			var is_match := false
+			for t in targets:
+				if t in d:
+					is_match = true
+					break
+			if is_match:
+				matches.append(path)
+				break
+	return matches
+
+
+func _walk_filesystem(dir: EditorFileSystemDirectory, out: Array) -> void:
+	for i in dir.get_file_count():
+		out.append(dir.get_file_path(i))
+	for i in dir.get_subdir_count():
+		_walk_filesystem(dir.get_subdir(i), out)
+
+
+# Writes the .gdshader with a provenance stamp (gates artifact -> Nyx navigation).
 
 
 func _write_shader_file(path: String, code: String) -> bool:
@@ -676,7 +767,7 @@ func _write_material_file(shader_path: String) -> bool:
 	return NyxSerializer.write_material(shader_path, _graph.get_children())
 
 
-# Dialog callback: full export (shader + material) or shader-only, then link.
+# Dialog callback: full export (shader + material) or shader-only.
 func _on_export_file_selected(path: String) -> void:
 	if not path.ends_with(".gdshader"):
 		path += ".gdshader"
@@ -685,25 +776,26 @@ func _on_export_file_selected(path: String) -> void:
 		return
 	if _export_mode != "shader_only":
 		_write_material_file(path)
-	_set_linked(path)
-	# Persist the new link to the .nyx too (mirrors _do_update()) — without this,
-	# the link only exists in memory for the current session; reopening the file
-	# later reads linked_shader_path back empty and Live silently never turns on.
+	_set_exported_shader(path)
+	# Persist the new exported path to the .nyx too (mirrors _do_update()) -
+	# without this, it only exists in memory for the current session; reopening
+	# the file later reads exported_shader_path back empty and Live silently
+	# never turns on.
 	if not _current_nyx_path.is_empty():
-		NyxSerializer.write(_current_nyx_path, _serialize_graph())
+		NyxSerializer.write(_current_nyx_path, _serialize_graph_for_save())
 	NyxCharon.notify_shader_updated(path, _preview_panel.get_active_material())
 	EditorInterface.get_resource_filesystem().scan()
 	if _export_mode == "shader_only":
-		print("Nyx: exported shader → %s (linked)" % path)
+		print("Nyx: exported shader -> %s" % path)
 	else:
-		print("Nyx: exported\n  shader  → %s\n  material → %s (linked)" % [path, path.get_basename() + ".tres"])
+		print("Nyx: exported\n  shader  -> %s\n  material -> %s" % [path, path.get_basename() + ".tres"])
 
 
 func sync_size(new_size: Vector2) -> void:
 	if _outer_vbox:
 		_outer_vbox.size = new_size
 	# Initial placement happens once in _do_setup_initial_panel_layout(), which
-	# waits for the tab to be visible and settled before placing — so by the
+	# waits for the tab to be visible and settled before placing - so by the
 	# time either panel is_placed(), _graph_container.size is already trustworthy
 	# and later calls here only need to reanchor against it.
 	if _preview_panel and _preview_panel.is_placed():
@@ -751,7 +843,7 @@ func _reanchor_tool_rail() -> void:
 
 # One-shot initial placement for both floating panels, run once the Nyx tab is
 # actually visible and the editor's post-visibility layout (dock-collapse from
-# entering focus layout) has settled — see _await_layout_ready(). This mirrors
+# entering focus layout) has settled - see _await_layout_ready(). This mirrors
 # why Ctrl+U always positions correctly: a freshly created main screen's first
 # layout pass only ever runs while the tab is already visible/settled.
 func _setup_initial_panel_layout() -> void:
@@ -775,7 +867,7 @@ func _do_setup_initial_panel_layout() -> void:
 
 func _build_shortcuts_overlay() -> Control:
 	# Outer overlay: IGNORE so clicks pass through to the panel or backdrop.
-	# Backdrop: full-rect STOP — dismisses on any outside click.
+	# Backdrop: full-rect STOP - dismisses on any outside click.
 	# Panel: the actual card, centred over the graph.
 	var overlay := Control.new()
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -851,10 +943,10 @@ func _build_shortcuts_overlay() -> Control:
 		["Shift+Left-drag", "Box select"],
 		["Ctrl+N", "New graph"],
 		["Ctrl+O", "Open graph"],
-		["Ctrl+S", "Save (+ Update if linked)"],
+		["Ctrl+S", "Save (+ Update Shader File, if exported)"],
 		["Ctrl+Shift+S", "Save As"],
-		["Ctrl+E", "Export / Update linked shader"],
-		["Ctrl+Shift+E", "Export As… (re-link)"],
+		["Ctrl+E", "Export Shader + Material / Update Shader File"],
+		["Ctrl+Shift+E", "Export Shader + Material As…"],
 		["Ctrl+U", "Reload Nyx"],
 		["Ctrl+P", "Command palette"],
 		["?", "Toggle this chart"],
@@ -986,10 +1078,10 @@ func _on_delete_nodes_request(nodes: Array[StringName]) -> void:
 func _paste_buffer(buf: Dictionary, offset: Vector2 = Vector2(30, 30)) -> void:
 	# NOTE: paste does NOT gate on shader mode. The clipboard is per-session and persists
 	# across load/new, so you can paste a node that's invalid for the current mode (e.g. a
-	# spatial Fresnel into a particle graph). This can't crash — it's a soft failure: an
+	# spatial Fresnel into a particle graph). This can't crash - it's a soft failure: an
 	# off-mode node only produces bad GLSL if it's actually wired into the output chain
 	# (the compiler walks from the sink), and that's recoverable by deleting it. A precise
-	# gate would need a parallel type→mode-flags table (the registry is keyed by id, not
+	# gate would need a parallel type->mode-flags table (the registry is keyed by id, not
 	# type), which we deliberately avoid. Same non-enforcement already exists for load.
 	var src: Array = buf.get("nodes", [])
 	if src.is_empty():
@@ -1079,7 +1171,7 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 
 
 # True when the mouse is over any node (body or its port dots). GraphEdit's gui_input
-# fires for presses over nodes too — it manages node drag/connection centrally — so we
+# fires for presses over nodes too - it manages node drag/connection centrally - so we
 # must NOT pan there or we'd steal the press from node-dragging. The rect is grown to
 # cover the port dots that overhang the node edge (the connection grab zone).
 func _is_mouse_over_node() -> bool:
@@ -1105,7 +1197,7 @@ func _shortcut_input(event: InputEvent) -> void:
 	var shift: bool = event.shift_pressed
 	if not ctrl:
 		return
-	# NB: Ctrl+C/V/D are NOT here — GraphEdit consumes them when focused, so they're wired
+	# NB: Ctrl+C/V/D are NOT here - GraphEdit consumes them when focused, so they're wired
 	# via its copy_nodes_request / paste_nodes_request / duplicate_nodes_request signals.
 	match event.keycode:
 		KEY_U:
@@ -1121,7 +1213,7 @@ func _shortcut_input(event: InputEvent) -> void:
 				_popup_save_dialog()
 			else:
 				_on_save_pressed()
-				if not _linked_shader_path.is_empty():
+				if not _exported_shader_path.is_empty():
 					_do_update()
 			accept_event()
 		KEY_O:
@@ -1146,7 +1238,7 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 			_spawn_position = event.position / _graph.zoom + _graph.scroll_offset
 			_search_popup.open(_shader_type)
 		elif event.button_index == MOUSE_BUTTON_LEFT:
-			# Shift+drag on EMPTY canvas pans. Plain drag is GraphEdit's native box-select —
+			# Shift+drag on EMPTY canvas pans. Plain drag is GraphEdit's native box-select -
 			# confirmed (2026-06-30, vanilla-GraphEdit test scene) that Shift+drag does NOT
 			# trigger native box-select in this Godot version, only an unmodified drag does,
 			# so panning moved to Shift to free up plain drag for selection. Over a node
@@ -1161,7 +1253,7 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 			else:
 				if _panning:
 					_panning = false
-					# A clean shift-click on empty canvas (no drag) deselects all nodes —
+					# A clean shift-click on empty canvas (no drag) deselects all nodes -
 					# the pan intercept means GraphEdit never gets to do this itself.
 					if not _pan_moved:
 						_deselect_all_nodes()
@@ -1173,7 +1265,7 @@ func _on_graph_gui_input(event: InputEvent) -> void:
 
 
 # Bare graph shortcuts (A / R / X / ?). Handled here rather than in the graph's gui_input
-# so they fire without first clicking to focus GraphEdit — _unhandled_key_input runs for
+# so they fire without first clicking to focus GraphEdit - _unhandled_key_input runs for
 # any key the focused control didn't consume. Gated on the cursor being over the graph
 # (so they don't fire while editing elsewhere) and Ctrl/Cmd-free (those belong to
 # _shortcut_input). A focused field consumes its own keys, so typing is unaffected.
@@ -1204,7 +1296,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_on_delete_nodes_request(selected)
 				accept_event()
 		KEY_R:
-			# Spawns Relay, not Reroute — Reroute's bare-port GraphNode body
+			# Spawns Relay, not Reroute - Reroute's bare-port GraphNode body
 			# fights Godot's titlebar/body layout model (see CLAUDE.md gotcha,
 			# 2026-07-01); Relay looks right by default and needs no custom
 			# node to fix that properly, which is parked for later.
@@ -1220,8 +1312,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _open_command_palette(anchor_global_pos = null) -> void:
 	_command_palette.open({
-		"linked": not _linked_shader_path.is_empty(),
+		"exported": not _exported_shader_path.is_empty(),
 		"live_on": _live_link_on,
+		"has_live_target": _has_live_target(),
 		"recent_files": _get_recent_files(),
 	}, anchor_global_pos)
 
@@ -1239,7 +1332,7 @@ func _toggle_shortcuts_overlay() -> void:
 
 
 func _on_search_node_chosen(id: int) -> void:
-	# The search popup picked a node — spawn it at the captured _spawn_position.
+	# The search popup picked a node - spawn it at the captured _spawn_position.
 	# _on_context_menu_selected pushes its own undo snapshot, so no extra push here.
 	_on_context_menu_selected(id)
 
@@ -1351,7 +1444,7 @@ func _serialize_graph() -> Dictionary:
 		"nodes": nodes,
 		"connections": connections,
 		"shader_type": _shader_type,
-		"linked_shader_path": _linked_shader_path,
+		"exported_shader_path": _exported_shader_path,
 	}
 
 
@@ -1375,10 +1468,11 @@ func _deserialize_graph(data: Dictionary) -> void:
 	var saved_type: int = data.get("shader_type", 0)
 	_shader_type = saved_type
 	_sync_shader_type_ui(saved_type)
-	# Restore the artifact link. Lazy: store the path only; the Shader resource is
-	# re-resolved (ResourceLoader.load) on first Update / live-link use, not now.
-	_linked_shader_path = data.get("linked_shader_path", "")
-	_update_link_ui()
+	# Restore the exported-shader-file path. Lazy: store the path only; the
+	# Shader resource is re-resolved (ResourceLoader.load) on first Update /
+	# Live use, not now.
+	_exported_shader_path = data.get("exported_shader_path", "")
+	_update_export_ui()
 	# OutputNode restores its own slot config via set_state (which calls
 	# set_shader_type); sink visibility is updated after recreation below.
 
@@ -1434,14 +1528,14 @@ func _order_dialog_buttons(dialog: AcceptDialog, mid_btn: Button) -> void:
 
 
 # Reset to a fresh editor state (mirrors the initial _ready setup): empty graph,
-# default starting nodes, spatial mode, unlinked, no working-file path.
+# default starting nodes, spatial mode, no exported shader file, no working-file path.
 func _new_graph() -> void:
 	_loading = true
 	_clear_graph_nodes()
 	_shader_type = 0
 	_sync_shader_type_ui(0)
 	_current_nyx_path = ""
-	_set_linked("")
+	_set_exported_shader("")
 	_preview_panel.reset_last_code()
 	_undo_stack.clear()
 	_redo_stack.clear()
@@ -1454,20 +1548,32 @@ func _new_graph() -> void:
 	_set_clean()  # fresh editor = nothing unsaved
 
 
+# Serialize-dict for an actual disk save: _serialize_graph() plus the baked,
+# stamped shader source that core/nyx_shader_importer.gd reads to make this
+# `.nyx` directly usable as a Shader. Computed only at save time (not on every
+# undo/redo snapshot) - nothing reads it until the next disk read/reimport.
+func _serialize_graph_for_save() -> Dictionary:
+	var d := _serialize_graph()
+	var code: String = _compiler.build_shader_code(_shader_type)
+	d["compiled_code"] = "%s%s\n%s%s" % [
+		NyxCharon.PROVENANCE_PREFIX, _current_nyx_path, NyxCharon.NAV_HINT, code]
+	return d
+
+
 # Direct save to the current file; only pops the dialog for a never-saved graph.
 # (Save As / fork-to-new-file arrives with the File menu.)
 func _on_save_pressed() -> void:
 	if _current_nyx_path.is_empty():
 		_popup_save_dialog()
-	elif NyxSerializer.write(_current_nyx_path, _serialize_graph()):
+	elif NyxSerializer.write(_current_nyx_path, _serialize_graph_for_save()):
 		_set_clean()
-		print("Nyx: saved graph → %s" % _current_nyx_path)
+		print("Nyx: saved graph -> %s" % _current_nyx_path)
 
 
 func _popup_save_dialog() -> void:
-	# Co-locate: default the .nyx next to its linked artifact when there is one.
-	if _current_nyx_path.is_empty() and not _linked_shader_path.is_empty():
-		_save_dialog.current_dir = _linked_shader_path.get_base_dir()
+	# Co-locate: default the .nyx next to its exported shader file when there is one.
+	if _current_nyx_path.is_empty() and not _exported_shader_path.is_empty():
+		_save_dialog.current_dir = _exported_shader_path.get_base_dir()
 	_save_dialog.popup_centered_ratio(0.5)
 
 
@@ -1477,7 +1583,7 @@ func _save_then(after: Callable) -> void:
 	if _current_nyx_path.is_empty():
 		_pending_after_save = after
 		_popup_save_dialog()
-	elif NyxSerializer.write(_current_nyx_path, _serialize_graph()):
+	elif NyxSerializer.write(_current_nyx_path, _serialize_graph_for_save()):
 		_set_clean()
 		after.call()
 
@@ -1487,9 +1593,15 @@ func _on_save_file_selected(path: String) -> void:
 		path += ".nyx"
 	_current_nyx_path = path
 	_push_recent(path)
-	if NyxSerializer.write(path, _serialize_graph()):
+	if NyxSerializer.write(path, _serialize_graph_for_save()):
 		_set_clean()
-		print("Nyx: saved graph → %s" % path)
+		print("Nyx: saved graph -> %s" % path)
+		# First save is the moment this graph becomes directly usable (drag onto
+		# a material) - same "you probably want to see it live" default as
+		# exporting a shader file, Ctrl+P -> Live is the opt-out either way.
+		_update_export_ui()
+		if not _live_link_on:
+			_on_live_toggled(true)
 		# Continue a pending "Save & New / Load" once the save succeeded.
 		if _pending_after_save.is_valid():
 			var after := _pending_after_save
@@ -1513,9 +1625,10 @@ func _do_load(path: String) -> void:
 		return
 	_current_nyx_path = path
 	_push_recent(path)
-	_deserialize_graph(data)  # also drives the chrome-bar badge, via _update_link_ui()
+	_deserialize_graph(data)  # also drives the chrome-bar badge, via _update_export_ui()
 	_set_clean()  # freshly loaded from disk
-	# A loaded linked graph goes live by default (same as just-linked).
-	if not _linked_shader_path.is_empty():
+	# Any loaded (and therefore directly-usable) graph goes live by default,
+	# same as a fresh first save or a fresh export.
+	if _has_live_target():
 		_on_live_toggled(true)
 	print("Nyx: loaded graph ← %s" % path)
