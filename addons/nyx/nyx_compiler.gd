@@ -56,6 +56,113 @@ func build_node_preview_shader(node: Node, shader_type: int) -> String:
 	return "shader_type spatial;\nrender_mode unshaded;\n%s\n%svoid fragment() {\n\tALBEDO = %s;\n}\n" % [uniform_lines, function_block, preview_expr]
 
 
+## Value Relay support — a readback shader that writes a node's raw resolved
+## value straight into COLOR (unlike build_node_preview_shader's
+## _to_vec3_display, which narrows/clamps everything to a vec3 for a swatch).
+## Always emits a canvas_item shader, even inside a Spatial graph: a spatial
+## SubViewport's output texture gets tonemapped down to an 8-bit buffer no
+## matter what the fragment shader writes (confirmed empirically — ALBEDO
+## with a negative value reads back as a hard-clamped 0.0), so there is no
+## accurate spatial-side equivalent. canvas_item's render_mode blend_disabled
+## makes COLOR fully replace the destination pixel instead of alpha-
+## compositing over it, paired with a use_hdr_2d SubViewport on the reader
+## side (nyx_value_relay_previews.gd) — sign and out-of-range components
+## survive intact (verified: -2.9 reads back as -2.898, exactly what FP16
+## rounds it to).
+##
+## This only works because most node expressions are pure computation (math,
+## params, noise, a texture sampled at a fixed UV) that doesn't care which
+## shader_type it's compiled under. It breaks down for the small set of
+## builtins that only exist inside a real spatial shader (Fresnel's view
+## angle, VERTEX/NORMAL, per-instance data) — depends_on_spatial_only_value()
+## below detects that case so the caller can show "unavailable" instead of
+## silently failing to compile. depends_on_coordinate_value() flags the
+## separate, softer case of a value that compiles fine here (UV/Screen UV
+## exist in both shader_types) but is a per-fragment coordinate — the number
+## is real, but it's this readback surface's own coordinate, not necessarily
+## the point being inspected in the main preview.
+##
+## Returns [shader_code, type] so the caller knows how many components to
+## read back and how to format them.
+func build_node_value_shader(node: Node) -> Array:
+	var c = graph.get_connection_list()
+
+	var uniform_lines := ""
+	var seen_decls := {}
+	for child in graph.get_children():
+		if child.has_method("get_uniform_declaration"):
+			var decl: String = child.get_uniform_declaration()
+			if decl != "" and not seen_decls.has(decl):
+				uniform_lines += decl + "\n"
+				seen_decls[decl] = true
+
+	var shader_functions := {}
+	for child in graph.get_children():
+		if child.has_method("get_shader_functions"):
+			shader_functions.merge(child.get_shader_functions())
+	var function_block := ""
+	for fn in shader_functions:
+		function_block += shader_functions[fn]
+
+	var raw_expr: String
+	var vtype: int
+	if node.get_output_port_count() == 0:
+		raw_expr = _get_snippet_for(node.name, 0, c, "vec3(0.5, 0.5, 0.5)")
+		vtype = 0
+	else:
+		var node_result := _get_node_snippet(node, 0, c)
+		raw_expr = node_result[0]
+		vtype = node_result[1]
+
+	var color_expr: String
+	match vtype:
+		1: color_expr = "vec4(%s, 0.0, 0.0, 1.0)" % raw_expr   # float → .r
+		2: color_expr = "vec4((%s), 0.0, 1.0)" % raw_expr      # vec2  → .rg
+		3: color_expr = raw_expr                                # vec4  → direct
+		_: color_expr = "vec4((%s), 1.0)" % raw_expr            # vec3  → .rgb
+	var code := "shader_type canvas_item;\nrender_mode unshaded, blend_disabled;\n%s\n%svoid fragment() {\n\tCOLOR = %s;\n}\n" % [uniform_lines, function_block, color_expr]
+	return [code, vtype]
+
+
+# Node types that only compile inside a real spatial shader (view-angle math,
+# vertex-stage builtins, per-instance data) — the canvas_item readback shader
+# above can never evaluate an expression built from one of these.
+const _SPATIAL_ONLY_VALUE_TYPES := {
+	"FresnelNode": true, "VertexNode": true, "ObjectPositionNode": true,
+	"WorldPositionNode": true, "InstanceCustomDataNode": true, "DepthFadeNode": true,
+}
+
+# Node types that resolve to a per-fragment coordinate but happen to exist in
+# both shader_types (UV/SCREEN_UV) — they compile fine in the readback shader,
+# but the number reflects the readback surface's own coordinate space, not
+# necessarily the point being inspected in the real preview.
+const _COORDINATE_VALUE_TYPES := {
+	"UVNode": true, "ScreenUVNode": true,
+}
+
+
+func depends_on_spatial_only_value(node: Node) -> bool:
+	return _walk_for_types(node, graph.get_connection_list(), {}, _SPATIAL_ONLY_VALUE_TYPES)
+
+
+func depends_on_coordinate_value(node: Node) -> bool:
+	return _walk_for_types(node, graph.get_connection_list(), {}, _COORDINATE_VALUE_TYPES)
+
+
+func _walk_for_types(node: Node, connections: Array, visited: Dictionary, type_set: Dictionary) -> bool:
+	if visited.has(node.name):
+		return false
+	visited[node.name] = true
+	if type_set.has(NyxRegistry.get_node_type(node)):
+		return true
+	for conn in connections:
+		if str(conn["to_node"]) == str(node.name):
+			var from := graph.get_node_or_null(str(conn["from_node"]))
+			if from and _walk_for_types(from, connections, visited, type_set):
+				return true
+	return false
+
+
 func build_shader_code(shader_type: int) -> String:
 	var uniform_lines := ""
 	var seen_decls := {}

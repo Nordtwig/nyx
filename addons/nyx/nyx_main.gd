@@ -22,8 +22,10 @@ var _properties_panel  # NyxPropertiesPanel instance
 # Per-node preview manager (SubViewport-per-node lifecycle). Both extracted from this file.
 const NyxPreviewPanel = preload("res://addons/nyx/nyx_preview_panel.gd")
 const NyxNodePreviews = preload("res://addons/nyx/nyx_node_previews.gd")
+const NyxValueRelayPreviews = preload("res://addons/nyx/nyx_value_relay_previews.gd")
 var _preview_panel  # NyxPreviewPanel instance
 var _node_previews  # NyxNodePreviews instance
+var _value_relay_previews  # NyxValueRelayPreviews instance
 var _shortcuts_overlay: Control
 var _panning: bool = false
 var _pan_moved: bool = false  # did the cursor move during the current empty-canvas drag?
@@ -257,6 +259,9 @@ func _ready() -> void:
 	_node_previews = NyxNodePreviews.new()
 	add_child(_node_previews)
 	_node_previews.setup(_graph, _compiler)
+	_value_relay_previews = NyxValueRelayPreviews.new()
+	add_child(_value_relay_previews)
+	_value_relay_previews.setup(_graph, _compiler)
 	_properties_panel = NyxPropertiesPanel.new()
 	add_child(_properties_panel)
 	_properties_panel.setup(_graph, _graph_container)
@@ -395,6 +400,7 @@ func _compile_shader() -> void:
 		_preview_panel.apply_uniforms()
 	if _shader_type != 2:
 		_node_previews.refresh_all(_shader_type)
+	_value_relay_previews.refresh_all(_shader_type)
 
 
 func _update_sink_visibility() -> void:
@@ -1291,6 +1297,7 @@ func _on_context_menu_selected(id: int) -> void:
 		52: _add_node(NyxRegistry.RerouteNode.new(), _spawn_position, "Reroute")
 		53: _add_node(NyxRegistry.RelayNode.new(), _spawn_position, "Relay")
 		54: _add_node(NyxRegistry.PreviewRelayNode.new(), _spawn_position, "PreviewRelay")
+		66: _add_node(NyxRegistry.ValueRelayNode.new(), _spawn_position, "ValueRelay")
 		47: _add_node(NyxRegistry.CustomGLSLNode.new(), _spawn_position, "CustomGLSL")
 		48: _add_node(NyxRegistry.Vector3Node.new(), _spawn_position, "Vector3")
 		49: _add_node(NyxRegistry.SpriteTextureNode.new(), _spawn_position, "SpriteTexture")

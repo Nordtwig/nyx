@@ -301,6 +301,11 @@ const NODE_REGISTRY := [
 			"description": "A single in/out pass-through that always shows a live preview of what's flowing through it — no chevron toggle needed. Name and colour it to document the signal. Ideal as a checkpoint in a complex graph.",
 			"ports": ["In — any type", "Out — same type as input"],
 			"uses": ["Inspecting intermediate values mid-graph", "Debugging a complex chain without adding a branch", "Named checkpoints in a large graph"]},
+		{"label": "Value Relay (Experimental)", "id": 66, "particle_unsafe": true,
+			"summary": "Pass-through that shows the exact raw number(s) flowing through it.",
+			"description": "A single in/out pass-through, like Preview Relay, but instead of a colour swatch it shows the live value as plain text — one number for a float, up to four for a vec4. Unlike a preview swatch, nothing is clamped to 0-1 or has its sign dropped, so it works for quantities as well as colours.",
+			"ports": ["In — any type", "Out — same type as input"],
+			"uses": ["Checking a value is actually what you expect, not just what it looks like", "Debugging signed or out-of-range quantities (vertex displacement, particle velocity)", "Verifying threshold/mask edges land where intended"]},
 		{"label": "Reroute", "id": 52,
 			"summary": "Minimal pass-through for bending wires. Press R to place.",
 			"description": "A compact polymorphic connector. Place with R and reconnect wires through it to route them cleanly around other nodes. For named, coloured, or multi-wire organisation, use Relay instead.",
@@ -376,6 +381,7 @@ const DotNode              = preload("res://addons/nyx/nodes/dot_node.gd")
 const RerouteNode          = preload("res://addons/nyx/nodes/reroute_node.gd")
 const RelayNode            = preload("res://addons/nyx/nodes/relay_node.gd")
 const PreviewRelayNode     = preload("res://addons/nyx/nodes/preview_relay_node.gd")
+const ValueRelayNode       = preload("res://addons/nyx/nodes/value_relay_node.gd")
 const CustomGLSLNode       = preload("res://addons/nyx/nodes/custom_glsl_node.gd")
 const Vector3Node          = preload("res://addons/nyx/nodes/vector3_node.gd")
 const SpriteTextureNode    = preload("res://addons/nyx/nodes/sprite_texture_node.gd")
@@ -426,7 +432,8 @@ const NODE_CLASSES := {
 	"SpriteTextureNode": SpriteTextureNode, "VertexColorNode": VertexColorNode,
 	"TexturePixelSizeNode": TexturePixelSizeNode,
 	"RerouteNode": RerouteNode,         "RelayNode": RelayNode,
-	"PreviewRelayNode": PreviewRelayNode, "CustomGLSLNode": CustomGLSLNode,
+	"PreviewRelayNode": PreviewRelayNode, "ValueRelayNode": ValueRelayNode,
+	"CustomGLSLNode": CustomGLSLNode,
 	"ParticleStartNode": ParticleStartNode, "ParticleProcessNode": ParticleProcessNode,
 	"ParticleAgeNode": ParticleAgeNode, "ParticleVelocityNode": ParticleVelocityNode,
 	"ParticlePositionNode": ParticlePositionNode, "ParticleDeltaNode": ParticleDeltaNode,
@@ -456,6 +463,7 @@ const NODE_TYPE_COLORS := {
 	"TilingOffsetNode": _NODE_COLOR, "RotateUVNode": _NODE_COLOR, "WarpNode": _NODE_COLOR,
 	"NoiseNode": _NODE_COLOR,    "FBMNode": _NODE_COLOR,
 	"RerouteNode": _NODE_COLOR,  "RelayNode": _NODE_COLOR,    "PreviewRelayNode": _NODE_COLOR,
+	"ValueRelayNode": _NODE_COLOR,
 	"SpriteTextureNode": _NODE_COLOR, "VertexColorNode": _NODE_COLOR,
 	"TexturePixelSizeNode": _NODE_COLOR,
 	"ParticleAgeNode": _NODE_COLOR,      "ParticleVelocityNode": _NODE_COLOR,
@@ -491,7 +499,7 @@ const NODE_TYPE_CATEGORY := {
 	"ParticlePositionNode": "Particles","ParticleDeltaNode": "Particles",
 	"ParticleRandomNode": "Particles",  "ParticleIndexNode": "Particles",
 	"RerouteNode": "Organisation",      "RelayNode": "Organisation",
-	"PreviewRelayNode": "Organisation",
+	"PreviewRelayNode": "Organisation", "ValueRelayNode": "Organisation",
 	"CustomGLSLNode": "Advanced",
 }
 
@@ -522,7 +530,7 @@ const NODE_WIDTH_TIERS := {
 	"OneMinusNode": 135.0,   "RoundNode": 135.0,      "SqrtNode": 135.0,
 	"SinNode": 135.0,        "CosNode": 135.0,        "NormalizeNode": 135.0,
 	"LengthNode": 135.0,     "DotNode": 135.0,        "ScaleNode": 135.0,
-	"RelayNode": 135.0,      "PreviewRelayNode": 135.0,
+	"RelayNode": 135.0,      "PreviewRelayNode": 135.0,   "ValueRelayNode": 135.0,
 	"ClampNode": 135.0,      "PowerNode": 135.0,      "MinMaxNode": 135.0,
 	"ModNode": 135.0,        "MixNode": 135.0,        "SplitNode": 135.0,
 	"CombineNode": 135.0,    "TimeNode": 135.0,       "BlendNormalsNode": 135.0,
