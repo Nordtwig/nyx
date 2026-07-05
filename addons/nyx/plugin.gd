@@ -121,13 +121,26 @@ func _unregister_nyx_import() -> void:
 		_shader_importer = null
 
 
-func _open_in_nyx(nyx_path: String) -> void:
-	if not FileAccess.file_exists(nyx_path):
+# nyx_path is the resolved (possibly missing) `.nyx` target; source_path is the
+# file that was actually right-clicked (itself when it's already `.nyx`, the
+# exported `.gdshader` otherwise) - kept around so a missing target has
+# something to fall back to.
+func _open_in_nyx(nyx_path: String, source_path: String) -> void:
+	if FileAccess.file_exists(nyx_path):
+		EditorInterface.set_main_screen_editor("Nyx")
+		if _main_screen and _main_screen.has_method("load_nyx"):
+			_main_screen.load_nyx(nyx_path)
+		return
+	# The linked `.nyx` is gone - fall back to the graph embedded in the shader
+	# itself at export time (see NyxSerializer.write_shader / this file's
+	# NyxCharon.read_embedded_graph).
+	var graph := NyxCharon.read_embedded_graph(source_path)
+	if graph.is_empty():
 		push_warning("Nyx: source graph not found - %s" % nyx_path)
 		return
 	EditorInterface.set_main_screen_editor("Nyx")
-	if _main_screen and _main_screen.has_method("load_nyx"):
-		_main_screen.load_nyx(nyx_path)
+	if _main_screen and _main_screen.has_method("load_from_embedded_graph"):
+		_main_screen.load_from_embedded_graph(graph, source_path)
 
 
 func _reload() -> void:

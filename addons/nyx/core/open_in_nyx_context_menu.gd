@@ -8,9 +8,11 @@ extends EditorContextMenuPlugin
 ##   resources before any addon's _handles()/_edit() is consulted; this menu
 ##   item is therefore the primary re-entry path for `.nyx`, not a fallback).
 ## - an exported `.gdshader`: gated on the provenance stamp, resolves back to
-##   its source `.nyx` path (unchanged from before).
-## plugin.gd sets `open_callback` to route the resolved .nyx path into the Nyx
-## main screen.
+##   its source `.nyx` path (unchanged from before). The stamp only needs to be
+##   present, not resolvable - if the `.nyx` it points to is missing, plugin.gd
+##   falls back to a recovery graph embedded in the shader itself.
+## plugin.gd sets `open_callback` to route the resolved .nyx path (plus the
+## original right-clicked path, for that fallback) into the Nyx main screen.
 
 const NyxCharon = preload("res://addons/nyx/core/charon.gd")
 
@@ -32,8 +34,12 @@ func _on_open(paths) -> void:
 	var nyx_path := _resolve_nyx_path(paths[0])
 	if nyx_path.is_empty():
 		return
+	# Pass the original right-clicked path too - if nyx_path turns out to be
+	# missing on disk, plugin.gd falls back to reading a recovery graph
+	# embedded in that original file (only relevant for the .gdshader case;
+	# for a `.nyx` right-click the two paths are identical anyway).
 	if open_callback.is_valid():
-		open_callback.call(nyx_path)
+		open_callback.call(nyx_path, paths[0])
 
 
 func _resolve_nyx_path(path: String) -> String:

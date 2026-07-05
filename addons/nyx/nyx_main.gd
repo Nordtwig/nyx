@@ -56,7 +56,7 @@ var _new_confirm: ConfirmationDialog
 var _load_confirm: ConfirmationDialog
 var _dirty: bool = false              # unsaved changes to the .nyx working file
 var _loading: bool = false            # suppresses dirty-marking during load/new
-var _pending_load_path: String = ""   # path awaiting the discard-changes confirm
+var _pending_load_action: Callable = Callable()  # action awaiting the discard-changes confirm
 var _pending_after_save: Callable = Callable()  # run after a "Save & …" completes
 var _texture_target: Node = null
 var _spawn_position: Vector2
@@ -248,11 +248,11 @@ func _ready() -> void:
 	_load_confirm.dialog_text = "You have unsaved changes."
 	_load_confirm.ok_button_text = "Save & Load"
 	var discard_load := _load_confirm.add_button("Discard & Load", false, "discard")
-	_load_confirm.confirmed.connect(func(): _save_then(func(): _do_load(_pending_load_path)))
+	_load_confirm.confirmed.connect(func(): _save_then(func(): _pending_load_action.call()))
 	_load_confirm.custom_action.connect(func(action: StringName):
 		if action == &"discard":
 			_load_confirm.hide()
-			_do_load(_pending_load_path)
+			_pending_load_action.call()
 	)
 	_order_dialog_buttons(_load_confirm, discard_load)
 	add_child(_load_confirm)
@@ -760,7 +760,7 @@ func _walk_filesystem(dir: EditorFileSystemDirectory, out: Array) -> void:
 
 
 func _write_shader_file(path: String, code: String) -> bool:
-	return NyxSerializer.write_shader(path, code, _current_nyx_path)
+	return NyxSerializer.write_shader(path, code, _current_nyx_path, _serialize_graph())
 
 
 func _write_material_file(shader_path: String) -> bool:
@@ -1609,14 +1609,21 @@ func _on_save_file_selected(path: String) -> void:
 			after.call()
 
 
+# Shared discard-guard for every entry point that's about to replace the graph
+# wholesale (load, embedded-graph recovery). Confirms before discarding unsaved
+# work; the confirm dialog just re-invokes whichever action was pending.
+func _confirm_discard_then(action: Callable) -> void:
+	if _dirty:
+		_pending_load_action = action
+		_load_confirm.popup_centered()
+	else:
+		action.call()
+
+
 # Public, guarded entry point: the Load dialog, "Open in Nyx" navigation, and
 # double-click-to-open all route here. Confirms before discarding unsaved work.
 func load_nyx(path: String) -> void:
-	if _dirty:
-		_pending_load_path = path
-		_load_confirm.popup_centered()
-	else:
-		_do_load(path)
+	_confirm_discard_then(func(): _do_load(path))
 
 
 func _do_load(path: String) -> void:
@@ -1632,3 +1639,32 @@ func _do_load(path: String) -> void:
 	if _has_live_target():
 		_on_live_toggled(true)
 	print("Nyx: loaded graph ← %s" % path)
+
+
+# Recovery entry point: "Open in Nyx" on an exported shader whose stamped .nyx
+# is missing (deleted/moved/never-shipped) falls back here (see
+# plugin.gd._open_in_nyx / NyxCharon.read_embedded_graph). `data` is the JSON
+# blob embedded at export time - the same _serialize_graph() shape as a normal
+# load, just recovered from a comment instead of a .nyx file. Confirms before
+# discarding unsaved work, same as load_nyx.
+func load_from_embedded_graph(data: Dictionary, source_shader_path: String) -> void:
+	_confirm_discard_then(func(): _do_load_from_embedded_graph(data, source_shader_path))
+
+
+func _do_load_from_embedded_graph(data: Dictionary, source_shader_path: String) -> void:
+	_current_nyx_path = ""  # no .nyx to point at - it's what's missing
+	_deserialize_graph(data)
+	# The embedded exported_shader_path may be stale (or was never set, if this
+	# was the graph's first-ever export) - it should self-reference the file we
+	# just recovered from, so Update/Live can push straight back to it.
+	_exported_shader_path = source_shader_path
+	_update_export_ui()
+	# A recovered graph only reflects the last Update - it needs Save to become
+	# a real, reopenable .nyx again, so force dirty unconditionally (unlike
+	# _mark_dirty(), which no-ops if already dirty - that guard would skip the
+	# _update_save_button() call needed here since _current_nyx_path just
+	# changed too, same as _do_load's unconditional _set_clean()).
+	_dirty = true
+	_update_save_button()
+	push_warning("Nyx: recovered graph from embedded data in %s - save to create a new .nyx file" % source_shader_path)
+	print("Nyx: recovered graph ← %s (embedded)" % source_shader_path)
