@@ -49,7 +49,7 @@ const NODE_REGISTRY := [
 			"uses": ["Per-object phase offset so wind sway or pulsing doesn't sync across separately placed objects", "Seeding position-based random variation between objects", "World-space effects that should stay stable regardless of UV or local vertex position"]},
 		{"label": "World Position", "id": 64, "spatial_only": true,
 			"summary": "The world-space position of the exact point currently being shaded.",
-			"description": "Unlike Object Position (one fixed value for the whole object), World Position varies continuously across the surface — the base and tip of a mesh report different values. Computed as MODEL_MATRIX * VERTEX, valid in both Albedo and Vertex Offset on an ordinary mesh. MultiMesh caveat: MODEL_MATRIX only reflects each instance's transform inside Vertex Offset / Vertex Output — in Albedo or other fragment slots it falls back to the MultiMesh node's own transform, so World Position won't vary per-instance there. For per-instance fragment-stage colour, you'd need the same vertex→fragment relay Instance Custom Data is blocked on.",
+			"description": "Unlike Object Position (one fixed value for the whole object), World Position varies continuously across the surface — the base and tip of a mesh report different values. Stage-correct in both Vertex Offset and Albedo: in the vertex stage it's MODEL_MATRIX * VERTEX (model→world); in the fragment stage it's INV_VIEW_MATRIX * VERTEX (view→world), which reports the DISPLACED world position after any vertex offset — exactly what depth and foam math want. MultiMesh caveat: in the fragment stage MODEL_MATRIX falls back to the MultiMesh node's own transform, so a per-instance world position only varies when read through Vertex Offset / Vertex Output.",
 			"ports": ["Out (vec3) — world-space XYZ of the current surface point"],
 			"uses": ["World-space colour gradients across a large surface or between objects (biome-style blending) — on ordinary meshes, not MultiMesh fragment use", "Position-seeded noise/patterns that stay stable in world space regardless of UV unwrapping", "A spatially-varying wave (e.g. wind gusts that sweep across a field) when wired through Vertex Offset — safe on MultiMesh since that's the vertex stage"]},
 		{"label": "Instance Custom Data", "id": 65, "spatial_only": true,
@@ -230,6 +230,11 @@ const NODE_REGISTRY := [
 			"description": "Stacks multiple octaves of gradient noise, each at higher frequency and lower amplitude. The result looks like natural phenomena — clouds, terrain, smoke, fire. Octaves adds detail layers. Lacunarity controls frequency growth per octave (default 2.0). Gain controls how fast amplitude fades (default 0.5).",
 			"ports": ["UV (vec3) — coordinate input (use Vertex for seamless results on spheres)", "Scale (float) — base feature size", "Out (float)"],
 			"uses": ["Clouds and smoke", "Fire and lava", "Organic terrain", "Any effect needing natural multi-scale variation"]},
+		{"label": "Ocean Waves", "id": 67, "spatial_only": true,
+			"summary": "A stack of Gerstner waves — displacement, matching normal, and a foam crest mask in one node.",
+			"description": "Sums several Gerstner waves of different sizes and directions into a believable ocean surface. Wire a world-space position (the World Position node) into Position, send Offset and Normal to the Vertex Output node to displace the mesh, and use Crest to drive foam. Amplitude sets wave height; Steepness (0–1) sharpens the crests without ever folding them; per-wave speed follows real deep-water physics so long waves outrun short ones. Waves sets how many are summed; Direction and Spread aim them and fan them out so fronts never look like a grid.",
+			"ports": ["Position (vec3) — world-space position to evaluate the waves at", "Offset (vec3) — Gerstner displacement, for Vertex Output · Offset", "Normal (vec3) — matching geometric surface normal, for Vertex Output · Normal", "Crest (float) — 0 in troughs, 1 at peaks, for driving foam"],
+			"uses": ["Ocean and lake surfaces (the whole point)", "A single rolling swell on a stylized pond — set Waves to 1, Spread to 0", "A gentle wobble on a jelly or flag by keeping Steepness and Amplitude low"]},
 	]},
 	{"category": "Canvas", "nodes": [
 		{"label": "Sprite Texture", "id": 49, "canvas_only": true,
@@ -349,6 +354,7 @@ const StepNode             = preload("res://addons/nyx/nodes/step_node.gd")
 const SmoothstepNode       = preload("res://addons/nyx/nodes/smoothstep_node.gd")
 const NoiseNode            = preload("res://addons/nyx/nodes/noise_node.gd")
 const FBMNode              = preload("res://addons/nyx/nodes/fbm_node.gd")
+const OceanWavesNode       = preload("res://addons/nyx/nodes/ocean_waves_node.gd")
 const GradientNode         = preload("res://addons/nyx/nodes/gradient_node.gd")
 const CurveNode            = preload("res://addons/nyx/nodes/curve_node.gd")
 const TilingOffsetNode     = preload("res://addons/nyx/nodes/tiling_offset_node.gd")
@@ -422,6 +428,7 @@ const NODE_CLASSES := {
 	"DotNode": DotNode,                 "SplitNode": SplitNode,
 	"CombineNode": CombineNode,         "ScaleNode": ScaleNode,
 	"NoiseNode": NoiseNode,             "FBMNode": FBMNode,
+	"OceanWavesNode": OceanWavesNode,
 	"TextureSampleNode": TextureSampleNode, "NormalMapNode": NormalMapNode,
 	"GradientNode": GradientNode,       "CurveNode": CurveNode,
 	"TilingOffsetNode": TilingOffsetNode, "RotateUVNode": RotateUVNode,
@@ -461,7 +468,7 @@ const NODE_TYPE_COLORS := {
 	"TextureSampleNode": _NODE_COLOR, "NormalMapNode": _NODE_COLOR,
 	"GradientNode": _NODE_COLOR, "CurveNode": _NODE_COLOR,
 	"TilingOffsetNode": _NODE_COLOR, "RotateUVNode": _NODE_COLOR, "WarpNode": _NODE_COLOR,
-	"NoiseNode": _NODE_COLOR,    "FBMNode": _NODE_COLOR,
+	"NoiseNode": _NODE_COLOR,    "FBMNode": _NODE_COLOR,      "OceanWavesNode": _NODE_COLOR,
 	"RerouteNode": _NODE_COLOR,  "RelayNode": _NODE_COLOR,    "PreviewRelayNode": _NODE_COLOR,
 	"ValueRelayNode": _NODE_COLOR,
 	"SpriteTextureNode": _NODE_COLOR, "VertexColorNode": _NODE_COLOR,
@@ -486,7 +493,7 @@ const NODE_TYPE_CATEGORY := {
 	"CosNode": "Math",        "StepNode": "Math",        "SmoothstepNode": "Math",
 	"NormalizeNode": "Vector", "LengthNode": "Vector",   "DotNode": "Vector",
 	"SplitNode": "Vector",    "CombineNode": "Vector",   "ScaleNode": "Vector",
-	"NoiseNode": "Noise",     "FBMNode": "Noise",
+	"NoiseNode": "Noise",     "FBMNode": "Noise",        "OceanWavesNode": "Noise",
 	"TextureSampleNode": "Texture", "NormalMapNode": "Texture",
 	"GradientNode": "Texture", "CurveNode": "Texture",
 	"TilingOffsetNode": "UV", "RotateUVNode": "UV",      "WarpNode": "UV",
@@ -579,7 +586,7 @@ const NODE_WIDTH_TIERS := {
 	# visually denser, earns the extra width even though each row alone
 	# wouldn't strictly need it.
 	"SmoothstepNode": 215.0, "FBMNode": 215.0, "TilingOffsetNode": 215.0,
-	"ParticleRandomNode": 215.0,
+	"ParticleRandomNode": 215.0, "OceanWavesNode": 215.0,
 }
 
 

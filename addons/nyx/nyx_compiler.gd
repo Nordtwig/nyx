@@ -18,12 +18,23 @@ const NyxRegistry = preload("res://addons/nyx/nyx_registry.gd")
 
 var graph: GraphEdit
 
+## Which shader stage the current graph-walk is emitting for ("fragment" / "vertex").
+## Set at each sink-walk entry point before walking. Stage-aware nodes (any node
+## implementing get_stage_snippet) read it to emit a stage-correct expression — e.g.
+## World Position, whose builtin VERTEX means model space in vertex() but view space
+## in fragment(). Walks are synchronous single-threaded, so a plain instance var is
+## safe. Defaults to "fragment" (the common case: previews, canvas, particle readback).
+var _current_stage: String = "fragment"
+
 
 func _init(graph_edit: GraphEdit) -> void:
 	graph = graph_edit
 
 
 func build_node_preview_shader(node: Node, shader_type: int) -> String:
+	# Per-node previews always render the value through fragment() (an ALBEDO/COLOR
+	# swatch), so stage-aware nodes must emit their fragment form here.
+	_current_stage = "fragment"
 	var c = graph.get_connection_list()
 
 	var uniform_lines := ""
@@ -85,6 +96,8 @@ func build_node_preview_shader(node: Node, shader_type: int) -> String:
 ## Returns [shader_code, type] so the caller knows how many components to
 ## read back and how to format them.
 func build_node_value_shader(node: Node) -> Array:
+	# Value Relay readback always runs through a canvas_item fragment() — fragment stage.
+	_current_stage = "fragment"
 	var c = graph.get_connection_list()
 
 	var uniform_lines := ""
@@ -188,7 +201,8 @@ func build_shader_code(shader_type: int) -> String:
 	var c = graph.get_connection_list()
 
 	if shader_type == 1:
-		# Canvas Item
+		# Canvas Item — everything is fragment stage.
+		_current_stage = "fragment"
 		var color  = _get_snippet_for("OutputNode", 0, c, "vec3(1.0, 1.0, 1.0)")
 		var alpha  = _get_snippet_for("OutputNode", 1, c, "1.0")
 		var normal = _get_snippet_for("OutputNode", 2, c, "")
@@ -196,7 +210,10 @@ func build_shader_code(shader_type: int) -> String:
 		return "shader_type canvas_item;\n%s%s\n%svoid fragment() {\n\tCOLOR = vec4(%s, %s);\n%s}\n" % [render_mode_line, uniform_lines, function_block, color, alpha, normal_line]
 
 	if shader_type == 2:
-		# Particles — process shader. Two entry points: start() (once, on spawn)
+		# Particles — no vertex/fragment split; stage-aware nodes are all spatial_only
+		# and gated out of particle mode, so "fragment" is a harmless default here.
+		_current_stage = "fragment"
+		# Process shader. Two entry points: start() (once, on spawn)
 		# and process() (per frame). TRANSFORM is recomposed from decomposed
 		# Position/Rotation/Scale via nyx_compose_transform. CUSTOM.y is reserved
 		# for age tracking (0 at spawn, += DELTA/LIFETIME each frame → Age Ratio).
@@ -251,6 +268,7 @@ func build_shader_code(shader_type: int) -> String:
 		return "shader_type particles;\n%s\n%s%svoid start() {\n%s}\n\nvoid process() {\n%s}\n" % [uniform_lines, function_block, compose_fn, start_body, process_body]
 
 	# Spatial — Fragment Output node
+	_current_stage = "fragment"
 	var albedo    = _get_snippet_for("OutputNode", 0, c, "vec3(0.5, 0.5, 0.5)")
 	var alpha     = _get_snippet_for("OutputNode", 1, c, "1.0")
 	var roughness = _get_snippet_for("OutputNode", 2, c, "1.0")
@@ -262,7 +280,8 @@ func build_shader_code(shader_type: int) -> String:
 	var normal_line   := "\tNORMAL_MAP = %s;\n" % normal if normal != "" else ""
 	var specular_line := "\tSPECULAR = %s;\n" % specular if specular != "" else ""
 	var ao_line       := "\tAO = %s;\n" % ao if ao != "" else ""
-	# Vertex Output node
+	# Vertex Output node — switch the walk into vertex stage before reading these.
+	_current_stage = "vertex"
 	var vertex_offset = _get_snippet_for("VertexOutputNode", 0, c, "")
 	var vert_normal   = _get_snippet_for("VertexOutputNode", 1, c, "")
 	var vert_tangent  = _get_snippet_for("VertexOutputNode", 2, c, "")
@@ -335,7 +354,15 @@ func _get_node_snippet(node: Node, from_port: int, connections: Array) -> Array:
 		var target_type: int = output_type if is_poly else (node.get_input_port_type(i) if i < node.get_input_port_count() else 0)
 		inputs.append(_promote(snippet, in_type, target_type))
 
-	return [node.get_output_snippet(from_port, inputs), output_type]
+	# Stage-aware nodes (World Position, etc.) emit a different expression per shader
+	# stage; everything else uses the plain stage-agnostic snippet. Opt-in per node so
+	# the other 60+ nodes need zero changes.
+	var snippet_out: String
+	if node.has_method("get_stage_snippet"):
+		snippet_out = node.get_stage_snippet(from_port, inputs, _current_stage)
+	else:
+		snippet_out = node.get_output_snippet(from_port, inputs)
+	return [snippet_out, output_type]
 
 
 # Resolves what a single input port's type actually is: whatever's connected

@@ -200,7 +200,13 @@ func _build() -> void:
 	add_child(mesh_stack)
 	_mesh_row = mesh_stack
 
-	for pair in [["sphere", SphereMesh.new(), Vector3.ZERO, 1.2], ["plane", QuadMesh.new(), Vector3.ZERO, 1.2], ["cube", BoxMesh.new(), Vector3(20, 40, 20), 1.8]]:
+	# The plane is subdivided so vertex-displacement graphs (Ocean Waves, wind sway)
+	# actually show in-panel — a bare QuadMesh is 4 verts and displaces to nothing.
+	# 64×64 is free and the sphere's default segments (64×32) are already dense enough.
+	var preview_plane := QuadMesh.new()
+	preview_plane.subdivide_width = 64
+	preview_plane.subdivide_depth = 64
+	for pair in [["sphere", SphereMesh.new(), Vector3.ZERO, 1.2], ["plane", preview_plane, Vector3.ZERO, 1.2], ["cube", BoxMesh.new(), Vector3(20, 40, 20), 1.8]]:
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(24, 24)
 		btn.toggle_mode = true

@@ -1361,6 +1361,7 @@ func _on_context_menu_selected(id: int) -> void:
 		18: _add_node(NyxRegistry.SmoothstepNode.new(), _spawn_position, "Smoothstep")
 		19: _add_node(NyxRegistry.NoiseNode.new(), _spawn_position, "Noise")
 		36: _add_node(NyxRegistry.FBMNode.new(), _spawn_position, "FBM")
+		67: _add_node(NyxRegistry.OceanWavesNode.new(), _spawn_position, "OceanWaves")
 		37: _add_node(NyxRegistry.GradientNode.new(), _spawn_position, "Gradient")
 		38: _add_node(NyxRegistry.CurveNode.new(), _spawn_position, "Curve")
 		39: _add_node(NyxRegistry.TilingOffsetNode.new(), _spawn_position, "TilingOffset")
