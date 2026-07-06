@@ -11,6 +11,14 @@ var _mode: int = 0
 var _shader_type: int = 0
 var _slot_labels: Array = []
 
+# Preview-mesh settings — graph-wide state (like _mode/_shader_type above),
+# surfaced in the Graph Settings popup. Defaults mirror nyx_preview_panel.gd's
+# own built-in defaults (PlaneMesh orientation FACE_Y / 64 subdivisions / 1.0
+# scale) so a fresh graph's popup reads correctly before ever being touched.
+var _preview_plane_horizontal: bool = true
+var _preview_subdivisions: int = 64
+var _preview_scale: float = 1.0
+
 
 func _add_preview_controls() -> void:
 	pass
@@ -90,8 +98,44 @@ func get_render_mode() -> String:
 	return modes[_mode] if _mode < modes.size() else ""
 
 
+func get_preview_plane_horizontal() -> bool:
+	return _preview_plane_horizontal
+
+
+func set_preview_plane_horizontal(v: bool) -> void:
+	emit_signal("edit_started")
+	_preview_plane_horizontal = v
+	emit_signal("value_changed")
+
+
+func get_preview_subdivisions() -> int:
+	return _preview_subdivisions
+
+
+func set_preview_subdivisions(v: int) -> void:
+	emit_signal("edit_started")
+	_preview_subdivisions = v
+	emit_signal("value_changed")
+
+
+func get_preview_scale() -> float:
+	return _preview_scale
+
+
+func set_preview_scale(v: float) -> void:
+	emit_signal("edit_started")
+	_preview_scale = v
+	emit_signal("value_changed")
+
+
 func get_state() -> Dictionary:
-	return {"mode": _mode, "shader_type": _shader_type}
+	return {
+		"mode": _mode,
+		"shader_type": _shader_type,
+		"preview_plane_horizontal": _preview_plane_horizontal,
+		"preview_subdivisions": _preview_subdivisions,
+		"preview_scale": _preview_scale,
+	}
 
 
 func set_state(state: Dictionary) -> void:
@@ -102,6 +146,9 @@ func set_state(state: Dictionary) -> void:
 	if st <= 1 and st != _shader_type:
 		set_shader_type(st)
 	_mode = state.get("mode", 0)
+	_preview_plane_horizontal = state.get("preview_plane_horizontal", true)
+	_preview_subdivisions = state.get("preview_subdivisions", 64)
+	_preview_scale = state.get("preview_scale", 1.0)
 
 
 func _on_deselected() -> void:

@@ -277,6 +277,7 @@ func _ready() -> void:
 	_add_node(NyxRegistry.OutputNode.new(), Vector2(300, 160), "OutputNode")
 	_add_node(NyxRegistry.VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
 	_update_sink_visibility()
+	_apply_preview_mesh_settings()
 	_frame_default_view()
 	_setup_initial_panel_layout()
 
@@ -352,13 +353,20 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 				_node_inspector.open_for_color(
 					Callable(n, "get_color"), Callable(n, "set_color_from_inspector"), n.title, n)
 			elif NyxRegistry.is_sink(n):
+				var output := _get_output_node()
 				_node_inspector.open_for_sink(
 					n.title, n, _shader_type, _shader_type != 2, _get_render_mode_index(),
 					_render_mode_labels(_shader_type),
 					func(idx: int):
 						_on_shader_type_changed(idx)
 						_node_inspector.close(),
-					Callable(self, "_set_render_mode_index"))
+					Callable(self, "_set_render_mode_index"),
+					output.get_preview_plane_horizontal() if output else true,
+					output.get_preview_subdivisions() if output else 64,
+					output.get_preview_scale() if output else 1.0,
+					Callable(self, "_set_preview_plane_horizontal"),
+					Callable(self, "_set_preview_subdivisions"),
+					Callable(self, "_set_preview_scale"))
 			else:
 				_node_inspector.open_meta_only(n.title, n)
 		)
@@ -500,6 +508,42 @@ func _set_render_mode_index(idx: int) -> void:
 	if output:
 		output.set_mode(idx)
 		_request_compile()
+
+
+# Preview Mesh settings (Graph Settings popup, Spatial mode only). Dirty-
+# marking/undo comes for free — output.set_preview_*() emits the same
+# edit_started/value_changed pair set_mode() does, and _add_node() already
+# wires those generically for every node. The push into the live preview
+# panel is the one thing that wiring doesn't cover, so each setter applies
+# it explicitly afterward.
+func _apply_preview_mesh_settings() -> void:
+	var output := _get_output_node()
+	if output and _preview_panel:
+		_preview_panel.set_preview_mesh_settings(
+			output.get_preview_plane_horizontal(),
+			output.get_preview_subdivisions(),
+			output.get_preview_scale())
+
+
+func _set_preview_plane_horizontal(v: bool) -> void:
+	var output := _get_output_node()
+	if output:
+		output.set_preview_plane_horizontal(v)
+		_apply_preview_mesh_settings()
+
+
+func _set_preview_subdivisions(v: int) -> void:
+	var output := _get_output_node()
+	if output:
+		output.set_preview_subdivisions(v)
+		_apply_preview_mesh_settings()
+
+
+func _set_preview_scale(v: float) -> void:
+	var output := _get_output_node()
+	if output:
+		output.set_preview_scale(v)
+		_apply_preview_mesh_settings()
 
 
 func _toggle_properties_panel() -> void:
@@ -1503,6 +1547,7 @@ func _deserialize_graph(data: Dictionary) -> void:
 	elif _shader_type == 2:
 		_ensure_particle_sinks()
 	_update_sink_visibility()
+	_apply_preview_mesh_settings()
 	_compiler.update_contextual_labels()
 	_request_compile()
 	_loading = false
@@ -1543,6 +1588,7 @@ func _new_graph() -> void:
 	_add_node(NyxRegistry.OutputNode.new(), Vector2(300, 160), "OutputNode")
 	_add_node(NyxRegistry.VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
 	_update_sink_visibility()
+	_apply_preview_mesh_settings()
 	_frame_default_view()
 	_request_compile()
 	_loading = false

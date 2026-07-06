@@ -269,7 +269,10 @@ func open_meta_only(title_text: String, anchor: Control) -> void:
 # not whichever sink the user happened to click.
 func open_for_sink(title_text: String, anchor: Control, shader_type: int,
 		has_render_mode: bool, render_mode: int, render_mode_labels: Array,
-		shader_type_setter: Callable, render_mode_setter: Callable) -> void:
+		shader_type_setter: Callable, render_mode_setter: Callable,
+		preview_horizontal: bool, preview_subdivisions: int, preview_scale: float,
+		preview_horizontal_setter: Callable, preview_subdivisions_setter: Callable,
+		preview_scale_setter: Callable) -> void:
 	_clear_content()
 	_set_current_anchor(anchor)
 	_header.text = title_text
@@ -291,6 +294,21 @@ func open_for_sink(title_text: String, anchor: Control, shader_type: int,
 	if has_render_mode:
 		_sink_content.add_child(_build_dropdown_row(
 			"Render Mode", render_mode_labels, render_mode, render_mode_setter))
+
+	# Preview Mesh: only meaningful in Spatial mode — Canvas Item uses the flat
+	# 2D viewport and Particles reuses the 3D viewport without the mesh
+	# switcher at all, so there's no mesh here for these settings to affect.
+	if shader_type == 0:
+		_sink_content.add_child(_build_section_label("Preview Mesh"))
+		_sink_content.add_child(_build_dropdown_row(
+			"Plane Orientation", ["Horizontal (Floor)", "Vertical (Wall)"],
+			0 if preview_horizontal else 1,
+			func(idx: int): preview_horizontal_setter.call(idx == 0)))
+		_sink_content.add_child(_build_spin_row(
+			"Scale", preview_scale, 0.1, 20.0, 0.1, preview_scale_setter))
+		_sink_content.add_child(_build_spin_row(
+			"Subdivisions", preview_subdivisions, 1, 256, 1,
+			func(v: float): preview_subdivisions_setter.call(int(round(v)))))
 
 	_card_vbox.add_child(_sink_content)
 
@@ -322,6 +340,23 @@ func _build_dropdown_row(label_text: String, items: Array, current: int, on_sele
 	row.add_child(opt)
 
 	return row
+
+
+# EditorSpinSlider draws its own internal label (unlike the OptionButton row
+# above, which needs an external Label) — no wrapper row needed, matches the
+# same slider style used inline on node bodies (e.g. fbm_node.gd).
+func _build_spin_row(label_text: String, value: float, min_v: float, max_v: float,
+		step: float, on_change: Callable) -> Control:
+	var slider := EditorSpinSlider.new()
+	slider.label = label_text
+	slider.min_value = min_v
+	slider.max_value = max_v
+	slider.step = step
+	slider.value = value
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.add_theme_font_size_override("font_size", 10)
+	slider.value_changed.connect(on_change)
+	return slider
 
 
 # Shared by the resource/color content mechanisms: sets the category label,
