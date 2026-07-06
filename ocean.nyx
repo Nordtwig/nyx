@@ -1,0 +1,1003 @@
+[gd_resource type="Resource" script_class="NyxGraph" format=3]
+
+[ext_resource type="Script" path="res://addons/nyx/core/nyx_node_data.gd" id="1_ful8b"]
+[ext_resource type="Script" path="res://addons/nyx/core/nyx_graph.gd" id="2_axjmy"]
+
+[sub_resource type="Resource" id="Resource_58gtv"]
+script = ExtResource("1_ful8b")
+type = "OutputNode"
+node_name = "OutputNode"
+position = Vector2(0, 4800)
+state = {
+"mode": 1,
+"shader_type": 0
+}
+
+[sub_resource type="Resource" id="Resource_lgu0j"]
+script = ExtResource("1_ful8b")
+type = "VertexOutputNode"
+node_name = "VertexOutputNode"
+position = Vector2(220, 4800)
+
+[sub_resource type="Resource" id="Resource_hkul2"]
+script = ExtResource("1_ful8b")
+type = "WorldPositionNode"
+node_name = "WorldPosition"
+position = Vector2(0, -800)
+
+[sub_resource type="Resource" id="Resource_ltxi6"]
+script = ExtResource("1_ful8b")
+type = "TimeNode"
+node_name = "TimeNode1"
+position = Vector2(220, -800)
+
+[sub_resource type="Resource" id="Resource_7u2bl"]
+script = ExtResource("1_ful8b")
+type = "Vector3Node"
+node_name = "ScrollDir1"
+position = Vector2(440, -800)
+state = {
+"x": 0.03,
+"y": 0.02,
+"z": 0.0
+}
+
+[sub_resource type="Resource" id="Resource_aedna"]
+script = ExtResource("1_ful8b")
+type = "Vector3Node"
+node_name = "ScrollDir2"
+position = Vector2(660, -800)
+state = {
+"x": -0.02,
+"y": 0.035,
+"z": 0.0
+}
+
+[sub_resource type="Resource" id="Resource_7jodt"]
+script = ExtResource("1_ful8b")
+type = "OceanWavesNode"
+node_name = "OceanWaves"
+state = {
+"amplitude": 0.6,
+"direction": 25.0,
+"seed": 0.0,
+"speed": 1.0,
+"spread": 60.0,
+"steepness": 0.55,
+"wavelength": 24.0,
+"waves": 5
+}
+
+[sub_resource type="Resource" id="Resource_f3gvn"]
+script = ExtResource("1_ful8b")
+type = "SplitNode"
+node_name = "SplitWorldPos"
+position = Vector2(0, 800)
+
+[sub_resource type="Resource" id="Resource_m7str"]
+script = ExtResource("1_ful8b")
+type = "CombineNode"
+node_name = "CombineDetailUV"
+position = Vector2(220, 800)
+
+[sub_resource type="Resource" id="Resource_yxkjk"]
+script = ExtResource("1_ful8b")
+type = "MultiplyNode"
+node_name = "ScrollUV1"
+position = Vector2(440, 800)
+
+[sub_resource type="Resource" id="Resource_8onet"]
+script = ExtResource("1_ful8b")
+type = "AddNode"
+node_name = "DetailUVAdd"
+position = Vector2(660, 800)
+
+[sub_resource type="Resource" id="Resource_xqu8m"]
+script = ExtResource("1_ful8b")
+type = "RelayNode"
+node_name = "RelayDetailUV"
+position = Vector2(880, 800)
+state = {
+"custom_name": "DetailUV",
+"pair_count": 1
+}
+
+[sub_resource type="Resource" id="Resource_d1lvn"]
+script = ExtResource("1_ful8b")
+type = "MultiplyNode"
+node_name = "ScrollUV2"
+position = Vector2(1100, 800)
+
+[sub_resource type="Resource" id="Resource_fe0c4"]
+script = ExtResource("1_ful8b")
+type = "AddNode"
+node_name = "DetailUVAdd2"
+position = Vector2(1320, 800)
+
+[sub_resource type="Resource" id="Resource_sovyc"]
+script = ExtResource("1_ful8b")
+type = "FBMNode"
+node_name = "FBMRipple1"
+position = Vector2(1540, 800)
+state = {
+"gain": 0.5,
+"lacunarity": 2.0,
+"octaves": 3,
+"scale": 2.5
+}
+
+[sub_resource type="Resource" id="Resource_f6diq"]
+script = ExtResource("1_ful8b")
+type = "FBMNode"
+node_name = "FBMRipple2"
+position = Vector2(1760, 800)
+state = {
+"gain": 0.5,
+"lacunarity": 2.0,
+"octaves": 3,
+"scale": 7.0
+}
+
+[sub_resource type="Resource" id="Resource_0bdu7"]
+script = ExtResource("1_ful8b")
+type = "AddNode"
+node_name = "DetailHeightAdd"
+position = Vector2(1980, 800)
+
+[sub_resource type="Resource" id="Resource_5thyo"]
+script = ExtResource("1_ful8b")
+type = "RelayNode"
+node_name = "RelayDetailHeight"
+position = Vector2(2200, 800)
+state = {
+"custom_name": "DetailHeight",
+"pair_count": 1
+}
+
+[sub_resource type="Resource" id="Resource_7mj5o"]
+script = ExtResource("1_ful8b")
+type = "NormalFromHeightNode"
+node_name = "RippleNormal"
+position = Vector2(2420, 800)
+state = {
+"strength": 6.0
+}
+
+[sub_resource type="Resource" id="Resource_fr8ev"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_ripple_normal_strength"
+position = Vector2(2640, 800)
+state = {
+"param_mode": true,
+"param_name": "ripple_normal_strength",
+"value": 6.0
+}
+
+[sub_resource type="Resource" id="Resource_m8edn"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_fbm1_scale"
+position = Vector2(2860, 800)
+state = {
+"param_mode": true,
+"param_name": "fbm1_scale",
+"value": 2.5
+}
+
+[sub_resource type="Resource" id="Resource_hgo0j"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_fbm2_scale"
+position = Vector2(3080, 800)
+state = {
+"param_mode": true,
+"param_name": "fbm2_scale",
+"value": 7.0
+}
+
+[sub_resource type="Resource" id="Resource_sba7l"]
+script = ExtResource("1_ful8b")
+type = "FBMNode"
+node_name = "FBMBreakup"
+position = Vector2(0, 1600)
+state = {
+"gain": 0.5,
+"lacunarity": 2.0,
+"octaves": 4,
+"scale": 4.0
+}
+
+[sub_resource type="Resource" id="Resource_dic44"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_fbm_breakup_scale"
+position = Vector2(220, 1600)
+state = {
+"param_mode": true,
+"param_name": "fbm_breakup_scale",
+"value": 4.0
+}
+
+[sub_resource type="Resource" id="Resource_xy687"]
+script = ExtResource("1_ful8b")
+type = "SmoothstepNode"
+node_name = "BreakupSmoothstep"
+position = Vector2(440, 1600)
+state = {
+"edge0": 0.42,
+"edge1": 0.65
+}
+
+[sub_resource type="Resource" id="Resource_g72um"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_breakup_edge0"
+position = Vector2(660, 1600)
+state = {
+"param_mode": true,
+"param_name": "breakup_edge0",
+"value": 0.42
+}
+
+[sub_resource type="Resource" id="Resource_vi7is"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_breakup_edge1"
+position = Vector2(880, 1600)
+state = {
+"param_mode": true,
+"param_name": "breakup_edge1",
+"value": 0.65
+}
+
+[sub_resource type="Resource" id="Resource_m7d3y"]
+script = ExtResource("1_ful8b")
+type = "SmoothstepNode"
+node_name = "CrestSmoothstep"
+position = Vector2(1100, 1600)
+state = {
+"edge0": 0.5,
+"edge1": 0.85
+}
+
+[sub_resource type="Resource" id="Resource_c7ifq"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_crest_edge0"
+position = Vector2(1320, 1600)
+state = {
+"param_mode": true,
+"param_name": "crest_edge0",
+"value": 0.5
+}
+
+[sub_resource type="Resource" id="Resource_rsjdy"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_crest_edge1"
+position = Vector2(1540, 1600)
+state = {
+"param_mode": true,
+"param_name": "crest_edge1",
+"value": 0.85
+}
+
+[sub_resource type="Resource" id="Resource_k2esj"]
+script = ExtResource("1_ful8b")
+type = "MultiplyNode"
+node_name = "CrestFoamMul"
+position = Vector2(1760, 1600)
+
+[sub_resource type="Resource" id="Resource_2pq3u"]
+script = ExtResource("1_ful8b")
+type = "DepthFadeNode"
+node_name = "DepthFadeShore"
+position = Vector2(1980, 1600)
+state = {
+"distance": 0.8
+}
+
+[sub_resource type="Resource" id="Resource_2377t"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_depth_shore_distance"
+position = Vector2(2200, 1600)
+state = {
+"param_mode": true,
+"param_name": "depth_shore_distance",
+"value": 0.8
+}
+
+[sub_resource type="Resource" id="Resource_qf38p"]
+script = ExtResource("1_ful8b")
+type = "OneMinusNode"
+node_name = "ShoreOneMinus"
+position = Vector2(2420, 1600)
+
+[sub_resource type="Resource" id="Resource_psf61"]
+script = ExtResource("1_ful8b")
+type = "MultiplyNode"
+node_name = "ShoreFoamMul"
+position = Vector2(2640, 1600)
+
+[sub_resource type="Resource" id="Resource_6ny23"]
+script = ExtResource("1_ful8b")
+type = "MinMaxNode"
+node_name = "FoamCombine"
+position = Vector2(2860, 1600)
+state = {
+"type": 1
+}
+
+[sub_resource type="Resource" id="Resource_veno0"]
+script = ExtResource("1_ful8b")
+type = "RelayNode"
+node_name = "RelayFoamMask"
+position = Vector2(3080, 1600)
+state = {
+"custom_name": "FoamMask",
+"pair_count": 1
+}
+
+[sub_resource type="Resource" id="Resource_7nbxu"]
+script = ExtResource("1_ful8b")
+type = "DepthFadeNode"
+node_name = "DepthFadeBody"
+position = Vector2(0, 2400)
+state = {
+"distance": 4.0
+}
+
+[sub_resource type="Resource" id="Resource_ijv3g"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_depth_body_distance"
+position = Vector2(220, 2400)
+state = {
+"param_mode": true,
+"param_name": "depth_body_distance",
+"value": 4.0
+}
+
+[sub_resource type="Resource" id="Resource_w4mwd"]
+script = ExtResource("1_ful8b")
+type = "GradientNode"
+node_name = "WaterGradient"
+position = Vector2(440, 2400)
+state = {
+"colors": ["2e8b8b", "1a5c6e", "123a4f"],
+"offsets": [0.0, 0.5, 1.0]
+}
+
+[sub_resource type="Resource" id="Resource_dvdj0"]
+script = ExtResource("1_ful8b")
+type = "ColorNode"
+node_name = "HorizonColor"
+position = Vector2(660, 2400)
+state = {
+"color": [0.2431, 0.4314, 0.4941, 1.0],
+"param_mode": true,
+"param_name": "horizon_color"
+}
+
+[sub_resource type="Resource" id="Resource_n6wrj"]
+script = ExtResource("1_ful8b")
+type = "FresnelNode"
+node_name = "FresnelHorizon"
+position = Vector2(880, 2400)
+state = {
+"power": 4.0
+}
+
+[sub_resource type="Resource" id="Resource_tiule"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_fresnel_horizon_power"
+position = Vector2(1100, 2400)
+state = {
+"param_mode": true,
+"param_name": "fresnel_horizon_power",
+"value": 4.0
+}
+
+[sub_resource type="Resource" id="Resource_hq5yl"]
+script = ExtResource("1_ful8b")
+type = "MixNode"
+node_name = "FresnelHorizonMix"
+position = Vector2(1320, 2400)
+
+[sub_resource type="Resource" id="Resource_bj0sf"]
+script = ExtResource("1_ful8b")
+type = "ColorNode"
+node_name = "FoamWhiteColor"
+position = Vector2(1540, 2400)
+state = {
+"color": [0.9176, 0.9647, 0.949, 1.0],
+"param_mode": true,
+"param_name": "foam_white_color"
+}
+
+[sub_resource type="Resource" id="Resource_ol1nl"]
+script = ExtResource("1_ful8b")
+type = "MixNode"
+node_name = "AlbedoFoamMix"
+position = Vector2(1760, 2400)
+
+[sub_resource type="Resource" id="Resource_jnpg7"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "FloatRoughBase"
+position = Vector2(1980, 2400)
+state = {
+"param_mode": true,
+"param_name": "rough_base",
+"value": 0.08
+}
+
+[sub_resource type="Resource" id="Resource_ns61l"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "FloatRoughFoam"
+position = Vector2(2200, 2400)
+state = {
+"param_mode": true,
+"param_name": "rough_foam",
+"value": 0.45
+}
+
+[sub_resource type="Resource" id="Resource_84446"]
+script = ExtResource("1_ful8b")
+type = "MixNode"
+node_name = "RoughnessFoamMix"
+position = Vector2(2420, 2400)
+
+[sub_resource type="Resource" id="Resource_di4kl"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "FloatSpecular"
+position = Vector2(2640, 2400)
+state = {
+"param_mode": true,
+"param_name": "specular",
+"value": 0.6
+}
+
+[sub_resource type="Resource" id="Resource_nrr0j"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "FloatHalf"
+position = Vector2(0, 3200)
+state = {
+"param_mode": false,
+"param_name": "ripple_center",
+"value": 0.5
+}
+
+[sub_resource type="Resource" id="Resource_vbm77"]
+script = ExtResource("1_ful8b")
+type = "SubtractNode"
+node_name = "RippleCenterSubtract"
+position = Vector2(220, 3200)
+
+[sub_resource type="Resource" id="Resource_6if6b"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "FloatRippleStrength"
+position = Vector2(440, 3200)
+state = {
+"param_mode": true,
+"param_name": "ripple_strength",
+"value": 0.04
+}
+
+[sub_resource type="Resource" id="Resource_jxqlr"]
+script = ExtResource("1_ful8b")
+type = "MultiplyNode"
+node_name = "RippleStrengthMul"
+position = Vector2(660, 3200)
+
+[sub_resource type="Resource" id="Resource_4q5e2"]
+script = ExtResource("1_ful8b")
+type = "CombineNode"
+node_name = "RippleOffsetCombine"
+position = Vector2(880, 3200)
+
+[sub_resource type="Resource" id="Resource_m3ngh"]
+script = ExtResource("1_ful8b")
+type = "ScreenUVNode"
+node_name = "ScreenUV1"
+position = Vector2(1100, 3200)
+
+[sub_resource type="Resource" id="Resource_jnpqr"]
+script = ExtResource("1_ful8b")
+type = "AddNode"
+node_name = "ScreenUVOffsetAdd"
+position = Vector2(1320, 3200)
+
+[sub_resource type="Resource" id="Resource_qu30m"]
+script = ExtResource("1_ful8b")
+type = "ScreenTextureNode"
+node_name = "ScreenTextureRefr"
+position = Vector2(1540, 3200)
+
+[sub_resource type="Resource" id="Resource_1emcs"]
+script = ExtResource("1_ful8b")
+type = "DepthFadeNode"
+node_name = "DepthFadeRefraction"
+position = Vector2(1760, 3200)
+state = {
+"distance": 2.5
+}
+
+[sub_resource type="Resource" id="Resource_xjxr7"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_depth_refraction_distance"
+position = Vector2(1980, 3200)
+state = {
+"param_mode": true,
+"param_name": "depth_refraction_distance",
+"value": 2.5
+}
+
+[sub_resource type="Resource" id="Resource_pv7pi"]
+script = ExtResource("1_ful8b")
+type = "MixNode"
+node_name = "RefractionColorMix"
+position = Vector2(2200, 3200)
+
+[sub_resource type="Resource" id="Resource_navhw"]
+script = ExtResource("1_ful8b")
+type = "FresnelNode"
+node_name = "FresnelGlow"
+position = Vector2(0, 4000)
+state = {
+"power": 1.5
+}
+
+[sub_resource type="Resource" id="Resource_d2web"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "Param_fresnel_glow_power"
+position = Vector2(220, 4000)
+state = {
+"param_mode": true,
+"param_name": "fresnel_glow_power",
+"value": 1.5
+}
+
+[sub_resource type="Resource" id="Resource_8yko5"]
+script = ExtResource("1_ful8b")
+type = "MultiplyNode"
+node_name = "GlowCrestFresnelMul"
+position = Vector2(440, 4000)
+
+[sub_resource type="Resource" id="Resource_8cgta"]
+script = ExtResource("1_ful8b")
+type = "FloatNode"
+node_name = "FloatGlowStrength"
+position = Vector2(660, 4000)
+state = {
+"param_mode": true,
+"param_name": "glow_strength",
+"value": 0.35
+}
+
+[sub_resource type="Resource" id="Resource_ajxgy"]
+script = ExtResource("1_ful8b")
+type = "MultiplyNode"
+node_name = "GlowStrengthMul"
+position = Vector2(880, 4000)
+
+[sub_resource type="Resource" id="Resource_wu12w"]
+script = ExtResource("1_ful8b")
+type = "ColorNode"
+node_name = "SSSTealColor"
+position = Vector2(1100, 4000)
+state = {
+"color": [0.098, 0.7647, 0.6118, 1.0],
+"param_mode": true,
+"param_name": "sss_color"
+}
+
+[sub_resource type="Resource" id="Resource_eeykc"]
+script = ExtResource("1_ful8b")
+type = "ScaleNode"
+node_name = "GlowScale"
+position = Vector2(1320, 4000)
+
+[resource]
+script = ExtResource("2_axjmy")
+nodes = [SubResource("Resource_58gtv"), SubResource("Resource_lgu0j"), SubResource("Resource_hkul2"), SubResource("Resource_ltxi6"), SubResource("Resource_7u2bl"), SubResource("Resource_aedna"), SubResource("Resource_7jodt"), SubResource("Resource_f3gvn"), SubResource("Resource_m7str"), SubResource("Resource_yxkjk"), SubResource("Resource_8onet"), SubResource("Resource_xqu8m"), SubResource("Resource_d1lvn"), SubResource("Resource_fe0c4"), SubResource("Resource_sovyc"), SubResource("Resource_f6diq"), SubResource("Resource_0bdu7"), SubResource("Resource_5thyo"), SubResource("Resource_7mj5o"), SubResource("Resource_fr8ev"), SubResource("Resource_m8edn"), SubResource("Resource_hgo0j"), SubResource("Resource_sba7l"), SubResource("Resource_dic44"), SubResource("Resource_xy687"), SubResource("Resource_g72um"), SubResource("Resource_vi7is"), SubResource("Resource_m7d3y"), SubResource("Resource_c7ifq"), SubResource("Resource_rsjdy"), SubResource("Resource_k2esj"), SubResource("Resource_2pq3u"), SubResource("Resource_2377t"), SubResource("Resource_qf38p"), SubResource("Resource_psf61"), SubResource("Resource_6ny23"), SubResource("Resource_veno0"), SubResource("Resource_7nbxu"), SubResource("Resource_ijv3g"), SubResource("Resource_w4mwd"), SubResource("Resource_dvdj0"), SubResource("Resource_n6wrj"), SubResource("Resource_tiule"), SubResource("Resource_hq5yl"), SubResource("Resource_bj0sf"), SubResource("Resource_ol1nl"), SubResource("Resource_jnpg7"), SubResource("Resource_ns61l"), SubResource("Resource_84446"), SubResource("Resource_di4kl"), SubResource("Resource_nrr0j"), SubResource("Resource_vbm77"), SubResource("Resource_6if6b"), SubResource("Resource_jxqlr"), SubResource("Resource_4q5e2"), SubResource("Resource_m3ngh"), SubResource("Resource_jnpqr"), SubResource("Resource_qu30m"), SubResource("Resource_1emcs"), SubResource("Resource_xjxr7"), SubResource("Resource_pv7pi"), SubResource("Resource_navhw"), SubResource("Resource_d2web"), SubResource("Resource_8yko5"), SubResource("Resource_8cgta"), SubResource("Resource_ajxgy"), SubResource("Resource_wu12w"), SubResource("Resource_eeykc")]
+connections = [{
+"from_node": "WorldPosition",
+"from_port": 0,
+"to_node": "OceanWaves",
+"to_port": 0
+}, {
+"from_node": "OceanWaves",
+"from_port": 0,
+"to_node": "VertexOutputNode",
+"to_port": 0
+}, {
+"from_node": "OceanWaves",
+"from_port": 1,
+"to_node": "VertexOutputNode",
+"to_port": 1
+}, {
+"from_node": "WorldPosition",
+"from_port": 0,
+"to_node": "SplitWorldPos",
+"to_port": 0
+}, {
+"from_node": "SplitWorldPos",
+"from_port": 0,
+"to_node": "CombineDetailUV",
+"to_port": 0
+}, {
+"from_node": "SplitWorldPos",
+"from_port": 2,
+"to_node": "CombineDetailUV",
+"to_port": 1
+}, {
+"from_node": "TimeNode1",
+"from_port": 0,
+"to_node": "ScrollUV1",
+"to_port": 0
+}, {
+"from_node": "ScrollDir1",
+"from_port": 0,
+"to_node": "ScrollUV1",
+"to_port": 1
+}, {
+"from_node": "CombineDetailUV",
+"from_port": 0,
+"to_node": "DetailUVAdd",
+"to_port": 0
+}, {
+"from_node": "ScrollUV1",
+"from_port": 0,
+"to_node": "DetailUVAdd",
+"to_port": 1
+}, {
+"from_node": "DetailUVAdd",
+"from_port": 0,
+"to_node": "RelayDetailUV",
+"to_port": 0
+}, {
+"from_node": "TimeNode1",
+"from_port": 0,
+"to_node": "ScrollUV2",
+"to_port": 0
+}, {
+"from_node": "ScrollDir2",
+"from_port": 0,
+"to_node": "ScrollUV2",
+"to_port": 1
+}, {
+"from_node": "RelayDetailUV",
+"from_port": 0,
+"to_node": "DetailUVAdd2",
+"to_port": 0
+}, {
+"from_node": "ScrollUV2",
+"from_port": 0,
+"to_node": "DetailUVAdd2",
+"to_port": 1
+}, {
+"from_node": "RelayDetailUV",
+"from_port": 0,
+"to_node": "FBMRipple1",
+"to_port": 0
+}, {
+"from_node": "DetailUVAdd2",
+"from_port": 0,
+"to_node": "FBMRipple2",
+"to_port": 0
+}, {
+"from_node": "FBMRipple1",
+"from_port": 0,
+"to_node": "DetailHeightAdd",
+"to_port": 0
+}, {
+"from_node": "FBMRipple2",
+"from_port": 0,
+"to_node": "DetailHeightAdd",
+"to_port": 1
+}, {
+"from_node": "DetailHeightAdd",
+"from_port": 0,
+"to_node": "RelayDetailHeight",
+"to_port": 0
+}, {
+"from_node": "RelayDetailHeight",
+"from_port": 0,
+"to_node": "RippleNormal",
+"to_port": 0
+}, {
+"from_node": "RippleNormal",
+"from_port": 0,
+"to_node": "OutputNode",
+"to_port": 5
+}, {
+"from_node": "Param_ripple_normal_strength",
+"from_port": 0,
+"to_node": "RippleNormal",
+"to_port": 1
+}, {
+"from_node": "Param_fbm1_scale",
+"from_port": 0,
+"to_node": "FBMRipple1",
+"to_port": 1
+}, {
+"from_node": "Param_fbm2_scale",
+"from_port": 0,
+"to_node": "FBMRipple2",
+"to_port": 1
+}, {
+"from_node": "RelayDetailUV",
+"from_port": 0,
+"to_node": "FBMBreakup",
+"to_port": 0
+}, {
+"from_node": "Param_fbm_breakup_scale",
+"from_port": 0,
+"to_node": "FBMBreakup",
+"to_port": 1
+}, {
+"from_node": "FBMBreakup",
+"from_port": 0,
+"to_node": "BreakupSmoothstep",
+"to_port": 2
+}, {
+"from_node": "Param_breakup_edge0",
+"from_port": 0,
+"to_node": "BreakupSmoothstep",
+"to_port": 0
+}, {
+"from_node": "Param_breakup_edge1",
+"from_port": 0,
+"to_node": "BreakupSmoothstep",
+"to_port": 1
+}, {
+"from_node": "OceanWaves",
+"from_port": 2,
+"to_node": "CrestSmoothstep",
+"to_port": 2
+}, {
+"from_node": "Param_crest_edge0",
+"from_port": 0,
+"to_node": "CrestSmoothstep",
+"to_port": 0
+}, {
+"from_node": "Param_crest_edge1",
+"from_port": 0,
+"to_node": "CrestSmoothstep",
+"to_port": 1
+}, {
+"from_node": "CrestSmoothstep",
+"from_port": 0,
+"to_node": "CrestFoamMul",
+"to_port": 0
+}, {
+"from_node": "BreakupSmoothstep",
+"from_port": 0,
+"to_node": "CrestFoamMul",
+"to_port": 1
+}, {
+"from_node": "Param_depth_shore_distance",
+"from_port": 0,
+"to_node": "DepthFadeShore",
+"to_port": 0
+}, {
+"from_node": "DepthFadeShore",
+"from_port": 0,
+"to_node": "ShoreOneMinus",
+"to_port": 0
+}, {
+"from_node": "ShoreOneMinus",
+"from_port": 0,
+"to_node": "ShoreFoamMul",
+"to_port": 0
+}, {
+"from_node": "BreakupSmoothstep",
+"from_port": 0,
+"to_node": "ShoreFoamMul",
+"to_port": 1
+}, {
+"from_node": "CrestFoamMul",
+"from_port": 0,
+"to_node": "FoamCombine",
+"to_port": 0
+}, {
+"from_node": "ShoreFoamMul",
+"from_port": 0,
+"to_node": "FoamCombine",
+"to_port": 1
+}, {
+"from_node": "FoamCombine",
+"from_port": 0,
+"to_node": "RelayFoamMask",
+"to_port": 0
+}, {
+"from_node": "Param_depth_body_distance",
+"from_port": 0,
+"to_node": "DepthFadeBody",
+"to_port": 0
+}, {
+"from_node": "DepthFadeBody",
+"from_port": 0,
+"to_node": "WaterGradient",
+"to_port": 0
+}, {
+"from_node": "Param_fresnel_horizon_power",
+"from_port": 0,
+"to_node": "FresnelHorizon",
+"to_port": 0
+}, {
+"from_node": "HorizonColor",
+"from_port": 0,
+"to_node": "FresnelHorizonMix",
+"to_port": 1
+}, {
+"from_node": "FresnelHorizon",
+"from_port": 0,
+"to_node": "FresnelHorizonMix",
+"to_port": 2
+}, {
+"from_node": "FresnelHorizonMix",
+"from_port": 0,
+"to_node": "AlbedoFoamMix",
+"to_port": 0
+}, {
+"from_node": "FoamWhiteColor",
+"from_port": 0,
+"to_node": "AlbedoFoamMix",
+"to_port": 1
+}, {
+"from_node": "RelayFoamMask",
+"from_port": 0,
+"to_node": "AlbedoFoamMix",
+"to_port": 2
+}, {
+"from_node": "AlbedoFoamMix",
+"from_port": 0,
+"to_node": "OutputNode",
+"to_port": 0
+}, {
+"from_node": "FloatRoughBase",
+"from_port": 0,
+"to_node": "RoughnessFoamMix",
+"to_port": 0
+}, {
+"from_node": "FloatRoughFoam",
+"from_port": 0,
+"to_node": "RoughnessFoamMix",
+"to_port": 1
+}, {
+"from_node": "RelayFoamMask",
+"from_port": 0,
+"to_node": "RoughnessFoamMix",
+"to_port": 2
+}, {
+"from_node": "RoughnessFoamMix",
+"from_port": 0,
+"to_node": "OutputNode",
+"to_port": 2
+}, {
+"from_node": "FloatSpecular",
+"from_port": 0,
+"to_node": "OutputNode",
+"to_port": 6
+}, {
+"from_node": "RelayDetailHeight",
+"from_port": 0,
+"to_node": "RippleCenterSubtract",
+"to_port": 0
+}, {
+"from_node": "FloatHalf",
+"from_port": 0,
+"to_node": "RippleCenterSubtract",
+"to_port": 1
+}, {
+"from_node": "RippleCenterSubtract",
+"from_port": 0,
+"to_node": "RippleStrengthMul",
+"to_port": 0
+}, {
+"from_node": "FloatRippleStrength",
+"from_port": 0,
+"to_node": "RippleStrengthMul",
+"to_port": 1
+}, {
+"from_node": "RippleStrengthMul",
+"from_port": 0,
+"to_node": "RippleOffsetCombine",
+"to_port": 0
+}, {
+"from_node": "RippleStrengthMul",
+"from_port": 0,
+"to_node": "RippleOffsetCombine",
+"to_port": 1
+}, {
+"from_node": "ScreenUV1",
+"from_port": 0,
+"to_node": "ScreenUVOffsetAdd",
+"to_port": 0
+}, {
+"from_node": "RippleOffsetCombine",
+"from_port": 0,
+"to_node": "ScreenUVOffsetAdd",
+"to_port": 1
+}, {
+"from_node": "ScreenUVOffsetAdd",
+"from_port": 0,
+"to_node": "ScreenTextureRefr",
+"to_port": 0
+}, {
+"from_node": "Param_depth_refraction_distance",
+"from_port": 0,
+"to_node": "DepthFadeRefraction",
+"to_port": 0
+}, {
+"from_node": "ScreenTextureRefr",
+"from_port": 0,
+"to_node": "RefractionColorMix",
+"to_port": 0
+}, {
+"from_node": "WaterGradient",
+"from_port": 0,
+"to_node": "RefractionColorMix",
+"to_port": 1
+}, {
+"from_node": "DepthFadeRefraction",
+"from_port": 0,
+"to_node": "RefractionColorMix",
+"to_port": 2
+}, {
+"from_node": "RefractionColorMix",
+"from_port": 0,
+"to_node": "FresnelHorizonMix",
+"to_port": 0
+}, {
+"from_node": "Param_fresnel_glow_power",
+"from_port": 0,
+"to_node": "FresnelGlow",
+"to_port": 0
+}, {
+"from_node": "OceanWaves",
+"from_port": 2,
+"to_node": "GlowCrestFresnelMul",
+"to_port": 0
+}, {
+"from_node": "FresnelGlow",
+"from_port": 0,
+"to_node": "GlowCrestFresnelMul",
+"to_port": 1
+}, {
+"from_node": "GlowCrestFresnelMul",
+"from_port": 0,
+"to_node": "GlowStrengthMul",
+"to_port": 0
+}, {
+"from_node": "FloatGlowStrength",
+"from_port": 0,
+"to_node": "GlowStrengthMul",
+"to_port": 1
+}, {
+"from_node": "SSSTealColor",
+"from_port": 0,
+"to_node": "GlowScale",
+"to_port": 0
+}, {
+"from_node": "GlowStrengthMul",
+"from_port": 0,
+"to_node": "GlowScale",
+"to_port": 1
+}, {
+"from_node": "GlowScale",
+"from_port": 0,
+"to_node": "OutputNode",
+"to_port": 4
+}]

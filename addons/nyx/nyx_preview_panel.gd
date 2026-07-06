@@ -200,10 +200,17 @@ func _build() -> void:
 	add_child(mesh_stack)
 	_mesh_row = mesh_stack
 
-	# The plane is subdivided so vertex-displacement graphs (Ocean Waves, wind sway)
-	# actually show in-panel — a bare QuadMesh is 4 verts and displaces to nothing.
-	# 64×64 is free and the sphere's default segments (64×32) are already dense enough.
-	var preview_plane := QuadMesh.new()
+	# PlaneMesh, not QuadMesh: QuadMesh defaults to a vertical XY-facing "card"
+	# (orientation FACE_Z), while PlaneMesh defaults to a horizontal XZ-facing
+	# "floor" (orientation FACE_Y) — the orientation any world-space horizontal
+	# displacement graph (Ocean Waves' wp.xz, wind sway) actually assumes. Using
+	# QuadMesh here (found live 2026-07-06, building the ocean preview) meant
+	# the preview rendered the wave math against the wrong two axes entirely —
+	# subdividing it (below) made displacement visible, but on the wrong plane.
+	# Subdivided so vertex-displacement graphs actually show something — a bare
+	# mesh here is 4 verts and displaces to nothing. 64×64 is free and the
+	# sphere's default segments (64×32) are already dense enough.
+	var preview_plane := PlaneMesh.new()
 	preview_plane.subdivide_width = 64
 	preview_plane.subdivide_depth = 64
 	for pair in [["sphere", SphereMesh.new(), Vector3.ZERO, 1.2], ["plane", preview_plane, Vector3.ZERO, 1.2], ["cube", BoxMesh.new(), Vector3(20, 40, 20), 1.8]]:

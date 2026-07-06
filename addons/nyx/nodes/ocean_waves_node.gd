@@ -46,8 +46,12 @@ const _HASH := """float nyx_ocean_hash(float n) {
 #   λ_i = wavelength · 0.68^i      (each wave shorter)     k_i = 2π / λ_i
 #   a_i = amplitude · 0.62^i       (each wave lower)
 #   dir_i = direction ± spread·hash(seed,i)                (jittered so fronts don't grid)
-#   c_i = √(g / k_i)               deep-water dispersion → long waves outrun short ones
-#   phase = k_i·dot(dir_i, p.xz) − c_i·speed·t
+#   ω_i = √(g · k_i)               deep-water dispersion (angular frequency, NOT phase
+#                                  speed — phase speed would be √(g/k), a different
+#                                  quantity; using that in place of ω was a real bug
+#                                  found live 2026-07-06, see feedback.md) → long waves
+#                                  bob slowly, short waves bob fast, matching real water
+#   phase = k_i·dot(dir_i, p.xz) − ω_i·speed·t
 # Steepness budget: Qᵢ·kᵢ·aᵢ = steepness/count per wave, so the horizontal pinch is
 # steepness/(count·k)·cos(phase) and Σ = steepness ≤ 1 (never self-intersects).
 const _OFFSET := """vec3 nyx_ocean_offset(vec3 wp, float t, int count, float wavelength, float amplitude, float steepness, float speed, float direction, float spread, float seed) {
@@ -61,7 +65,7 @@ const _OFFSET := """vec3 nyx_ocean_offset(vec3 wp, float t, int count, float wav
 		float a = amplitude * pow(0.62, fi);
 		float ang = base + radians(spread) * (nyx_ocean_hash(seed + fi * 13.13) * 2.0 - 1.0);
 		vec2 d = vec2(cos(ang), sin(ang));
-		float ph = k * dot(d, p) - sqrt(9.8 / k) * speed * t;
+		float ph = k * dot(d, p) - sqrt(9.8 * k) * speed * t;
 		float qa = steepness / (fcount * k);
 		o.x += d.x * qa * cos(ph);
 		o.z += d.y * qa * cos(ph);
@@ -84,7 +88,7 @@ const _NORMAL := """vec3 nyx_ocean_normal(vec3 wp, float t, int count, float wav
 		float a = amplitude * pow(0.62, fi);
 		float ang = base + radians(spread) * (nyx_ocean_hash(seed + fi * 13.13) * 2.0 - 1.0);
 		vec2 d = vec2(cos(ang), sin(ang));
-		float ph = k * dot(d, p) - sqrt(9.8 / k) * speed * t;
+		float ph = k * dot(d, p) - sqrt(9.8 * k) * speed * t;
 		float wa = k * a;
 		nx -= d.x * wa * cos(ph);
 		nz -= d.y * wa * cos(ph);
@@ -104,7 +108,7 @@ const _CREST := """float nyx_ocean_crest(vec3 wp, float t, int count, float wave
 		float k = 6.28318530718 / (wavelength * pow(0.68, fi));
 		float ang = base + radians(spread) * (nyx_ocean_hash(seed + fi * 13.13) * 2.0 - 1.0);
 		vec2 d = vec2(cos(ang), sin(ang));
-		float ph = k * dot(d, p) - sqrt(9.8 / k) * speed * t;
+		float ph = k * dot(d, p) - sqrt(9.8 * k) * speed * t;
 		acc += (steepness / fcount) * sin(ph);
 	}
 	return clamp(acc / max(steepness, 0.0001), 0.0, 1.0);

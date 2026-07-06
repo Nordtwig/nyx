@@ -39,7 +39,15 @@ static func write(path: String, d: Dictionary) -> bool:
 		return false
 	f.store_string(text)
 	f.close()
-	if path.begins_with("res://"):
+	# EditorInterface is a bare, largely non-functional stub outside a real
+	# running editor process (e.g. a --headless --script dev tool) — even
+	# has_method() on it throws "Nonexistent function" rather than returning
+	# false, and OS.has_feature("editor") is true merely for the editor
+	# *binary* (true even under --headless --script). Engine.is_editor_hint()
+	# is the one flag that's actually false there and true only when the real
+	# EditorNode/EditorInterface is running (confirmed empirically) — the
+	# correct guard for this call.
+	if path.begins_with("res://") and Engine.is_editor_hint():
 		EditorInterface.get_resource_filesystem().update_file(path)
 	return true
 

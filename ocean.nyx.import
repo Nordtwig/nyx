@@ -1,0 +1,14 @@
+[remap]
+
+importer="nyx.shader_importer"
+type="Shader"
+uid="uid://bbfttc7bcurod"
+path="res://.godot/imported/ocean.nyx-f68a927f49f9b3d5bc3334d3bc876d59.res"
+
+[deps]
+
+source_file="res://ocean.nyx"
+dest_files=["res://.godot/imported/ocean.nyx-f68a927f49f9b3d5bc3334d3bc876d59.res"]
+
+[params]
+
