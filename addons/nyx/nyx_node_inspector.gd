@@ -425,6 +425,16 @@ func is_open_for(node: Control) -> bool:
 	return visible and _current_anchor == node
 
 
+# Non-modal naming for a freshly-spawned parameter node (see nyx_main.gd's
+# _on_quick_add_chosen / the "Connection-drop node spawn" design): focuses
+# and pre-selects the param name field so typing replaces the guessed
+# default, while Enter/click-away simply keeps it - never a blocking prompt.
+func focus_param_name() -> void:
+	if _param_name_field.visible:
+		_param_name_field.grab_focus()
+		_param_name_field.select_all()
+
+
 func close() -> void:
 	visible = false
 	# No explicit hover resync needed here — nyx_node.gd's base _process() is a

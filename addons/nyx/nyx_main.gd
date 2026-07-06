@@ -36,6 +36,16 @@ var _compile_timer: Timer
 const NyxSearchPopup = preload("res://addons/nyx/nyx_search_popup.gd")
 var _search_popup  # NyxSearchPopup instance
 
+# Quick-add popup: input-side "drag a connection out, drop on empty canvas"
+# gesture. See nyx_quick_add_popup.gd + .nyx-notes/olympus-viewport.md's
+# "Connection-drop node spawn" design.
+const NyxQuickAddPopup = preload("res://addons/nyx/nyx_quick_add_popup.gd")
+var _quick_add_popup  # NyxQuickAddPopup instance
+var _pending_output_connection: Dictionary = {}  # from_node/from_port, set only while
+                                                  # the aMenu is open for an output-side drop
+var _pending_input_connection: Dictionary = {}   # to_node/to_port/graph_position, set only
+                                                  # while the quick-add popup is open
+
 # Node-inspector popup. Step 1 shell wired to Curve only - see nyx_node_inspector.gd
 # header + memory/project_properties_panel.md for the full staged build plan.
 const NyxNodeInspector = preload("res://addons/nyx/nyx_node_inspector.gd")
@@ -60,6 +70,8 @@ var _pending_load_action: Callable = Callable()  # action awaiting the discard-c
 var _pending_after_save: Callable = Callable()  # run after a "Save & …" completes
 var _texture_target: Node = null
 var _spawn_position: Vector2
+var _last_spawned_node: Node = null  # set by _add_node; used to auto-connect
+                                      # after an aMenu spawn triggered by connection_to_empty
 # Shader compiler (graph -> GLSL). Extracted from this file; holds a reference to
 # _graph and is constructed once in _ready. See nyx_compiler.gd.
 const NyxCompiler = preload("res://addons/nyx/nyx_compiler.gd")
@@ -109,6 +121,8 @@ func _ready() -> void:
 	_graph.right_disconnects = true
 	_graph.connection_request.connect(_on_connection_request)
 	_graph.disconnection_request.connect(_on_disconnection_request)
+	_graph.connection_from_empty.connect(_on_connection_from_empty)
+	_graph.connection_to_empty.connect(_on_connection_to_empty)
 	_graph.delete_nodes_request.connect(_on_delete_nodes_request)
 	# GraphEdit owns Ctrl+C/V/D when focused (it intercepts them in its own gui_input and
 	# emits these signals), so handling them in _shortcut_input never fires. Wire the
@@ -173,6 +187,11 @@ func _ready() -> void:
 	add_child(_search_popup)
 	_search_popup.setup(_graph_container)
 	_search_popup.node_chosen.connect(_on_search_node_chosen)
+
+	_quick_add_popup = NyxQuickAddPopup.new()
+	add_child(_quick_add_popup)
+	_quick_add_popup.setup(_graph_container)
+	_quick_add_popup.candidate_chosen.connect(_on_quick_add_chosen)
 
 	_node_inspector = NyxNodeInspector.new()
 	add_child(_node_inspector)
@@ -317,6 +336,7 @@ func _do_frame_default_view() -> void:
 
 
 func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
+	_last_spawned_node = node
 	if node_name != "":
 		node.name = node_name
 	var type_name := NyxRegistry.get_node_type(node)
@@ -855,6 +875,8 @@ func sync_size(new_size: Vector2) -> void:
 		call_deferred("_reanchor_tool_rail")
 	if _search_popup:
 		_search_popup.handle_resize()
+	if _quick_add_popup:
+		_quick_add_popup.handle_resize()
 	if _command_palette:
 		_command_palette.handle_resize()
 	if _node_inspector:
@@ -1214,6 +1236,304 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 	_request_compile()
 
 
+# Connection-drop node spawn (see .nyx-notes/olympus-viewport.md's
+# "Connection-drop node spawn" design). Dragging a connection out of an INPUT
+# port and releasing on empty canvas fires connection_from_empty(to_node,
+# to_port, ...) - the port's type is already known, so this is the
+# low-ambiguity side: a small curated quick-add list, weighted toward
+# param-mode value nodes (the port/param/setting rule - tunability comes by
+# wiring a param-mode value node in, never a per-port param checkbox).
+func _on_connection_from_empty(to_node: StringName, to_port: int, release_position: Vector2) -> void:
+	var to_node_ref := _graph.get_node_or_null(str(to_node))
+	if not to_node_ref:
+		return
+	var to_type: int = to_node_ref.get_input_port_type(to_port)
+	var candidates := _build_quick_add_candidates(to_type)
+	if candidates.is_empty():
+		return
+	_pending_input_connection = {
+		"to_node": to_node,
+		"to_port": to_port,
+		"graph_position": release_position / _graph.zoom + _graph.scroll_offset,
+	}
+	_quick_add_popup.open(candidates, release_position)
+
+
+# Dragging out of an OUTPUT port and releasing on empty used to open the full
+# type-agnostic aMenu (2026-07-03 design) on the premise that an output alone
+# can't narrow "what comes next" - true for suggesting ONE obvious node, but
+# wrong for filtering the candidate SET (Noah, 2026-07-06: "it doesn't make
+# sense to allow adding a node that can't connect... let alone one that
+# doesn't even have an input"). Reuses the SAME quick-add popup as the input
+# side instead of the aMenu - a curated, type-filtered list of every node with
+# at least one compatible input port, via NyxRegistry.NODE_INPUT_TYPES.
+func _on_connection_to_empty(from_node: StringName, from_port: int, release_position: Vector2) -> void:
+	var from_node_ref := _graph.get_node_or_null(str(from_node))
+	if not from_node_ref:
+		return
+	var from_type: int = _compiler.resolve_output_type(from_node_ref, from_port)
+	var candidates := _build_output_drop_candidates(from_type)
+	if candidates.is_empty():
+		return
+	_pending_output_connection = {"from_node": from_node, "from_port": from_port}
+	_spawn_position = release_position / _graph.zoom + _graph.scroll_offset
+	_quick_add_popup.open(candidates, release_position)
+
+
+# Candidates are the fixed "Inputs" category value/context nodes - the only
+# ones meaningful to auto-spawn+connect from a known input port type. Param-
+# capable types (Float/Color/Vector3) get an extra "(Parameter)" entry
+# weighted above their plain counterpart; both remain compatible-type-filtered
+# via the same promotion matrix _on_connection_request uses.
+const _QUICK_ADD_CANDIDATES := [
+	{"id": 5, "label": "Float", "type": 1, "paramable": true},
+	{"id": 0, "label": "Color", "type": 3, "paramable": true},
+	{"id": 48, "label": "Vector3", "type": 0, "paramable": true},
+	{"id": 4, "label": "UV", "type": 2, "particle_unsafe": true},
+	{"id": 11, "label": "Time", "type": 1},
+	{"id": 20, "label": "Vertex", "type": 0, "spatial_only": true},
+	{"id": 63, "label": "Object Position", "type": 0, "spatial_only": true},
+	{"id": 64, "label": "World Position", "type": 0, "spatial_only": true},
+	{"id": 65, "label": "Instance Custom Data", "type": 3, "spatial_only": true},
+]
+
+
+# Full shader-type gating, mirroring nyx_search_popup.gd's _is_node_unavailable
+# exactly (particle_only/particle_unsafe/spatial_only/canvas_only) - a strict
+# superset of what the small _QUICK_ADD_CANDIDATES table alone ever needed
+# (none of those 9 entries carry particle_only/canvas_only), so one shared
+# helper covers both the input-side small list and the output-side full-
+# registry scan below.
+func _is_quick_add_unavailable(entry: Dictionary) -> bool:
+	if _shader_type == 2:  # particle
+		if entry.get("particle_only", false):
+			return false
+		return entry.get("particle_unsafe", false) or entry.get("spatial_only", false) \
+			or entry.get("canvas_only", false)
+	if entry.get("particle_only", false):
+		return true
+	return (entry.get("spatial_only", false) and _shader_type == 1) or \
+		   (entry.get("canvas_only", false) and _shader_type == 0)
+
+
+func _build_quick_add_candidates(to_type: int) -> Array:
+	var params := []
+	var plains := []
+	for c in _QUICK_ADD_CANDIDATES:
+		if _is_quick_add_unavailable(c):
+			continue
+		if not _compiler.can_promote(c["type"], to_type):
+			continue
+		if c.get("paramable", false):
+			params.append({"id": c["id"], "label": c["label"], "is_param": true})
+		plains.append({"id": c["id"], "label": c["label"], "is_param": false})
+	return params + plains
+
+
+# Walks the FULL node registry (not the small Inputs-only table above) so the
+# output-side drop can offer Math/Vector/Noise/etc. nodes - anything with at
+# least one input port compatible with the dragged output's type, via the
+# static NyxRegistry.NODE_INPUT_TYPES table (see its own doc comment for why
+# this is read from set_slot() declarations rather than a runtime probe).
+# Particle Start/Process are additionally excluded once one already exists in
+# the graph (both are singletons - _on_context_menu_selected already no-ops a
+# duplicate spawn; filtering here avoids ever offering a pick that can't do
+# anything, and _handle_quick_add_output_side's _last_spawned_node comparison
+# is a defensive backstop in case a no-op spawn slips through some other way).
+func _build_output_drop_candidates(from_type: int) -> Array:
+	var result := []
+	for category in NyxRegistry.NODE_REGISTRY:
+		for entry in category["nodes"]:
+			var id: int = entry["id"]
+			if id == 55 and _graph.get_node_or_null("ParticleStartNode"):
+				continue
+			if id == 56 and _graph.get_node_or_null("ParticleProcessNode"):
+				continue
+			if _is_quick_add_unavailable(entry):
+				continue
+			var input_types: Array = NyxRegistry.NODE_INPUT_TYPES.get(id, [])
+			if input_types.is_empty():
+				continue
+			var compatible := false
+			for t in input_types:
+				if _compiler.can_promote(from_type, t):
+					compatible = true
+					break
+			if compatible:
+				result.append({"id": id, "label": entry["label"], "is_param": false})
+	return result
+
+
+func _spawn_quick_add_node(id: int, pos: Vector2) -> Node:
+	match id:
+		0: _add_node(NyxRegistry.ColorNode.new(), pos, "Color")
+		4: _add_node(NyxRegistry.UVNode.new(), pos, "UV")
+		5: _add_node(NyxRegistry.FloatNode.new(), pos, "Float")
+		11: _add_node(NyxRegistry.TimeNode.new(), pos, "Time")
+		20: _add_node(NyxRegistry.VertexNode.new(), pos, "Vertex")
+		48: _add_node(NyxRegistry.Vector3Node.new(), pos, "Vector3")
+		63: _add_node(NyxRegistry.ObjectPositionNode.new(), pos, "ObjectPosition")
+		64: _add_node(NyxRegistry.WorldPositionNode.new(), pos, "WorldPosition")
+		65: _add_node(NyxRegistry.InstanceCustomDataNode.new(), pos, "InstanceCustomData")
+		_: return null
+	return _last_spawned_node
+
+
+# Reads the real port label off the node body: every node in this codebase
+# adds its port-row control(s) via add_child() in the same order as the ports
+# themselves land in set_slot(), so get_child(port_idx) is that row's control
+# - a Label (.text), an EditorSpinSlider (.label), or (for a combined in/out
+# row like Ocean Waves' "Position | Offset") a Container whose input-side
+# Label is always added first (confirmed across every node surveyed - see
+# ocean_waves_node.gd/depth_fade_node.gd). Falls back to the node's title if
+# a node ever breaks this convention (e.g. a future custom-drawn node).
+func _guess_param_default_name(to_node: Node, to_port: int) -> String:
+	var port_label := _find_port_label_text(to_node, to_port)
+	var node_part := _to_snake_case(String(to_node.title))
+	var base: String
+	if port_label.is_empty():
+		base = "%s_%d" % [node_part, to_port + 1]
+	else:
+		# Always node-qualified (not just when the node has multiple inputs) -
+		# a simpler rule, and it means two different nodes' same-named ports
+		# (e.g. two Mix nodes' "A") never collide by construction. Godot/GLSL
+		# uniform-naming convention (snake_case) matches every hand-authored
+		# param name already in the codebase (rough_base, ripple_strength, etc.
+		# - see dev_tools/generate_ocean_showcase.gd).
+		base = "%s_%s" % [node_part, _to_snake_case(port_label)]
+	return _unique_param_name(base)
+
+
+# Lowercase + underscores, stripped of anything outside [a-z0-9_] and
+# collapsed - titles/labels here are always plain words ("Ocean Waves",
+# "Position", "A"), so this is a light sanitize, not a full CamelCase splitter.
+func _to_snake_case(text: String) -> String:
+	var lower := text.to_lower().replace(" ", "_")
+	var result := ""
+	for c in lower:
+		if c == "_" or (c >= "a" and c <= "z") or (c >= "0" and c <= "9"):
+			result += c
+	while result.contains("__"):
+		result = result.replace("__", "_")
+	return result.trim_prefix("_").trim_suffix("_")
+
+
+# Increments (_2, _3, ...) until the name doesn't collide with any param
+# already in use elsewhere in the graph - checked against the live graph, not
+# just other quick-add spawns, so it also catches hand-named params.
+func _unique_param_name(base: String) -> String:
+	var used := _collect_used_param_names()
+	if not used.has(base):
+		return base
+	var i := 2
+	while used.has("%s_%d" % [base, i]):
+		i += 1
+	return "%s_%d" % [base, i]
+
+
+func _collect_used_param_names() -> Dictionary:
+	var used := {}
+	for child in _graph.get_children():
+		if child is GraphNode and child.has_method("is_param_mode") and child.is_param_mode():
+			used[child.get_param_name()] = true
+	return used
+
+
+func _find_port_label_text(to_node: Node, to_port: int) -> String:
+	if to_port < 0 or to_port >= to_node.get_child_count():
+		return ""
+	return _extract_label_text(to_node.get_child(to_port))
+
+
+func _extract_label_text(control: Node) -> String:
+	if control is Label:
+		return (control as Label).text
+	if control is EditorSpinSlider:
+		return (control as EditorSpinSlider).label
+	if control is Container:
+		for c in control.get_children():
+			var found := _extract_label_text(c)
+			if not found.is_empty():
+				return found
+	return ""
+
+
+func _on_quick_add_chosen(id: int, is_param: bool) -> void:
+	if not _pending_input_connection.is_empty():
+		_handle_quick_add_input_side(id, is_param)
+	elif not _pending_output_connection.is_empty():
+		_handle_quick_add_output_side(id)
+
+
+func _handle_quick_add_input_side(id: int, is_param: bool) -> void:
+	var to_node: StringName = _pending_input_connection["to_node"]
+	var to_port: int = _pending_input_connection["to_port"]
+	var graph_pos: Vector2 = _pending_input_connection["graph_position"]
+	var to_node_ref := _graph.get_node_or_null(str(to_node))
+	_pending_input_connection = {}
+	if not to_node_ref:
+		return
+
+	_push_undo_state()
+	var node := _spawn_quick_add_node(id, graph_pos)
+	if not node:
+		return
+	if is_param and node.has_method("set_param_mode"):
+		node.set_param_mode(true)
+		node.set_param_name(_guess_param_default_name(to_node_ref, to_port))
+	_graph.connect_node(node.name, 0, to_node, to_port)
+	_compiler.update_all_polymorphic_ports()
+	_compiler.update_contextual_labels()
+	_request_compile()
+
+	# Non-modal naming (Noah, 2026-07-06): open the inspector with the param
+	# name field focused and pre-selected - typing replaces the guessed
+	# default, Enter/click-away keeps it. Never blocks on a forced name entry.
+	if is_param and node.has_signal("inspector_requested"):
+		node.emit_signal("inspector_requested", node)
+		if _node_inspector.has_method("focus_param_name"):
+			_node_inspector.focus_param_name()
+
+
+# Reuses the real, proven spawn path (_on_context_menu_selected, which pushes
+# its own undo state and places the node at _spawn_position - already set in
+# _on_connection_to_empty) rather than a parallel construction switch, then
+# wires the dragged output into the new node's first compatible input via the
+# existing _auto_connect_pending_output. The prev_spawned comparison guards
+# against a no-op spawn (e.g. picking Particle Start/Process when one already
+# exists is filtered out at candidate-build time, but this is a cheap,
+# generic backstop against any other reason the spawn might silently no-op)
+# - without it, _last_spawned_node would still hold a STALE reference from
+# some earlier successful spawn, and connecting to that would be a real,
+# confusing bug: wiring the drag into the wrong node entirely.
+func _handle_quick_add_output_side(id: int) -> void:
+	var prev_spawned := _last_spawned_node
+	_on_context_menu_selected(id)
+	if _last_spawned_node == prev_spawned:
+		_pending_output_connection = {}
+		return
+	_auto_connect_pending_output(_last_spawned_node)
+
+
+func _auto_connect_pending_output(node: Node) -> void:
+	if _pending_output_connection.is_empty() or not is_instance_valid(node):
+		return
+	var from_node: StringName = _pending_output_connection["from_node"]
+	var from_port: int = _pending_output_connection["from_port"]
+	_pending_output_connection = {}
+	var from_node_ref := _graph.get_node_or_null(str(from_node))
+	if not from_node_ref:
+		return
+	var from_type: int = _compiler.resolve_output_type(from_node_ref, from_port)
+	for port in range(node.get_input_port_count()):
+		if _compiler.can_promote(from_type, node.get_input_port_type(port)):
+			_graph.connect_node(from_node, from_port, node.name, port)
+			_compiler.update_all_polymorphic_ports()
+			_compiler.update_contextual_labels()
+			_request_compile()
+			return
+
+
 # True when the mouse is over any node (body or its port dots). GraphEdit's gui_input
 # fires for presses over nodes too - it manages node drag/connection centrally - so we
 # must NOT pan there or we'd steal the press from node-dragging. The rect is grown to
@@ -1378,6 +1698,9 @@ func _toggle_shortcuts_overlay() -> void:
 func _on_search_node_chosen(id: int) -> void:
 	# The search popup picked a node - spawn it at the captured _spawn_position.
 	# _on_context_menu_selected pushes its own undo snapshot, so no extra push here.
+	# (Connection-drop node spawn no longer routes through the aMenu at all -
+	# both drag directions use the quick-add popup; see _on_connection_from_empty
+	# / _on_connection_to_empty.)
 	_on_context_menu_selected(id)
 
 

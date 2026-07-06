@@ -590,6 +590,48 @@ const NODE_WIDTH_TIERS := {
 }
 
 
+# Registry id -> Array[int] of that node type's real INPUT port types (0=vec3,
+# 1=float, 2=vec2, 3=vec4; empty = no input ports at all). Used by the
+# connection-drop "quick add" popup's output-side candidate list (nyx_main.gd's
+# _build_output_drop_candidates) to only ever offer nodes that could actually
+# accept the dragged output - see .nyx-notes/backlog.md's "Connection-drop node
+# spawn" for the full design/history.
+#
+# Hand-derived by reading every node's own set_slot() calls directly, NOT by
+# instantiating nodes at runtime to probe them - a bare `.new()` never fires
+# _ready() (Godot only calls it once a Node enters a SceneTree), so a runtime
+# probe would need to parent-then-immediately-free ~68 node instances (several
+# EditorSpinSlider-backed) on every connection-drag release, which is both
+# unverifiable headless and a real crash-risk surface (a node's _ready() may
+# call_deferred() something that could fire after the probe frees it). Reading
+# set_slot()'s declared type directly is NOT an approximation of that: this
+# codebase's own architecture guarantees a port's REGISTERED input type never
+# changes after _ready() (see nyx_compiler.gd's update_all_polymorphic_ports -
+# "the input side only ever changes the port's displayed color, never its
+# registered type"), so get_input_port_type() at runtime always returns exactly
+# what's written here. A polymorphic node's nominal declared type (nearly
+# always vec3) already accepts every real type through the promotion matrix
+# (float/vec2/vec3 widen to it, vec4 narrows to it) - that's why most poly
+# single-input math nodes list just [0].
+#
+# Verified against 3 dynamic-port node types by reading their _ready()/state
+# directly rather than assuming a shape: Relay defaults to 1 pair
+# (_pair_count := 1), Custom Function defaults to 1 input (_input_count := 1),
+# Tiling & Offset's "row 1" is a label-only master slider with no port at all
+# (real ports are 0,2,3,4,5).
+const NODE_INPUT_TYPES := {
+	0: [], 1: [0], 2: [0], 3: [0, 1], 4: [], 5: [], 6: [0], 7: [0, 1],
+	8: [0], 9: [0], 10: [0], 11: [], 12: [3], 13: [1], 14: [0], 15: [1],
+	16: [0, 1], 17: [1], 18: [1], 19: [0, 1], 20: [], 21: [0], 22: [0],
+	23: [0], 24: [0], 25: [0], 26: [0], 27: [0], 28: [0], 29: [0], 30: [0],
+	31: [0], 32: [0], 33: [0], 34: [0], 35: [0], 36: [0, 1], 37: [1],
+	38: [1], 39: [0, 1], 40: [0, 1], 41: [0, 1], 42: [1], 43: [0], 44: [],
+	45: [0], 46: [1], 47: [0], 48: [], 49: [0], 50: [], 51: [], 52: [0],
+	53: [0], 54: [0], 55: [0, 3], 56: [0, 3], 57: [], 58: [], 59: [],
+	60: [], 61: [], 62: [], 63: [], 64: [], 65: [], 66: [0], 67: [0],
+}
+
+
 # ── Static utilities ──────────────────────────────────────────────────────────
 
 # Returns the type-name string for a node (its key in NODE_CLASSES), or "" if unknown.
