@@ -81,6 +81,14 @@ func _ready() -> void:
 	_gain_slider.value_changed.connect(_on_gain_changed)
 	add_child(_gain_slider)
 
+	# Promote Lacunarity (row 3) and Gain (row 4) to optional float input ports —
+	# the slider stays the inline default, wiring a param-mode Float overrides it
+	# (the slider+optional-port dual pattern, see the port/param/setting rule).
+	# Octaves (row 2) stays port-less: it's the loop bound, a "setting", not a
+	# uniform. UV (slot 0) + Scale (slot 1) ports come from the noise base.
+	set_slot(3, true, 1, float_color, false, -1, float_color)
+	set_slot(4, true, 1, float_color, false, -1, float_color)
+
 
 func _on_octaves_changed(val: float) -> void:
 	_octaves = int(val)
@@ -98,7 +106,14 @@ func _on_gain_changed(val: float) -> void:
 
 
 func get_shader_snippet(inputs: Array = []) -> String:
-	return "nyx_fbm((%s).xy * %s, %d, %.2f, %.2f)" % [inputs[0], inputs[1], _octaves, _lacunarity, _gain]
+	# inputs: 0=UV, 1=Scale, 2=Lacunarity, 3=Gain (defaults from the inline
+	# sliders via get_default_inputs when a port is unconnected). Octaves stays
+	# a baked literal — it's the loop bound.
+	return "nyx_fbm((%s).xy * %s, %d, %s, %s)" % [inputs[0], inputs[1], _octaves, inputs[2], inputs[3]]
+
+
+func get_default_inputs() -> Array:
+	return ["vec3(UV, 0.0)", "%.2f" % _scale, "%.2f" % _lacunarity, "%.2f" % _gain]
 
 
 func get_shader_functions() -> Dictionary:
@@ -106,6 +121,13 @@ func get_shader_functions() -> Dictionary:
 		"nyx_gradient_noise": _GRADIENT_FUNCTIONS,
 		"nyx_fbm": _FBM_FUNCTION,
 	}
+
+
+func get_param_range_hint(port: int) -> Array:
+	match port:
+		2: return [1.0, 4.0, 0.1]    # Lacunarity
+		3: return [0.0, 1.0, 0.01]   # Gain
+		_: return super.get_param_range_hint(port)  # port 1 (Scale) → noise base
 
 
 func get_state() -> Dictionary:

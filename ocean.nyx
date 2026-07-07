@@ -1,59 +1,60 @@
 [gd_resource type="Resource" script_class="NyxGraph" format=3]
 
-[ext_resource type="Script" path="res://addons/nyx/core/nyx_node_data.gd" id="1_ful8b"]
-[ext_resource type="Script" path="res://addons/nyx/core/nyx_graph.gd" id="2_axjmy"]
+[ext_resource type="Script" uid="uid://ch1ung8bifugm" path="res://addons/nyx/core/nyx_node_data.gd" id="1_ful8b"]
+[ext_resource type="Script" uid="uid://bl0sybk3dbm60" path="res://addons/nyx/core/nyx_graph.gd" id="2_axjmy"]
 
-[sub_resource type="Resource" id="Resource_58gtv"]
+[sub_resource type="Resource" id="Resource_ful8b"]
 script = ExtResource("1_ful8b")
 type = "OutputNode"
 node_name = "OutputNode"
 position = Vector2(0, 4800)
 state = {
 "mode": 1,
+"preview_plane_horizontal": true,
+"preview_scale": 20.0,
+"preview_subdivisions": 200,
 "shader_type": 0
 }
 
-[sub_resource type="Resource" id="Resource_lgu0j"]
-script = ExtResource("1_ful8b")
-type = "VertexOutputNode"
-node_name = "VertexOutputNode"
-position = Vector2(220, 4800)
-
-[sub_resource type="Resource" id="Resource_hkul2"]
+[sub_resource type="Resource" id="Resource_axjmy"]
 script = ExtResource("1_ful8b")
 type = "WorldPositionNode"
 node_name = "WorldPosition"
 position = Vector2(0, -800)
 
-[sub_resource type="Resource" id="Resource_ltxi6"]
+[sub_resource type="Resource" id="Resource_58gtv"]
 script = ExtResource("1_ful8b")
 type = "TimeNode"
 node_name = "TimeNode1"
 position = Vector2(220, -800)
 
-[sub_resource type="Resource" id="Resource_7u2bl"]
+[sub_resource type="Resource" id="Resource_lgu0j"]
 script = ExtResource("1_ful8b")
 type = "Vector3Node"
 node_name = "ScrollDir1"
 position = Vector2(440, -800)
 state = {
-"x": 0.03,
-"y": 0.02,
+"param_mode": false,
+"param_name": "vec3_scrolldir1",
+"x": 0.029999971,
+"y": 0.01999998,
 "z": 0.0
 }
 
-[sub_resource type="Resource" id="Resource_aedna"]
+[sub_resource type="Resource" id="Resource_hkul2"]
 script = ExtResource("1_ful8b")
 type = "Vector3Node"
 node_name = "ScrollDir2"
 position = Vector2(660, -800)
 state = {
-"x": -0.02,
-"y": 0.035,
+"param_mode": false,
+"param_name": "vec3_scrolldir2",
+"x": -0.01999998,
+"y": 0.034999967,
 "z": 0.0
 }
 
-[sub_resource type="Resource" id="Resource_7jodt"]
+[sub_resource type="Resource" id="Resource_ltxi6"]
 script = ExtResource("1_ful8b")
 type = "OceanWavesNode"
 node_name = "OceanWaves"
@@ -68,53 +69,54 @@ state = {
 "waves": 5
 }
 
-[sub_resource type="Resource" id="Resource_f3gvn"]
+[sub_resource type="Resource" id="Resource_7u2bl"]
 script = ExtResource("1_ful8b")
 type = "SplitNode"
 node_name = "SplitWorldPos"
 position = Vector2(0, 800)
 
-[sub_resource type="Resource" id="Resource_m7str"]
+[sub_resource type="Resource" id="Resource_aedna"]
 script = ExtResource("1_ful8b")
 type = "CombineNode"
 node_name = "CombineDetailUV"
 position = Vector2(220, 800)
 
-[sub_resource type="Resource" id="Resource_yxkjk"]
+[sub_resource type="Resource" id="Resource_7jodt"]
 script = ExtResource("1_ful8b")
 type = "MultiplyNode"
 node_name = "ScrollUV1"
 position = Vector2(440, 800)
 
-[sub_resource type="Resource" id="Resource_8onet"]
+[sub_resource type="Resource" id="Resource_f3gvn"]
 script = ExtResource("1_ful8b")
 type = "AddNode"
 node_name = "DetailUVAdd"
 position = Vector2(660, 800)
 
-[sub_resource type="Resource" id="Resource_xqu8m"]
+[sub_resource type="Resource" id="Resource_m7str"]
 script = ExtResource("1_ful8b")
 type = "RelayNode"
 node_name = "RelayDetailUV"
 position = Vector2(880, 800)
 state = {
+"color": [0.14, 0.14, 0.18, 0.95],
 "custom_name": "DetailUV",
 "pair_count": 1
 }
 
-[sub_resource type="Resource" id="Resource_d1lvn"]
+[sub_resource type="Resource" id="Resource_yxkjk"]
 script = ExtResource("1_ful8b")
 type = "MultiplyNode"
 node_name = "ScrollUV2"
 position = Vector2(1100, 800)
 
-[sub_resource type="Resource" id="Resource_fe0c4"]
+[sub_resource type="Resource" id="Resource_8onet"]
 script = ExtResource("1_ful8b")
 type = "AddNode"
 node_name = "DetailUVAdd2"
 position = Vector2(1320, 800)
 
-[sub_resource type="Resource" id="Resource_sovyc"]
+[sub_resource type="Resource" id="Resource_xqu8m"]
 script = ExtResource("1_ful8b")
 type = "FBMNode"
 node_name = "FBMRipple1"
@@ -126,7 +128,7 @@ state = {
 "scale": 2.5
 }
 
-[sub_resource type="Resource" id="Resource_f6diq"]
+[sub_resource type="Resource" id="Resource_d1lvn"]
 script = ExtResource("1_ful8b")
 type = "FBMNode"
 node_name = "FBMRipple2"
@@ -138,23 +140,24 @@ state = {
 "scale": 7.0
 }
 
-[sub_resource type="Resource" id="Resource_0bdu7"]
+[sub_resource type="Resource" id="Resource_fe0c4"]
 script = ExtResource("1_ful8b")
 type = "AddNode"
 node_name = "DetailHeightAdd"
 position = Vector2(1980, 800)
 
-[sub_resource type="Resource" id="Resource_5thyo"]
+[sub_resource type="Resource" id="Resource_sovyc"]
 script = ExtResource("1_ful8b")
 type = "RelayNode"
 node_name = "RelayDetailHeight"
 position = Vector2(2200, 800)
 state = {
+"color": [0.14, 0.14, 0.18, 0.95],
 "custom_name": "DetailHeight",
 "pair_count": 1
 }
 
-[sub_resource type="Resource" id="Resource_7mj5o"]
+[sub_resource type="Resource" id="Resource_f6diq"]
 script = ExtResource("1_ful8b")
 type = "NormalFromHeightNode"
 node_name = "RippleNormal"
@@ -163,40 +166,49 @@ state = {
 "strength": 6.0
 }
 
-[sub_resource type="Resource" id="Resource_fr8ev"]
+[sub_resource type="Resource" id="Resource_0bdu7"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_ripple_normal_strength"
 position = Vector2(2640, 800)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "ripple_normal_strength",
-"value": 6.0
+"param_step": 0.0,
+"value": 2.0
 }
 
-[sub_resource type="Resource" id="Resource_m8edn"]
+[sub_resource type="Resource" id="Resource_5thyo"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_fbm1_scale"
 position = Vector2(2860, 800)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "fbm1_scale",
+"param_step": 0.0,
 "value": 2.5
 }
 
-[sub_resource type="Resource" id="Resource_hgo0j"]
+[sub_resource type="Resource" id="Resource_7mj5o"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_fbm2_scale"
 position = Vector2(3080, 800)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "fbm2_scale",
+"param_step": 0.0,
 "value": 7.0
 }
 
-[sub_resource type="Resource" id="Resource_sba7l"]
+[sub_resource type="Resource" id="Resource_fr8ev"]
 script = ExtResource("1_ful8b")
 type = "FBMNode"
 node_name = "FBMBreakup"
@@ -208,88 +220,103 @@ state = {
 "scale": 4.0
 }
 
-[sub_resource type="Resource" id="Resource_dic44"]
+[sub_resource type="Resource" id="Resource_m8edn"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_fbm_breakup_scale"
 position = Vector2(220, 1600)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "fbm_breakup_scale",
+"param_step": 0.0,
 "value": 4.0
 }
 
-[sub_resource type="Resource" id="Resource_xy687"]
+[sub_resource type="Resource" id="Resource_hgo0j"]
 script = ExtResource("1_ful8b")
 type = "SmoothstepNode"
 node_name = "BreakupSmoothstep"
 position = Vector2(440, 1600)
 state = {
-"edge0": 0.42,
-"edge1": 0.65
+"edge0": 0.41999999999999993,
+"edge1": 0.6500000000000004
 }
 
-[sub_resource type="Resource" id="Resource_g72um"]
+[sub_resource type="Resource" id="Resource_sba7l"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_breakup_edge0"
 position = Vector2(660, 1600)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "breakup_edge0",
-"value": 0.42
+"param_step": 0.0,
+"value": 0.41999996
 }
 
-[sub_resource type="Resource" id="Resource_vi7is"]
+[sub_resource type="Resource" id="Resource_dic44"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_breakup_edge1"
 position = Vector2(880, 1600)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "breakup_edge1",
+"param_step": 0.0,
 "value": 0.65
 }
 
-[sub_resource type="Resource" id="Resource_m7d3y"]
+[sub_resource type="Resource" id="Resource_xy687"]
 script = ExtResource("1_ful8b")
 type = "SmoothstepNode"
 node_name = "CrestSmoothstep"
 position = Vector2(1100, 1600)
 state = {
 "edge0": 0.5,
-"edge1": 0.85
+"edge1": 0.8499999999999996
 }
 
-[sub_resource type="Resource" id="Resource_c7ifq"]
+[sub_resource type="Resource" id="Resource_g72um"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_crest_edge0"
 position = Vector2(1320, 1600)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "crest_edge0",
+"param_step": 0.0,
 "value": 0.5
 }
 
-[sub_resource type="Resource" id="Resource_rsjdy"]
+[sub_resource type="Resource" id="Resource_vi7is"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_crest_edge1"
 position = Vector2(1540, 1600)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "crest_edge1",
+"param_step": 0.0,
 "value": 0.85
 }
 
-[sub_resource type="Resource" id="Resource_k2esj"]
+[sub_resource type="Resource" id="Resource_m7d3y"]
 script = ExtResource("1_ful8b")
 type = "MultiplyNode"
 node_name = "CrestFoamMul"
 position = Vector2(1760, 1600)
 
-[sub_resource type="Resource" id="Resource_2pq3u"]
+[sub_resource type="Resource" id="Resource_c7ifq"]
 script = ExtResource("1_ful8b")
 type = "DepthFadeNode"
 node_name = "DepthFadeShore"
@@ -298,30 +325,33 @@ state = {
 "distance": 0.8
 }
 
-[sub_resource type="Resource" id="Resource_2377t"]
+[sub_resource type="Resource" id="Resource_rsjdy"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_depth_shore_distance"
 position = Vector2(2200, 1600)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "depth_shore_distance",
-"value": 0.8
+"param_step": 0.0,
+"value": 0.79999995
 }
 
-[sub_resource type="Resource" id="Resource_qf38p"]
+[sub_resource type="Resource" id="Resource_k2esj"]
 script = ExtResource("1_ful8b")
 type = "OneMinusNode"
 node_name = "ShoreOneMinus"
 position = Vector2(2420, 1600)
 
-[sub_resource type="Resource" id="Resource_psf61"]
+[sub_resource type="Resource" id="Resource_2pq3u"]
 script = ExtResource("1_ful8b")
 type = "MultiplyNode"
 node_name = "ShoreFoamMul"
 position = Vector2(2640, 1600)
 
-[sub_resource type="Resource" id="Resource_6ny23"]
+[sub_resource type="Resource" id="Resource_2377t"]
 script = ExtResource("1_ful8b")
 type = "MinMaxNode"
 node_name = "FoamCombine"
@@ -330,17 +360,18 @@ state = {
 "type": 1
 }
 
-[sub_resource type="Resource" id="Resource_veno0"]
+[sub_resource type="Resource" id="Resource_qf38p"]
 script = ExtResource("1_ful8b")
 type = "RelayNode"
 node_name = "RelayFoamMask"
 position = Vector2(3080, 1600)
 state = {
+"color": [0.14, 0.14, 0.18, 0.95],
 "custom_name": "FoamMask",
 "pair_count": 1
 }
 
-[sub_resource type="Resource" id="Resource_7nbxu"]
+[sub_resource type="Resource" id="Resource_psf61"]
 script = ExtResource("1_ful8b")
 type = "DepthFadeNode"
 node_name = "DepthFadeBody"
@@ -349,28 +380,31 @@ state = {
 "distance": 4.0
 }
 
-[sub_resource type="Resource" id="Resource_ijv3g"]
+[sub_resource type="Resource" id="Resource_6ny23"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_depth_body_distance"
 position = Vector2(220, 2400)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "depth_body_distance",
+"param_step": 0.0,
 "value": 4.0
 }
 
-[sub_resource type="Resource" id="Resource_w4mwd"]
+[sub_resource type="Resource" id="Resource_veno0"]
 script = ExtResource("1_ful8b")
 type = "GradientNode"
 node_name = "WaterGradient"
 position = Vector2(440, 2400)
 state = {
-"colors": ["2e8b8b", "1a5c6e", "123a4f"],
+"colors": ["2e8b8bff", "1a5c6eff", "123a4fff"],
 "offsets": [0.0, 0.5, 1.0]
 }
 
-[sub_resource type="Resource" id="Resource_dvdj0"]
+[sub_resource type="Resource" id="Resource_7nbxu"]
 script = ExtResource("1_ful8b")
 type = "ColorNode"
 node_name = "HorizonColor"
@@ -381,7 +415,7 @@ state = {
 "param_name": "horizon_color"
 }
 
-[sub_resource type="Resource" id="Resource_n6wrj"]
+[sub_resource type="Resource" id="Resource_ijv3g"]
 script = ExtResource("1_ful8b")
 type = "FresnelNode"
 node_name = "FresnelHorizon"
@@ -390,24 +424,27 @@ state = {
 "power": 4.0
 }
 
-[sub_resource type="Resource" id="Resource_tiule"]
+[sub_resource type="Resource" id="Resource_w4mwd"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_fresnel_horizon_power"
 position = Vector2(1100, 2400)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "fresnel_horizon_power",
+"param_step": 0.0,
 "value": 4.0
 }
 
-[sub_resource type="Resource" id="Resource_hq5yl"]
+[sub_resource type="Resource" id="Resource_dvdj0"]
 script = ExtResource("1_ful8b")
 type = "MixNode"
 node_name = "FresnelHorizonMix"
 position = Vector2(1320, 2400)
 
-[sub_resource type="Resource" id="Resource_bj0sf"]
+[sub_resource type="Resource" id="Resource_n6wrj"]
 script = ExtResource("1_ful8b")
 type = "ColorNode"
 node_name = "FoamWhiteColor"
@@ -418,110 +455,125 @@ state = {
 "param_name": "foam_white_color"
 }
 
-[sub_resource type="Resource" id="Resource_ol1nl"]
+[sub_resource type="Resource" id="Resource_tiule"]
 script = ExtResource("1_ful8b")
 type = "MixNode"
 node_name = "AlbedoFoamMix"
 position = Vector2(1760, 2400)
 
-[sub_resource type="Resource" id="Resource_jnpg7"]
+[sub_resource type="Resource" id="Resource_hq5yl"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "FloatRoughBase"
 position = Vector2(1980, 2400)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "rough_base",
-"value": 0.08
+"param_step": 0.0,
+"value": 0.08000004
 }
 
-[sub_resource type="Resource" id="Resource_ns61l"]
+[sub_resource type="Resource" id="Resource_bj0sf"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "FloatRoughFoam"
 position = Vector2(2200, 2400)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "rough_foam",
-"value": 0.45
+"param_step": 0.0,
+"value": 0.45000005
 }
 
-[sub_resource type="Resource" id="Resource_84446"]
+[sub_resource type="Resource" id="Resource_ol1nl"]
 script = ExtResource("1_ful8b")
 type = "MixNode"
 node_name = "RoughnessFoamMix"
 position = Vector2(2420, 2400)
 
-[sub_resource type="Resource" id="Resource_di4kl"]
+[sub_resource type="Resource" id="Resource_jnpg7"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "FloatSpecular"
 position = Vector2(2640, 2400)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "specular",
-"value": 0.6
+"param_step": 0.0,
+"value": 0.049999952
 }
 
-[sub_resource type="Resource" id="Resource_nrr0j"]
+[sub_resource type="Resource" id="Resource_ns61l"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "FloatHalf"
 position = Vector2(0, 3200)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": false,
 "param_name": "ripple_center",
+"param_step": 0.0,
 "value": 0.5
 }
 
-[sub_resource type="Resource" id="Resource_vbm77"]
+[sub_resource type="Resource" id="Resource_84446"]
 script = ExtResource("1_ful8b")
 type = "SubtractNode"
 node_name = "RippleCenterSubtract"
 position = Vector2(220, 3200)
 
-[sub_resource type="Resource" id="Resource_6if6b"]
+[sub_resource type="Resource" id="Resource_di4kl"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "FloatRippleStrength"
 position = Vector2(440, 3200)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "ripple_strength",
-"value": 0.04
+"param_step": 0.0,
+"value": 0.03999996
 }
 
-[sub_resource type="Resource" id="Resource_jxqlr"]
+[sub_resource type="Resource" id="Resource_nrr0j"]
 script = ExtResource("1_ful8b")
 type = "MultiplyNode"
 node_name = "RippleStrengthMul"
 position = Vector2(660, 3200)
 
-[sub_resource type="Resource" id="Resource_4q5e2"]
+[sub_resource type="Resource" id="Resource_vbm77"]
 script = ExtResource("1_ful8b")
 type = "CombineNode"
 node_name = "RippleOffsetCombine"
 position = Vector2(880, 3200)
 
-[sub_resource type="Resource" id="Resource_m3ngh"]
+[sub_resource type="Resource" id="Resource_6if6b"]
 script = ExtResource("1_ful8b")
 type = "ScreenUVNode"
 node_name = "ScreenUV1"
 position = Vector2(1100, 3200)
 
-[sub_resource type="Resource" id="Resource_jnpqr"]
+[sub_resource type="Resource" id="Resource_jxqlr"]
 script = ExtResource("1_ful8b")
 type = "AddNode"
 node_name = "ScreenUVOffsetAdd"
 position = Vector2(1320, 3200)
 
-[sub_resource type="Resource" id="Resource_qu30m"]
+[sub_resource type="Resource" id="Resource_4q5e2"]
 script = ExtResource("1_ful8b")
 type = "ScreenTextureNode"
 node_name = "ScreenTextureRefr"
 position = Vector2(1540, 3200)
 
-[sub_resource type="Resource" id="Resource_1emcs"]
+[sub_resource type="Resource" id="Resource_m3ngh"]
 script = ExtResource("1_ful8b")
 type = "DepthFadeNode"
 node_name = "DepthFadeRefraction"
@@ -530,24 +582,27 @@ state = {
 "distance": 2.5
 }
 
-[sub_resource type="Resource" id="Resource_xjxr7"]
+[sub_resource type="Resource" id="Resource_jnpqr"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_depth_refraction_distance"
 position = Vector2(1980, 3200)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "depth_refraction_distance",
+"param_step": 0.0,
 "value": 2.5
 }
 
-[sub_resource type="Resource" id="Resource_pv7pi"]
+[sub_resource type="Resource" id="Resource_qu30m"]
 script = ExtResource("1_ful8b")
 type = "MixNode"
 node_name = "RefractionColorMix"
 position = Vector2(2200, 3200)
 
-[sub_resource type="Resource" id="Resource_navhw"]
+[sub_resource type="Resource" id="Resource_1emcs"]
 script = ExtResource("1_ful8b")
 type = "FresnelNode"
 node_name = "FresnelGlow"
@@ -556,41 +611,47 @@ state = {
 "power": 1.5
 }
 
-[sub_resource type="Resource" id="Resource_d2web"]
+[sub_resource type="Resource" id="Resource_xjxr7"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "Param_fresnel_glow_power"
 position = Vector2(220, 4000)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "fresnel_glow_power",
+"param_step": 0.0,
 "value": 1.5
 }
 
-[sub_resource type="Resource" id="Resource_8yko5"]
+[sub_resource type="Resource" id="Resource_pv7pi"]
 script = ExtResource("1_ful8b")
 type = "MultiplyNode"
 node_name = "GlowCrestFresnelMul"
 position = Vector2(440, 4000)
 
-[sub_resource type="Resource" id="Resource_8cgta"]
+[sub_resource type="Resource" id="Resource_navhw"]
 script = ExtResource("1_ful8b")
 type = "FloatNode"
 node_name = "FloatGlowStrength"
 position = Vector2(660, 4000)
 state = {
+"param_max": 1.0,
+"param_min": 0.0,
 "param_mode": true,
 "param_name": "glow_strength",
-"value": 0.35
+"param_step": 0.0,
+"value": 0.39999998
 }
 
-[sub_resource type="Resource" id="Resource_ajxgy"]
+[sub_resource type="Resource" id="Resource_d2web"]
 script = ExtResource("1_ful8b")
 type = "MultiplyNode"
 node_name = "GlowStrengthMul"
 position = Vector2(880, 4000)
 
-[sub_resource type="Resource" id="Resource_wu12w"]
+[sub_resource type="Resource" id="Resource_8yko5"]
 script = ExtResource("1_ful8b")
 type = "ColorNode"
 node_name = "SSSTealColor"
@@ -601,15 +662,166 @@ state = {
 "param_name": "sss_color"
 }
 
-[sub_resource type="Resource" id="Resource_eeykc"]
+[sub_resource type="Resource" id="Resource_8cgta"]
 script = ExtResource("1_ful8b")
 type = "ScaleNode"
 node_name = "GlowScale"
 position = Vector2(1320, 4000)
 
+[sub_resource type="Resource" id="Resource_ajxgy"]
+script = ExtResource("1_ful8b")
+type = "VertexOutputNode"
+node_name = "VertexOutputNode"
+position = Vector2(220, 4800)
+
 [resource]
 script = ExtResource("2_axjmy")
-nodes = [SubResource("Resource_58gtv"), SubResource("Resource_lgu0j"), SubResource("Resource_hkul2"), SubResource("Resource_ltxi6"), SubResource("Resource_7u2bl"), SubResource("Resource_aedna"), SubResource("Resource_7jodt"), SubResource("Resource_f3gvn"), SubResource("Resource_m7str"), SubResource("Resource_yxkjk"), SubResource("Resource_8onet"), SubResource("Resource_xqu8m"), SubResource("Resource_d1lvn"), SubResource("Resource_fe0c4"), SubResource("Resource_sovyc"), SubResource("Resource_f6diq"), SubResource("Resource_0bdu7"), SubResource("Resource_5thyo"), SubResource("Resource_7mj5o"), SubResource("Resource_fr8ev"), SubResource("Resource_m8edn"), SubResource("Resource_hgo0j"), SubResource("Resource_sba7l"), SubResource("Resource_dic44"), SubResource("Resource_xy687"), SubResource("Resource_g72um"), SubResource("Resource_vi7is"), SubResource("Resource_m7d3y"), SubResource("Resource_c7ifq"), SubResource("Resource_rsjdy"), SubResource("Resource_k2esj"), SubResource("Resource_2pq3u"), SubResource("Resource_2377t"), SubResource("Resource_qf38p"), SubResource("Resource_psf61"), SubResource("Resource_6ny23"), SubResource("Resource_veno0"), SubResource("Resource_7nbxu"), SubResource("Resource_ijv3g"), SubResource("Resource_w4mwd"), SubResource("Resource_dvdj0"), SubResource("Resource_n6wrj"), SubResource("Resource_tiule"), SubResource("Resource_hq5yl"), SubResource("Resource_bj0sf"), SubResource("Resource_ol1nl"), SubResource("Resource_jnpg7"), SubResource("Resource_ns61l"), SubResource("Resource_84446"), SubResource("Resource_di4kl"), SubResource("Resource_nrr0j"), SubResource("Resource_vbm77"), SubResource("Resource_6if6b"), SubResource("Resource_jxqlr"), SubResource("Resource_4q5e2"), SubResource("Resource_m3ngh"), SubResource("Resource_jnpqr"), SubResource("Resource_qu30m"), SubResource("Resource_1emcs"), SubResource("Resource_xjxr7"), SubResource("Resource_pv7pi"), SubResource("Resource_navhw"), SubResource("Resource_d2web"), SubResource("Resource_8yko5"), SubResource("Resource_8cgta"), SubResource("Resource_ajxgy"), SubResource("Resource_wu12w"), SubResource("Resource_eeykc")]
+exported_shader_path = "res://ocean.gdshader"
+compiled_code = "// nyx_source: res://ocean.nyx
+// This shader was generated by Nyx. To edit it visually, right-click
+// this file in the FileSystem dock and choose \"Open in Nyx\" (for now).
+shader_type spatial;
+render_mode blend_mix;
+uniform float ripple_normal_strength : hint_range(0.0000, 1.0000) = 2.0000;
+uniform float fbm1_scale : hint_range(0.0000, 1.0000) = 2.5000;
+uniform float fbm2_scale : hint_range(0.0000, 1.0000) = 7.0000;
+uniform float fbm_breakup_scale : hint_range(0.0000, 1.0000) = 4.0000;
+uniform float breakup_edge0 : hint_range(0.0000, 1.0000) = 0.4200;
+uniform float breakup_edge1 : hint_range(0.0000, 1.0000) = 0.6500;
+uniform float crest_edge0 : hint_range(0.0000, 1.0000) = 0.5000;
+uniform float crest_edge1 : hint_range(0.0000, 1.0000) = 0.8500;
+uniform sampler2D DEPTH_TEXTURE : hint_depth_texture, filter_nearest;
+uniform float depth_shore_distance : hint_range(0.0000, 1.0000) = 0.8000;
+uniform float depth_body_distance : hint_range(0.0000, 1.0000) = 4.0000;
+uniform sampler2D grad_watergradient : source_color, hint_default_white;
+uniform vec4 horizon_color : source_color;
+uniform float fresnel_horizon_power : hint_range(0.0000, 1.0000) = 4.0000;
+uniform vec4 foam_white_color : source_color;
+uniform float rough_base : hint_range(0.0000, 1.0000) = 0.0800;
+uniform float rough_foam : hint_range(0.0000, 1.0000) = 0.4500;
+uniform float specular : hint_range(0.0000, 1.0000) = 0.0500;
+uniform float ripple_strength : hint_range(0.0000, 1.0000) = 0.0400;
+uniform sampler2D SCREEN_TEXTURE : hint_screen_texture, filter_linear_mipmap;
+uniform float depth_refraction_distance : hint_range(0.0000, 1.0000) = 2.5000;
+uniform float fresnel_glow_power : hint_range(0.0000, 1.0000) = 1.5000;
+uniform float glow_strength : hint_range(0.0000, 1.0000) = 0.4000;
+uniform vec4 sss_color : source_color;
+
+float nyx_ocean_hash(float n) {
+	return fract(sin(n) * 43758.5453123);
+}
+vec3 nyx_ocean_offset(vec3 wp, float t, int count, float wavelength, float amplitude, float steepness, float speed, float direction, float spread, float seed) {
+	vec2 p = wp.xz;
+	vec3 o = vec3(0.0);
+	float base = radians(direction);
+	float fcount = float(count);
+	for (int i = 0; i < count; i++) {
+		float fi = float(i);
+		float k = 6.28318530718 / (wavelength * pow(0.68, fi));
+		float a = amplitude * pow(0.62, fi);
+		float ang = base + radians(spread) * (nyx_ocean_hash(seed + fi * 13.13) * 2.0 - 1.0);
+		vec2 d = vec2(cos(ang), sin(ang));
+		float ph = k * dot(d, p) - sqrt(9.8 * k) * speed * t;
+		float qa = steepness / (fcount * k);
+		o.x += d.x * qa * cos(ph);
+		o.z += d.y * qa * cos(ph);
+		o.y += a * sin(ph);
+	}
+	return o;
+}
+vec3 nyx_ocean_normal(vec3 wp, float t, int count, float wavelength, float amplitude, float steepness, float speed, float direction, float spread, float seed) {
+	vec2 p = wp.xz;
+	float nx = 0.0;
+	float nz = 0.0;
+	float ny = 0.0;
+	float base = radians(direction);
+	float fcount = float(count);
+	for (int i = 0; i < count; i++) {
+		float fi = float(i);
+		float k = 6.28318530718 / (wavelength * pow(0.68, fi));
+		float a = amplitude * pow(0.62, fi);
+		float ang = base + radians(spread) * (nyx_ocean_hash(seed + fi * 13.13) * 2.0 - 1.0);
+		vec2 d = vec2(cos(ang), sin(ang));
+		float ph = k * dot(d, p) - sqrt(9.8 * k) * speed * t;
+		float wa = k * a;
+		nx -= d.x * wa * cos(ph);
+		nz -= d.y * wa * cos(ph);
+		ny += (steepness / fcount) * sin(ph);
+	}
+	return normalize(vec3(nx, 1.0 - ny, nz));
+}
+float nyx_ocean_crest(vec3 wp, float t, int count, float wavelength, float amplitude, float steepness, float speed, float direction, float spread, float seed) {
+	vec2 p = wp.xz;
+	float acc = 0.0;
+	float base = radians(direction);
+	float fcount = float(count);
+	for (int i = 0; i < count; i++) {
+		float fi = float(i);
+		float k = 6.28318530718 / (wavelength * pow(0.68, fi));
+		float ang = base + radians(spread) * (nyx_ocean_hash(seed + fi * 13.13) * 2.0 - 1.0);
+		vec2 d = vec2(cos(ang), sin(ang));
+		float ph = k * dot(d, p) - sqrt(9.8 * k) * speed * t;
+		acc += (steepness / fcount) * sin(ph);
+	}
+	return clamp(acc / max(steepness, 0.0001), 0.0, 1.0);
+}
+float nyx_hash_gn(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+vec2 nyx_grad_gn(vec2 p) {
+	float a = nyx_hash_gn(p) * 6.28318;
+	return vec2(cos(a), sin(a));
+}
+float nyx_gradient_noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(
+		mix(dot(nyx_grad_gn(i), f),
+			dot(nyx_grad_gn(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
+		mix(dot(nyx_grad_gn(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
+			dot(nyx_grad_gn(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x),
+		u.y) * 0.5 + 0.5;
+}
+float nyx_fbm(vec2 p, int octaves, float lacunarity, float gain) {
+	float value = 0.0;
+	float amplitude = 0.5;
+	float frequency = 1.0;
+	for (int i = 0; i < octaves; i++) {
+		value += amplitude * nyx_gradient_noise(p * frequency);
+		frequency *= lacunarity;
+		amplitude *= gain;
+	}
+	return value;
+}
+vec3 nyx_normal_from_height(float h, float strength) {
+	vec3 n = normalize(vec3(-dFdx(h) * strength, -dFdy(h) * strength, 1.0));
+	return n * 0.5 + 0.5;
+}
+float nyx_depth_fade(float fade_dist, vec2 screen_uv, float frag_depth, mat4 inv_proj) {
+	float depth = textureLod(DEPTH_TEXTURE, screen_uv, 0.0).r;
+	vec4 pixel_view = inv_proj * vec4(screen_uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+	pixel_view.xyz /= pixel_view.w;
+	vec4 surface_view = inv_proj * vec4(screen_uv * 2.0 - 1.0, frag_depth * 2.0 - 1.0, 1.0);
+	surface_view.xyz /= surface_view.w;
+	return clamp((surface_view.z - pixel_view.z) / max(fade_dist, 0.001), 0.0, 1.0);
+}
+void vertex() {
+	VERTEX += nyx_ocean_offset((MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz, TIME, 5, 24.0000, 0.6000, 0.5500, 1.0000, 25.0000, 60.0000, 0.0000);
+	NORMAL = nyx_ocean_normal((MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz, TIME, 5, 24.0000, 0.6000, 0.5500, 1.0000, 25.0000, 60.0000, 0.0000);
+}
+
+void fragment() {
+	ALBEDO = (mix(mix(vec4(mix(texture(SCREEN_TEXTURE, ((vec3(SCREEN_UV, 0.0) + vec3((((nyx_fbm(((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000)))).xy * fbm1_scale, 3, 2.00, 0.50) + nyx_fbm((((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000))) + (vec3(TIME) * vec3(-0.0200, 0.0350, 0.0000)))).xy * fbm2_scale, 3, 2.00, 0.50)) - 0.5000) * ripple_strength), (((nyx_fbm(((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000)))).xy * fbm1_scale, 3, 2.00, 0.50) + nyx_fbm((((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000))) + (vec3(TIME) * vec3(-0.0200, 0.0350, 0.0000)))).xy * fbm2_scale, 3, 2.00, 0.50)) - 0.5000) * ripple_strength), 0.0))).xy).rgb, texture(grad_watergradient, vec2(clamp(nyx_depth_fade(depth_body_distance, SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX), 0.0, 1.0), 0.5)).rgb, vec3(nyx_depth_fade(depth_refraction_distance, SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX))), 1.0), horizon_color, vec4(pow(clamp(1.0 - dot(NORMAL, VIEW), 0.0, 1.0), fresnel_horizon_power))), foam_white_color, vec4(max((smoothstep(crest_edge0, crest_edge1, nyx_ocean_crest((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, TIME, 5, 24.0000, 0.6000, 0.5500, 1.0000, 25.0000, 60.0000, 0.0000)) * smoothstep(breakup_edge0, breakup_edge1, nyx_fbm(((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000)))).xy * fbm_breakup_scale, 4, 2.00, 0.50))), ((1.0 - nyx_depth_fade(depth_shore_distance, SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX)) * smoothstep(breakup_edge0, breakup_edge1, nyx_fbm(((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000)))).xy * fbm_breakup_scale, 4, 2.00, 0.50))))))).rgb;
+	ALPHA = 1.0;
+	ROUGHNESS = mix(rough_base, rough_foam, max((smoothstep(crest_edge0, crest_edge1, nyx_ocean_crest((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, TIME, 5, 24.0000, 0.6000, 0.5500, 1.0000, 25.0000, 60.0000, 0.0000)) * smoothstep(breakup_edge0, breakup_edge1, nyx_fbm(((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000)))).xy * fbm_breakup_scale, 4, 2.00, 0.50))), ((1.0 - nyx_depth_fade(depth_shore_distance, SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX)) * smoothstep(breakup_edge0, breakup_edge1, nyx_fbm(((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000)))).xy * fbm_breakup_scale, 4, 2.00, 0.50)))));
+	METALLIC = 0.0;
+	EMISSION = ((sss_color).rgb * ((nyx_ocean_crest((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, TIME, 5, 24.0000, 0.6000, 0.5500, 1.0000, 25.0000, 60.0000, 0.0000) * pow(clamp(1.0 - dot(NORMAL, VIEW), 0.0, 1.0), fresnel_glow_power)) * glow_strength));
+	NORMAL_MAP = nyx_normal_from_height((nyx_fbm(((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000)))).xy * fbm1_scale, 3, 2.00, 0.50) + nyx_fbm((((vec3((vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).r, (vec4((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz, 1.0)).b, 0.0) + (vec3(TIME) * vec3(0.0300, 0.0200, 0.0000))) + (vec3(TIME) * vec3(-0.0200, 0.0350, 0.0000)))).xy * fbm2_scale, 3, 2.00, 0.50)), ripple_normal_strength);
+	SPECULAR = specular;
+}
+"
+nodes = [SubResource("Resource_ful8b"), SubResource("Resource_axjmy"), SubResource("Resource_58gtv"), SubResource("Resource_lgu0j"), SubResource("Resource_hkul2"), SubResource("Resource_ltxi6"), SubResource("Resource_7u2bl"), SubResource("Resource_aedna"), SubResource("Resource_7jodt"), SubResource("Resource_f3gvn"), SubResource("Resource_m7str"), SubResource("Resource_yxkjk"), SubResource("Resource_8onet"), SubResource("Resource_xqu8m"), SubResource("Resource_d1lvn"), SubResource("Resource_fe0c4"), SubResource("Resource_sovyc"), SubResource("Resource_f6diq"), SubResource("Resource_0bdu7"), SubResource("Resource_5thyo"), SubResource("Resource_7mj5o"), SubResource("Resource_fr8ev"), SubResource("Resource_m8edn"), SubResource("Resource_hgo0j"), SubResource("Resource_sba7l"), SubResource("Resource_dic44"), SubResource("Resource_xy687"), SubResource("Resource_g72um"), SubResource("Resource_vi7is"), SubResource("Resource_m7d3y"), SubResource("Resource_c7ifq"), SubResource("Resource_rsjdy"), SubResource("Resource_k2esj"), SubResource("Resource_2pq3u"), SubResource("Resource_2377t"), SubResource("Resource_qf38p"), SubResource("Resource_psf61"), SubResource("Resource_6ny23"), SubResource("Resource_veno0"), SubResource("Resource_7nbxu"), SubResource("Resource_ijv3g"), SubResource("Resource_w4mwd"), SubResource("Resource_dvdj0"), SubResource("Resource_n6wrj"), SubResource("Resource_tiule"), SubResource("Resource_hq5yl"), SubResource("Resource_bj0sf"), SubResource("Resource_ol1nl"), SubResource("Resource_jnpg7"), SubResource("Resource_ns61l"), SubResource("Resource_84446"), SubResource("Resource_di4kl"), SubResource("Resource_nrr0j"), SubResource("Resource_vbm77"), SubResource("Resource_6if6b"), SubResource("Resource_jxqlr"), SubResource("Resource_4q5e2"), SubResource("Resource_m3ngh"), SubResource("Resource_jnpqr"), SubResource("Resource_qu30m"), SubResource("Resource_1emcs"), SubResource("Resource_xjxr7"), SubResource("Resource_pv7pi"), SubResource("Resource_navhw"), SubResource("Resource_d2web"), SubResource("Resource_8yko5"), SubResource("Resource_8cgta"), SubResource("Resource_ajxgy")]
 connections = [{
 "from_node": "WorldPosition",
 "from_port": 0,

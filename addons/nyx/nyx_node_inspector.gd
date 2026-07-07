@@ -45,6 +45,10 @@ var _node_settings_label: Label
 var _name_edit: LineEdit
 var _param_check: CheckBox
 var _param_name_field: LineEdit
+var _param_range_box: VBoxContainer
+var _param_min_spin: SpinBox
+var _param_max_spin: SpinBox
+var _param_step_spin: SpinBox
 var _meta_separator: HSeparator
 var _inspector: EditorInspector
 var _color_picker: ColorPicker
@@ -140,6 +144,18 @@ func _build() -> void:
 	_param_name_field.visible = false
 	_param_name_field.text_changed.connect(_on_param_name_changed)
 	_card_vbox.add_child(_param_name_field)
+
+	# Range editor for the exported uniform's hint_range (Float only; shown when
+	# param mode is on). min/max/step author the slider the material Inspector
+	# draws. Plain SpinBoxes so min/max can be any value (unlike an
+	# EditorSpinSlider, which is itself a bounded control).
+	_param_range_box = VBoxContainer.new()
+	_param_range_box.add_theme_constant_override("separation", 2)
+	_param_range_box.visible = false
+	_param_min_spin = _build_param_range_spin("Slider min", _on_param_range_changed)
+	_param_max_spin = _build_param_range_spin("Slider max", _on_param_range_changed)
+	_param_step_spin = _build_param_range_spin("Slider step", _on_param_range_changed)
+	_card_vbox.add_child(_param_range_box)
 
 	_meta_separator = HSeparator.new()
 	var meta_sep_style := StyleBoxLine.new()
@@ -280,6 +296,7 @@ func open_for_sink(title_text: String, anchor: Control, shader_type: int,
 	_name_edit.visible = false
 	_param_check.visible = false
 	_param_name_field.visible = false
+	_param_range_box.visible = false
 	# No Label/Parameter content sits above it here, so the separator would
 	# just be an orphaned line between the header and the settings — same
 	# reasoning as open_meta_only.
@@ -374,14 +391,21 @@ func _open_meta_for(title_text: String, anchor: Control) -> void:
 
 	var supports_param: bool = anchor.has_method("is_param_mode")
 	_param_check.visible = supports_param
+	var supports_range: bool = supports_param and anchor.has_method("has_param_range") and anchor.has_param_range()
 	if supports_param:
 		_updating_param = true
 		_param_check.button_pressed = anchor.is_param_mode()
 		_param_name_field.text = anchor.get_param_name()
+		if supports_range:
+			_param_min_spin.value = anchor.get_param_min()
+			_param_max_spin.value = anchor.get_param_max()
+			_param_step_spin.value = anchor.get_param_step()
 		_updating_param = false
 		_param_name_field.visible = anchor.is_param_mode()
+		_param_range_box.visible = supports_range and anchor.is_param_mode()
 	else:
 		_param_name_field.visible = false
+		_param_range_box.visible = false
 
 
 func _on_name_changed(new_text: String) -> void:
@@ -396,6 +420,8 @@ func _on_param_toggled(pressed: bool) -> void:
 		return
 	_current_anchor.set_param_mode(pressed)
 	_param_name_field.visible = pressed
+	var supports_range: bool = _current_anchor.has_method("has_param_range") and _current_anchor.has_param_range()
+	_param_range_box.visible = pressed and supports_range
 	_card.reset_size()
 	_position_near(_current_anchor)
 
@@ -404,6 +430,39 @@ func _on_param_name_changed(new_text: String) -> void:
 	if _updating_param or not is_instance_valid(_current_anchor):
 		return
 	_current_anchor.set_param_name(new_text)
+
+
+# One "label + SpinBox" row for the param range editor, added to _param_range_box.
+# Plain SpinBox (not EditorSpinSlider) so min/max/step can be any value.
+func _build_param_range_spin(label_text: String, on_change: Callable) -> SpinBox:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+
+	var lbl := Label.new()
+	lbl.text = label_text
+	lbl.custom_minimum_size.x = 90
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color(0.80, 0.83, 0.88))
+	row.add_child(lbl)
+
+	var spin := SpinBox.new()
+	spin.min_value = -1e9
+	spin.max_value = 1e9
+	spin.step = 0.0001
+	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spin.value_changed.connect(func(_v: float): on_change.call())
+	row.add_child(spin)
+
+	_param_range_box.add_child(row)
+	return spin
+
+
+func _on_param_range_changed() -> void:
+	if _updating_param or not is_instance_valid(_current_anchor):
+		return
+	if _current_anchor.has_method("set_param_range"):
+		_current_anchor.set_param_range(
+			_param_min_spin.value, _param_max_spin.value, _param_step_spin.value)
 
 
 # Centralizes _current_anchor writes so the "this node's popup is open" flag

@@ -44,6 +44,12 @@ func get_default_inputs() -> Array:
 	return ["vec3(UV, 0.0)", "%.2f" % _scale]
 
 
+func get_param_range_hint(port: int) -> Array:
+	if port == 1:
+		return [0.1, 50.0, 0.1]
+	return []
+
+
 func get_state() -> Dictionary:
 	return {"scale": _scale}
 

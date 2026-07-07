@@ -62,6 +62,10 @@ func get_shader_functions() -> Dictionary:
 	return {"nyx_depth_fade": _FUNCTION}
 
 
+func get_param_range_hint(_port: int) -> Array:
+	return [0.01, 20.0, 0.01]  # Distance (the only input port)
+
+
 func get_default_inputs() -> Array:
 	return ["%.4f" % _distance]
 

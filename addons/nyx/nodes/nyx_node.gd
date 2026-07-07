@@ -636,6 +636,22 @@ func set_state(_state: Dictionary) -> void:
 	pass
 
 
+# Optional per-port slider-range hint, used to seed a param-mode Float's
+# hint_range when the connection-drop quick-add popup spawns one directly into
+# this port (see nyx_main.gd's _handle_quick_add_input_side). Returns
+# [min, max, step] for a port with a known natural range (matching that port's
+# own inline slider bounds), or [] when the port has no fixed range (a bare
+# math input, or a non-float port) — callers leave the spawned Float's own
+# default (0..1) alone in that case. Base no-op; nodes with slider+optional-
+# port pairs (Ocean Waves, FBM, Depth Fade, Fresnel, Smoothstep, Normal from
+# Height, the noise base's Scale) override per port index. Port numbering here
+# is Godot's own compacted input-port index (only counting left-enabled
+# slots), the same index get_default_inputs() and the compiler use — NOT the
+# raw child/slot index a node's set_slot() calls are keyed by.
+func get_param_range_hint(_port: int) -> Array:
+	return []
+
+
 func get_param_export_line() -> String:
 	return ""
 

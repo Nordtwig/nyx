@@ -34,6 +34,10 @@ func get_shader_snippet(inputs: Array = []) -> String:
 	return "pow(clamp(1.0 - dot(NORMAL, VIEW), 0.0, 1.0), %s)" % [inputs[0]]
 
 
+func get_param_range_hint(_port: int) -> Array:
+	return [0.1, 20.0, 0.1]  # Power (the only input port)
+
+
 func get_default_inputs() -> Array:
 	return ["%.4f" % _power]
 

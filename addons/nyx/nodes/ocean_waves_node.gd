@@ -149,6 +149,11 @@ func _ready() -> void:
 	set_slot(1, false, -1, vec3_color, true, 0, vec3_color)  # Normal out vec3
 	set_slot(2, false, -1, vec3_color, true, 1, float_color) # Crest out float
 
+	# Rows 3–10 are the sliders (add order = row order). Waves (row 3) stays
+	# port-less — it's the loop bound, a "setting", baked as a literal. The 7
+	# continuous sliders (rows 4–10) each get an optional float input port: the
+	# inline slider is the default, wiring a param-mode Float overrides it (the
+	# slider+optional-port dual pattern, per the port/param/setting rule).
 	_waves_slider = _make_slider("Waves", 1, 8, 1, _waves, func(v): _waves = int(v))
 	_wavelength_slider = _make_slider("Wavelength", 0.5, 100.0, 0.5, _wavelength, func(v): _wavelength = v)
 	_amplitude_slider = _make_slider("Amplitude", 0.0, 5.0, 0.05, _amplitude, func(v): _amplitude = v)
@@ -157,6 +162,9 @@ func _ready() -> void:
 	_direction_slider = _make_slider("Direction", 0.0, 360.0, 1.0, _direction, func(v): _direction = v)
 	_spread_slider = _make_slider("Spread", 0.0, 180.0, 1.0, _spread, func(v): _spread = v)
 	_seed_slider = _make_slider("Seed", 0.0, 100.0, 0.1, _seed, func(v): _seed = v)
+
+	for row in range(4, 11):
+		set_slot(row, true, 1, float_color, false, -1, float_color)
 
 
 func _make_slider(label: String, mn: float, mx: float, step: float, value: float, setter: Callable) -> EditorSpinSlider:
@@ -174,8 +182,12 @@ func _make_slider(label: String, mn: float, mx: float, step: float, value: float
 
 
 func _wave_args(inputs: Array) -> String:
-	return "%s, TIME, %d, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % [
-		inputs[0], _waves, _wavelength, _amplitude, _steepness, _speed, _direction, _spread, _seed]
+	# inputs: 0=Position, 1=Wavelength, 2=Amplitude, 3=Steepness, 4=Speed,
+	# 5=Direction, 6=Spread, 7=Seed (defaults from the inline sliders via
+	# get_default_inputs when a port is unconnected). Waves count stays baked —
+	# it's the loop bound. Order matches the GLSL function signature.
+	return "%s, TIME, %d, %s, %s, %s, %s, %s, %s, %s" % [
+		inputs[0], _waves, inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6], inputs[7]]
 
 
 func get_output_snippet(port: int, inputs: Array = []) -> String:
@@ -200,11 +212,25 @@ func get_shader_functions() -> Dictionary:
 
 
 func get_default_inputs() -> Array:
-	return ["vec3(0.0)"]
+	return ["vec3(0.0)",
+		"%.4f" % _wavelength, "%.4f" % _amplitude, "%.4f" % _steepness,
+		"%.4f" % _speed, "%.4f" % _direction, "%.4f" % _spread, "%.4f" % _seed]
 
 
 func get_default_input_types() -> Array:
-	return [0]
+	return [0, 1, 1, 1, 1, 1, 1, 1]
+
+
+func get_param_range_hint(port: int) -> Array:
+	match port:
+		1: return [0.5, 100.0, 0.5]   # Wavelength
+		2: return [0.0, 5.0, 0.05]    # Amplitude
+		3: return [0.0, 1.0, 0.01]    # Steepness
+		4: return [0.0, 4.0, 0.05]    # Speed
+		5: return [0.0, 360.0, 1.0]   # Direction
+		6: return [0.0, 180.0, 1.0]   # Spread
+		7: return [0.0, 100.0, 0.1]   # Seed
+		_: return []                  # port 0 (Position) is vec3, not a float param target
 
 
 func get_state() -> Dictionary:

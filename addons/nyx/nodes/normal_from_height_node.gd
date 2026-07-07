@@ -50,6 +50,12 @@ func get_shader_functions() -> Dictionary:
 	return {"nyx_normal_from_height": _FUNCTION}
 
 
+func get_param_range_hint(port: int) -> Array:
+	if port == 1:
+		return [0.1, 100.0, 0.1]  # Strength
+	return []  # Height (port 0) is the general value being differentiated, no fixed range
+
+
 func get_default_inputs() -> Array:
 	return ["0.0", "%.4f" % _strength]
 

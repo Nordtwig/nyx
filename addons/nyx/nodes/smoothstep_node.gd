@@ -48,6 +48,13 @@ func get_shader_snippet(inputs: Array = []) -> String:
 	return "smoothstep(%s, %s, %s)" % [inputs[0], inputs[1], inputs[2]]
 
 
+func get_param_range_hint(port: int) -> Array:
+	match port:
+		0: return [-10.0, 10.0, 0.01]  # Edge0
+		1: return [-10.0, 10.0, 0.01]  # Edge1
+		_: return []                   # X is the general value being smoothstepped, no fixed range
+
+
 func get_default_inputs() -> Array:
 	return ["%.4f" % _edge0, "%.4f" % _edge1, "0.5"]
 

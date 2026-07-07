@@ -5,11 +5,15 @@ extends Control
 ## empty canvas" overlay (see .nyx-notes/olympus-viewport.md's "Connection-drop
 ## node spawn" design, backlog.md, and the Fable 2026-07-06 design session).
 ##
-## Deliberately NOT the full aMenu (nyx_search_popup.gd): this is a short,
-## pre-curated list (a handful of value/input nodes compatible with the port
-## the connection was dragged from), not a searchable catalog of all ~70 node
-## types. No search box, no doc card — the whole point is speed at the moment
-## of a drag-release.
+## Still NOT the full aMenu (nyx_search_popup.gd): a pre-curated, type-filtered
+## candidate list, no doc card. But it DOES now carry a search box (added
+## 2026-07-07): the output-side drop can offer 30+ compatible nodes, too long to
+## eyeball, and grabbing focus into the search field on open is also what makes
+## arrow-key nav reliable — without a focused field the editor's own focus
+## traversal was stealing Up/Down (both were live-test follow-ups from the
+## 2026-07-06 connection-drop session). Typing filters; empty query shows the
+## full curated list, so speed-at-drag-release is unchanged for the short
+## input-side case.
 ##
 ## One-way dependency, same shape as nyx_search_popup.gd: nyx_main computes the
 ## candidate list (already filtered/weighted by type-compatibility via the
@@ -25,8 +29,11 @@ signal candidate_chosen(id: int, is_param: bool)
 var _graph_container: Control
 
 var _card: PanelContainer
+var _search_field: LineEdit
+var _scroll: ScrollContainer
 var _rows_vbox: VBoxContainer
-var _candidates: Array = []       # parallel to rows: {id, label, is_param, type}
+var _all_candidates: Array = []   # full curated list from the caller
+var _candidates: Array = []       # filtered view, parallel to rows: {id, label, is_param, type}
 var _row_nodes: Array = []
 var _selected_index: int = -1
 
@@ -35,6 +42,7 @@ var _row_empty_style: StyleBoxEmpty
 
 const ITEM_ROW_HEIGHT := 20
 const ROW_INSET := 8.0
+const MAX_LIST_HEIGHT := 280      # cap the scroll; short lists shrink-wrap under it
 const PARAM_BADGE_COLOR := Color("#6BCF96")
 const LABEL_COLOR := Color(0.90, 0.90, 0.90)
 const LABEL_SELECTED_COLOR := Color.WHITE
@@ -82,14 +90,41 @@ func _build() -> void:
 	header.add_theme_font_size_override("font_size", 11)
 	vbox.add_child(header)
 
+	_search_field = LineEdit.new()
+	_search_field.placeholder_text = "Search..."
+	_search_field.custom_minimum_size.y = 26
+	var input_normal := StyleBoxFlat.new()
+	input_normal.bg_color = Color(0.20, 0.20, 0.26)
+	input_normal.border_color = Color(0.35, 0.35, 0.45)
+	input_normal.set_border_width_all(1)
+	input_normal.set_corner_radius_all(4)
+	input_normal.content_margin_left = 8
+	input_normal.content_margin_right = 8
+	input_normal.content_margin_top = 4
+	input_normal.content_margin_bottom = 4
+	var input_focus := input_normal.duplicate()
+	input_focus.border_color = Color("#31614F")
+	_search_field.add_theme_stylebox_override("normal", input_normal)
+	_search_field.add_theme_stylebox_override("focus", input_focus)
+	_search_field.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
+	_search_field.add_theme_color_override("font_placeholder_color", Color(0.45, 0.45, 0.52))
+	_search_field.add_theme_font_size_override("font_size", 10)
+	_search_field.text_changed.connect(_on_search_changed)
+	_search_field.gui_input.connect(_on_search_field_key)
+	vbox.add_child(_search_field)
+
 	_row_highlight_style = StyleBoxFlat.new()
 	_row_highlight_style.bg_color = Color("#31614F")
 	_row_highlight_style.set_corner_radius_all(3)
 	_row_empty_style = StyleBoxEmpty.new()
 
+	_scroll = ScrollContainer.new()
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_rows_vbox = VBoxContainer.new()
 	_rows_vbox.add_theme_constant_override("separation", 0)
-	vbox.add_child(_rows_vbox)
+	_rows_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(_rows_vbox)
+	vbox.add_child(_scroll)
 
 	_card.add_child(vbox)
 	add_child(_card)
@@ -99,8 +134,9 @@ func _build() -> void:
 # filtered + ordered by the caller (param variants first, per the port/param/
 # setting rule — see olympus-viewport.md).
 func open(candidates: Array, at_position: Vector2) -> void:
-	_candidates = candidates
-	_populate_rows()
+	_all_candidates = candidates
+	_search_field.text = ""
+	_apply_filter("")
 	size = _graph_container.size
 	visible = true
 	move_to_front()
@@ -109,10 +145,30 @@ func open(candidates: Array, at_position: Vector2) -> void:
 	_card.position = at_position.clamp(Vector2.ZERO, max_pos.max(Vector2.ZERO))
 	if _row_nodes.size() > 0:
 		_select_index(0)
+	# Focus the field so typing filters immediately and, crucially, so the
+	# editor's own focus traversal can't steal Up/Down from the list.
+	_search_field.call_deferred("grab_focus")
 
 
 func close() -> void:
 	visible = false
+
+
+# Case-insensitive substring filter over the caller's already-ordered list
+# (param variants stay first). Empty query = the full curated list.
+func _apply_filter(query: String) -> void:
+	query = query.strip_edges().to_lower()
+	if query.is_empty():
+		_candidates = _all_candidates.duplicate()
+	else:
+		_candidates = []
+		for entry in _all_candidates:
+			if String(entry["label"]).to_lower().contains(query):
+				_candidates.append(entry)
+	_populate_rows()
+	# Fixed row height + zero separation → exact natural height without a layout
+	# pass. Cap it so a long output-side list scrolls instead of overflowing.
+	_scroll.custom_minimum_size.y = min(_candidates.size() * ITEM_ROW_HEIGHT, MAX_LIST_HEIGHT)
 
 
 func handle_resize() -> void:
@@ -202,6 +258,7 @@ func _select_index(idx: int) -> void:
 		var label: Label = row.get_meta("main_label", null)
 		if label:
 			label.add_theme_color_override("font_color", LABEL_SELECTED_COLOR)
+		_scroll.ensure_control_visible(row)
 
 
 func _confirm_selection() -> void:
@@ -212,17 +269,54 @@ func _confirm_selection() -> void:
 	candidate_chosen.emit(entry["id"], entry.get("is_param", false))
 
 
+func _on_search_changed(text: String) -> void:
+	_apply_filter(text)
+	# Free-floating card (not inside a parent Container) won't re-snug on its own
+	# as the filtered list shrinks — top-left stays put, height re-fits to content.
+	_card.reset_size()
+	if _row_nodes.size() > 0:
+		_select_index(0)
+
+
+# Nav keys handled here (the field is focused on open) so the editor's focus
+# traversal never sees Up/Down — accept_event() stops them dead. Left/right and
+# text go to the LineEdit for editing/filtering as usual.
+func _on_search_field_key(event: InputEvent) -> void:
+	if not event is InputEventKey or not event.pressed:
+		return
+	match event.keycode:
+		KEY_DOWN:
+			_move_selection(1)
+			_search_field.accept_event()
+		KEY_UP:
+			_move_selection(-1)
+			_search_field.accept_event()
+		KEY_ENTER, KEY_KP_ENTER:
+			_confirm_selection()
+			_search_field.accept_event()
+		KEY_ESCAPE:
+			close()
+			_search_field.accept_event()
+
+
+func _move_selection(delta: int) -> void:
+	if _candidates.is_empty():
+		return
+	var idx: int = clamp(_selected_index + delta, 0, _candidates.size() - 1)
+	_select_index(idx)
+
+
+# Fallback for when the search field somehow isn't focused (mouse-only use);
+# a focused field accept_event()s these first, so they never reach here then.
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not visible or not event is InputEventKey or not event.pressed:
 		return
 	match event.keycode:
 		KEY_DOWN:
-			if _selected_index < _candidates.size() - 1:
-				_select_index(_selected_index + 1)
+			_move_selection(1)
 			get_viewport().set_input_as_handled()
 		KEY_UP:
-			if _selected_index > 0:
-				_select_index(_selected_index - 1)
+			_move_selection(-1)
 			get_viewport().set_input_as_handled()
 		KEY_ENTER, KEY_KP_ENTER:
 			_confirm_selection()

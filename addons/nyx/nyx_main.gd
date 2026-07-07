@@ -1481,6 +1481,16 @@ func _handle_quick_add_input_side(id: int, is_param: bool) -> void:
 	if is_param and node.has_method("set_param_mode"):
 		node.set_param_mode(true)
 		node.set_param_name(_guess_param_default_name(to_node_ref, to_port))
+		# Seed the exported hint_range from the target port's own slider bounds
+		# (Ocean Waves' Wavelength up to 100, Direction up to 360, etc.) instead
+		# of FloatNode's generic 0..1 default, which squashed every auto-spawned
+		# param slider to 0..1 in the material Inspector regardless of the
+		# actual value range the port expects — found live 2026-07-07.
+		if node.has_method("set_param_range") and to_node_ref.has_method("get_param_range_hint"):
+			var range_hint: Array = to_node_ref.get_param_range_hint(to_port)
+			if range_hint.size() >= 2:
+				var step: float = range_hint[2] if range_hint.size() > 2 else 0.0
+				node.set_param_range(range_hint[0], range_hint[1], step)
 	_graph.connect_node(node.name, 0, to_node, to_port)
 	_compiler.update_all_polymorphic_ports()
 	_compiler.update_contextual_labels()

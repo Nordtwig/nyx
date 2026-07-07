@@ -4,6 +4,13 @@ extends "res://addons/nyx/nodes/nyx_node.gd"
 var _value: float = 1.0
 var _param_mode: bool = false
 var _param_name: String = ""
+# Optional slider range for the exported uniform. When _param_max > _param_min
+# the declaration emits hint_range(...) so the material Inspector renders a
+# drag-slider instead of a bare numeric field. Default 0..1 (the common
+# normalized case); editable per-param in the node-inspector Parameter section.
+var _param_min: float = 0.0
+var _param_max: float = 1.0
+var _param_step: float = 0.0
 var _spinbox: SpinBox
 
 
@@ -55,7 +62,13 @@ func _add_preview_controls() -> void:
 func get_uniform_declaration() -> String:
 	if not _param_mode:
 		return ""
-	return "uniform float %s = %.4f;" % [_param_name, _value]
+	var hint := ""
+	if _param_max > _param_min:
+		if _param_step > 0.0:
+			hint = " : hint_range(%.4f, %.4f, %.4f)" % [_param_min, _param_max, _param_step]
+		else:
+			hint = " : hint_range(%.4f, %.4f)" % [_param_min, _param_max]
+	return "uniform float %s%s = %.4f;" % [_param_name, hint, _value]
 
 
 func get_param_export_line() -> String:
@@ -75,7 +88,10 @@ func get_default_inputs() -> Array:
 
 
 func get_state() -> Dictionary:
-	return {"value": _value, "param_mode": _param_mode, "param_name": _param_name}
+	return {
+		"value": _value, "param_mode": _param_mode, "param_name": _param_name,
+		"param_min": _param_min, "param_max": _param_max, "param_step": _param_step,
+	}
 
 
 func set_state(state: Dictionary) -> void:
@@ -87,6 +103,15 @@ func set_state(state: Dictionary) -> void:
 	if pname != "":
 		_param_name = pname
 	_param_mode = state.get("param_mode", false)
+	var pmin = state.get("param_min")
+	if pmin is float:
+		_param_min = pmin
+	var pmax = state.get("param_max")
+	if pmax is float:
+		_param_max = pmax
+	var pstep = state.get("param_step")
+	if pstep is float:
+		_param_step = pstep
 
 
 func is_param_mode() -> bool:
@@ -95,6 +120,32 @@ func is_param_mode() -> bool:
 
 func get_param_name() -> String:
 	return _param_name
+
+
+# Duck-typed marker + accessors the node-inspector Parameter section reads to
+# show the min/max/step range editor (Float-only — Color uses source_color,
+# Vector3 has no natural single range).
+func has_param_range() -> bool:
+	return true
+
+
+func get_param_min() -> float:
+	return _param_min
+
+
+func get_param_max() -> float:
+	return _param_max
+
+
+func get_param_step() -> float:
+	return _param_step
+
+
+func set_param_range(mn: float, mx: float, st: float) -> void:
+	_param_min = mn
+	_param_max = mx
+	_param_step = st
+	value_changed.emit()
 
 
 func set_value_external(v: float) -> void:
