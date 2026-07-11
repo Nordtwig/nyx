@@ -1,32 +1,38 @@
 [gd_scene format=3 uid="uid://dhaoueeenwrfx"]
 
-[ext_resource type="Material" path="res://textures/ground_texture.tres" id="1_uhqqe"]
 [ext_resource type="Script" uid="uid://b4trhrm3nv6qg" path="res://scripts/dissolve_test.gd" id="2_coq8p"]
-[ext_resource type="Material" uid="uid://74lw7fv1fp5p" path="res://ocean.tres" id="5_2nij2"]
+[ext_resource type="Texture2D" uid="uid://2hummvj3idiq" path="res://textures/Ground054_2K-PNG_Color.png" id="3_7cbxl"]
+[ext_resource type="Texture2D" uid="uid://bb26jp33q4hj8" path="res://textures/Ground054_2K-PNG_NormalGL.png" id="4_8pr8v"]
+[ext_resource type="Material" uid="uid://bs005u6qswf1e" path="res://ocean.tres" id="5_2nij2"]
 [ext_resource type="Material" uid="uid://chbpe40lcseho" path="res://effects/wavey_waves.tres" id="6_7cbxl"]
 [ext_resource type="Script" uid="uid://0j1ki6h1f2nb" path="res://scripts/camera_orbit.gd" id="cam_orbit"]
 
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_gur68"]
+sky_top_color = Color(0.7464738, 0.7930668, 0.85552084, 1)
+
+[sub_resource type="Sky" id="Sky_s40jv"]
+sky_material = SubResource("ProceduralSkyMaterial_gur68")
+
 [sub_resource type="Environment" id="Environment_1"]
-ambient_light_source = 2
+sky = SubResource("Sky_s40jv")
+ambient_light_source = 3
 ambient_light_color = Color(1, 1, 1, 1)
-ambient_light_energy = 0.3
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
+radius = 10.0
+height = 20.0
 
-[sub_resource type="VisualShaderNodeReroute" id="VisualShaderNodeReroute_thrxi"]
-
-[sub_resource type="VisualShader" id="VisualShader_coq8p"]
-nodes/vertex/2/node = SubResource("VisualShaderNodeReroute_thrxi")
-nodes/vertex/2/position = Vector2(-106.666664, 320)
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_2nij2"]
-render_priority = 0
-shader = SubResource("VisualShader_coq8p")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ewd03"]
+albedo_texture = ExtResource("3_7cbxl")
+normal_enabled = true
+normal_texture = ExtResource("4_8pr8v")
+uv1_scale = Vector3(10, 10, 10)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1"]
+material = SubResource("StandardMaterial3D_ewd03")
 size = Vector2(60, 60)
-subdivide_width = 50
-subdivide_depth = 50
+subdivide_width = 200
+subdivide_depth = 200
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_7cbxl"]
 size = Vector2(60, 60)
@@ -43,20 +49,18 @@ transform = Transform3D(1, 0, 0, 0, 0.97949415, 0.20147263, 0, -0.20147264, 0.97
 script = ExtResource("cam_orbit")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=634899357]
-transform = Transform3D(0.56164294, -0.81139165, -0.16186666, -0.6125847, -0.5393031, 0.57783425, -0.5561451, -0.22537953, -0.7999417, 0, 2.745339, 0)
-light_energy = 0.05
+transform = Transform3D(0.3243108, -0.7746956, -0.54283446, -0.8335886, -0.50531447, 0.22313067, -0.44716045, 0.380137, -0.80965644, 0, 9.787497, 0)
+light_energy = 1.5
 shadow_enabled = true
 
 [node name="Sphere" type="MeshInstance3D" parent="." unique_id=1799833702]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.623306, 0.5, -2.0258384)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.705355, 0.5, 5.197973)
 mesh = SubResource("SphereMesh_1")
-surface_material_override/0 = SubResource("ShaderMaterial_2nij2")
 script = ExtResource("2_coq8p")
 
 [node name="Ground" type="MeshInstance3D" parent="." unique_id=1054336464]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, -1.4981794, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, -15.997961, 0)
 mesh = SubResource("PlaneMesh_1")
-surface_material_override/0 = ExtResource("1_uhqqe")
 
 [node name="Water" type="MeshInstance3D" parent="." unique_id=678585375]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5137469, -0.081594706, -0.01090005)
@@ -65,7 +69,7 @@ mesh = SubResource("PlaneMesh_7cbxl")
 surface_material_override/0 = ExtResource("6_7cbxl")
 
 [node name="new_water" type="MeshInstance3D" parent="." unique_id=478100274]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5137469, -0.081594706, -0.01090005)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6938425, 0.24350333, 0.42342994)
 cast_shadow = 0
 mesh = SubResource("PlaneMesh_7cbxl")
 surface_material_override/0 = ExtResource("5_2nij2")

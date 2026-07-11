@@ -1,0 +1,36 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://bs005u6qswf1e"]
+
+[ext_resource type="Shader" uid="uid://2rmq358cfeq6" path="res://ocean.gdshader" id="1"]
+
+[sub_resource type="Gradient" id="Gradient_1"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(0.18039216, 0.54509807, 0.54509807, 1, 0.101960786, 0.36078432, 0.43137255, 1, 0.07058824, 0.22745098, 0.30980393, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_2"]
+gradient = SubResource("Gradient_1")
+
+[resource]
+render_priority = 0
+shader = ExtResource("1")
+shader_parameter/ripple_normal_strength = 1.0000000149012
+shader_parameter/fbm1_scale = 1.0000000149012
+shader_parameter/fbm2_scale = 4.0000000596048
+shader_parameter/fbm_breakup_scale = 4.0
+shader_parameter/breakup_edge0 = 0.42
+shader_parameter/breakup_edge1 = 0.65
+shader_parameter/crest_edge0 = 0.5
+shader_parameter/crest_edge1 = 0.85
+shader_parameter/depth_shore_distance = 0.8
+shader_parameter/depth_body_distance = 1.1499999742951998
+shader_parameter/grad_watergradient = SubResource("GradientTexture1D_2")
+shader_parameter/horizon_color = Color(0.078431375, 0.5882353, 0.6666667, 1)
+shader_parameter/fresnel_horizon_power = 4.0
+shader_parameter/foam_white_color = Color(0.9176, 0.9647, 0.949, 1)
+shader_parameter/rough_base = 0.0800000038
+shader_parameter/rough_foam = 0.45
+shader_parameter/specular = 0.62000002945
+shader_parameter/ripple_strength = 0.04
+shader_parameter/depth_refraction_distance = 8.999999798832
+shader_parameter/fresnel_glow_power = 9.500000141561399
+shader_parameter/glow_strength = 0.35
+shader_parameter/sss_color = Color(0.098, 0.7647, 0.6118, 1)

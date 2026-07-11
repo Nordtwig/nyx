@@ -332,7 +332,34 @@ func _do_frame_default_view() -> void:
 	if not is_instance_valid(_graph):
 		return
 	_graph.zoom = 1.0
-	_graph.scroll_offset = Vector2(-600, -100)
+	# Anchor the sink cluster near the top-right with a consistent margin, so the
+	# default framing is viewport-relative (scalable across DPI/resolution)
+	# rather than a value eyeballed for one screen. The graph flows left->right
+	# into the sink, so this leaves open canvas to its left to build in.
+	var gc := _graph_container.size
+	if gc.x <= 0.0:
+		_graph.scroll_offset = Vector2(-600, -100)  # fallback: layout not ready
+		return
+	var right_margin := NyxRegistry.NyxNodeBase._s(40.0)
+	var top_margin := NyxRegistry.NyxNodeBase._s(60.0)
+	# The preview/properties panels float in the top-right corner, so keep the
+	# sink cluster's right edge clear to their left. They aren't placed yet when
+	# this runs (framing is deferred ahead of panel layout), but their width is
+	# already set — reserve panel width + its default right offset (20).
+	var panel_clearance: float = (_preview_panel.size.x + 20.0) if _preview_panel else 0.0
+	var output := _graph.get_node_or_null("OutputNode")
+	# Sink vertical spacing must track node height (which scales with EDSCALE),
+	# not the fixed graph-Y offsets — otherwise the taller nodes at higher editor
+	# scale crowd/overlap. Drop OutputNode to a scale-aware gap below VertexOutput
+	# using its real measured height (known now, post-layout).
+	var vout := _graph.get_node_or_null("VertexOutputNode")
+	if output and vout:
+		output.position_offset.y = vout.position_offset.y + vout.size.y + NyxRegistry.NyxNodeBase._s(40.0)
+	var cluster_right: float = 300.0 + (output.size.x if output else NyxRegistry.NyxNodeBase._s(150.0))
+	_graph.scroll_offset = Vector2(
+		cluster_right - (gc.x - panel_clearance - right_margin),
+		40.0 - top_margin,
+	)
 
 
 func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:

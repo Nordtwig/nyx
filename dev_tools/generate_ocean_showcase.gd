@@ -64,15 +64,53 @@ func _wire(from_node: String, from_port: int, to_node: String, to_port: int) -> 
 	_connections.append({"from_node": from_node, "from_port": from_port, "to_node": to_node, "to_port": to_port})
 
 
+# Slider ranges for the exported uniform's hint_range, keyed by target node
+# type + port — mirrors each node's own get_param_range_hint() (the source of
+# truth). Duplicated here because the generator builds pure data and can't
+# instantiate a node to query it (EditorSpinSlider is editor-only). Without
+# this, every param defaults to hint_range(0,1), squashing the Inspector slider
+# for anything with a wider real range (depth distances, fresnel powers, FBM
+# scale) — a UX-only bug (hint_range doesn't clamp the shader value) but it
+# blocks dragging those knobs to useful values. Keep in sync if a node's
+# get_param_range_hint() changes.
+const PARAM_RANGE_HINTS := {
+	"DepthFadeNode": {0: [0.01, 20.0, 0.01]},
+	"FresnelNode": {0: [0.1, 20.0, 0.1]},
+	"SmoothstepNode": {0: [-10.0, 10.0, 0.01], 1: [-10.0, 10.0, 0.01]},
+	"NormalFromHeightNode": {1: [0.1, 100.0, 0.1]},
+	"FBMNode": {1: [0.1, 50.0, 0.1], 2: [1.0, 4.0, 0.1], 3: [0.0, 1.0, 0.01]},
+	"OceanWavesNode": {
+		1: [0.5, 100.0, 0.5], 2: [0.0, 5.0, 0.05], 3: [0.0, 1.0, 0.01],
+		4: [0.0, 4.0, 0.05], 5: [0.0, 360.0, 1.0], 6: [0.0, 180.0, 1.0],
+		7: [0.0, 100.0, 0.1],
+	},
+}
+
+
+func _node_type(name: String) -> String:
+	for n in _nodes:
+		if n.name == name:
+			return n.type
+	return ""
+
+
 # A param-mode Float wired into an existing override port — every slider+port
 # node (Depth Fade/Fresnel/Smoothstep's Edge0/NormalFromHeight's Strength/FBM's
 # Scale) already accepts an optional input alongside its inline default, so
 # this needs no node-architecture change, just wiring one in. Note this only
 # reaches ports that exist — Ocean Waves' 8 sliders and FBM's Octaves/
 # Lacunarity/Gain have no corresponding port at all, so those stay baked state
-# (a real, separate gap — see feedback.md).
+# (a real, separate gap — see feedback.md). The param's slider range is seeded
+# from the target port's real hint (see PARAM_RANGE_HINTS); ports with no hint
+# (feeding ROUGHNESS/SPECULAR/mix factors) keep the default 0-1, which is right.
 func _param_float(value: float, param_name: String, lane: String, to_node: String, to_port: int) -> String:
-	var n := _add("FloatNode", "Param_%s" % param_name, lane, {"value": value, "param_mode": true, "param_name": param_name})
+	var state := {"value": value, "param_mode": true, "param_name": param_name}
+	var hint: Array = PARAM_RANGE_HINTS.get(_node_type(to_node), {}).get(to_port, [])
+	if not hint.is_empty():
+		state["param_min"] = hint[0]
+		state["param_max"] = hint[1]
+		state["param_step"] = hint[2]
+	var n := _add("FloatNode", "Param_%s" % param_name, lane, state)
 	_wire(n, 0, to_node, to_port)
 	return n
 
