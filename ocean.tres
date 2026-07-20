@@ -31,6 +31,6 @@ shader_parameter/rough_foam = 0.45
 shader_parameter/specular = 0.62000002945
 shader_parameter/ripple_strength = 0.04
 shader_parameter/depth_refraction_distance = 8.999999798832
-shader_parameter/fresnel_glow_power = 9.500000141561399
+shader_parameter/fresnel_glow_power = 9.5000001415614
 shader_parameter/glow_strength = 0.35
 shader_parameter/sss_color = Color(0.098, 0.7647, 0.6118, 1)

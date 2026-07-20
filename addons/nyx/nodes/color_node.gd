@@ -60,6 +60,10 @@ func _on_color_changed(color: Color) -> void:
 	value_changed.emit()
 
 
+func get_param_value() -> Variant:
+	return _color
+
+
 func get_color() -> Color:
 	return _color
 

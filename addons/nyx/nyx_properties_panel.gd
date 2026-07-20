@@ -30,7 +30,8 @@ var _detail_vbox: VBoxContainer
 var _detail_sep: HSeparator
 var _selected_param_row: Control = null
 
-var _right_offset: float = 20.0
+const LEFT_MARGIN := 12.0
+var _left_offset: float = LEFT_MARGIN   # top-left anchored (ShaderGraph Blackboard position)
 var _top_offset: float = -1.0          # -1 = not yet placed
 
 
@@ -42,17 +43,14 @@ func setup(graph: GraphEdit, graph_container: Control) -> void:
 
 func place_default(graph_top: float) -> void:
 	_top_offset = graph_top
-	_right_offset = 20.0
-	position = Vector2(_graph_container.size.x - size.x - _right_offset, _top_offset)
+	_left_offset = LEFT_MARGIN
+	position = Vector2(_left_offset, _top_offset)
 
 
 func reanchor(graph_top: float, outer_width: float) -> void:
 	if _top_offset < 0.0:
 		return
-	position = Vector2(
-		_graph_container.size.x - size.x - _right_offset,
-		_top_offset
-	).clamp(
+	position = Vector2(_left_offset, _top_offset).clamp(
 		Vector2(0.0, graph_top),
 		Vector2(outer_width, graph_top + _graph_container.size.y) - size
 	)
@@ -96,7 +94,9 @@ func toggle() -> void:
 
 func _build() -> void:
 	size = Vector2(220, 320)
-	visible = true
+	# Hidden by default; nyx_main reveals it the moment the graph gains its first
+	# parameter (or loads a graph that has some). Empty otherwise = just clutter.
+	visible = false
 
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.14, 0.14, 0.18, 0.92)
@@ -132,7 +132,7 @@ func _build() -> void:
 		elif ev is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			if has_meta("_drag_offset"):
 				position = position + ev.relative
-				_right_offset = _graph_container.size.x - position.x - size.x
+				_left_offset = position.x
 				_top_offset = position.y
 	)
 	prop_header_wrap.add_child(header)

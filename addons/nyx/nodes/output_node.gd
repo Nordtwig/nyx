@@ -18,6 +18,12 @@ var _slot_labels: Array = []
 var _preview_plane_horizontal: bool = true
 var _preview_subdivisions: int = 64
 var _preview_scale: float = 1.0
+# Preview scene for the Olympus Viewport's scene mode. _preview_scene_path is the
+# pinned .tscn (res:// path); _preview_scene_pinned locks the viewport to it
+# rather than following the active editor tab. A pinned graph reopens in scene
+# mode showing this scene. Persisted like the other preview settings above.
+var _preview_scene_path: String = ""
+var _preview_scene_pinned: bool = false
 
 
 func _add_preview_controls() -> void:
@@ -128,6 +134,22 @@ func set_preview_scale(v: float) -> void:
 	emit_signal("value_changed")
 
 
+func get_preview_scene_path() -> String:
+	return _preview_scene_path
+
+
+func set_preview_scene_path(v: String) -> void:
+	_preview_scene_path = v
+
+
+func get_preview_scene_pinned() -> bool:
+	return _preview_scene_pinned
+
+
+func set_preview_scene_pinned(v: bool) -> void:
+	_preview_scene_pinned = v
+
+
 func get_state() -> Dictionary:
 	return {
 		"mode": _mode,
@@ -135,6 +157,8 @@ func get_state() -> Dictionary:
 		"preview_plane_horizontal": _preview_plane_horizontal,
 		"preview_subdivisions": _preview_subdivisions,
 		"preview_scale": _preview_scale,
+		"preview_scene_path": _preview_scene_path,
+		"preview_scene_pinned": _preview_scene_pinned,
 	}
 
 
@@ -149,6 +173,8 @@ func set_state(state: Dictionary) -> void:
 	_preview_plane_horizontal = state.get("preview_plane_horizontal", true)
 	_preview_subdivisions = state.get("preview_subdivisions", 64)
 	_preview_scale = state.get("preview_scale", 1.0)
+	_preview_scene_path = state.get("preview_scene_path", "")
+	_preview_scene_pinned = state.get("preview_scene_pinned", false)
 
 
 func _on_deselected() -> void:

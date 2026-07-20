@@ -95,6 +95,14 @@ func _enter_tree() -> void:
 	_make_visible(false)
 	_main_screen.reload_requested.connect(_reload)
 
+	# Forward the editor's active-scene-tab changes / saves into the main screen
+	# so the preview panel's scene-mode follow can track them (Charon-adjacent
+	# seam — see .nyx-notes/olympus-viewport.md). Connected to our own
+	# EditorPlugin signals; the handlers look up _main_screen fresh so a Reload
+	# (which rebuilds it) stays wired.
+	scene_changed.connect(_on_editor_scene_changed)
+	scene_saved.connect(_on_editor_scene_saved)
+
 	# Navigation: artifact -> Nyx (gated on the provenance stamp).
 	_context_menu = preload("res://addons/nyx/core/open_in_nyx_context_menu.gd").new()
 	_context_menu.open_callback = _open_in_nyx
@@ -119,6 +127,16 @@ func _unregister_nyx_import() -> void:
 	if _shader_importer:
 		remove_import_plugin(_shader_importer)
 		_shader_importer = null
+
+
+func _on_editor_scene_changed(scene_root: Node) -> void:
+	if _main_screen and _main_screen.has_method("on_active_scene_changed"):
+		_main_screen.on_active_scene_changed(scene_root)
+
+
+func _on_editor_scene_saved(filepath: String) -> void:
+	if _main_screen and _main_screen.has_method("on_scene_saved"):
+		_main_screen.on_scene_saved(filepath)
 
 
 # nyx_path is the resolved (possibly missing) `.nyx` target; source_path is the

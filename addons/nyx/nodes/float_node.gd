@@ -148,6 +148,10 @@ func set_param_range(mn: float, mx: float, st: float) -> void:
 	value_changed.emit()
 
 
+func get_param_value() -> Variant:
+	return _value
+
+
 func set_value_external(v: float) -> void:
 	_value = v
 	_spinbox.value = v

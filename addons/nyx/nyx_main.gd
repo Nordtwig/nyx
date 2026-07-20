@@ -182,6 +182,7 @@ func _ready() -> void:
 	_tool_rail.redo_pressed.connect(_redo)
 	add_child(_tool_rail)
 	_tool_rail.setup(_graph, _graph_container)
+	_tool_rail.visible = false  # hidden by default; palette's "Toggle Tool Rail" shows it
 
 	_search_popup = NyxSearchPopup.new()
 	add_child(_search_popup)
@@ -207,6 +208,8 @@ func _ready() -> void:
 	_command_palette.live_toggled.connect(_on_live_toggled)
 	_command_palette.shortcuts_pressed.connect(_toggle_shortcuts_overlay)
 	_command_palette.properties_toggled.connect(_toggle_properties_panel)
+	_command_palette.preview_toggled.connect(_toggle_preview_panel)
+	_command_palette.tool_rail_toggled.connect(_toggle_tool_rail)
 	_command_palette.undo_pressed.connect(_undo)
 	_command_palette.redo_pressed.connect(_redo)
 	# Keeps the chrome-bar palette icon's toggled-green state in sync with the
@@ -279,6 +282,7 @@ func _ready() -> void:
 	_preview_panel = NyxPreviewPanel.new()
 	add_child(_preview_panel)
 	_preview_panel.setup(_graph, _graph_container)
+	_preview_panel.scene_pin_changed.connect(_on_scene_pin_changed)
 	_node_previews = NyxNodePreviews.new()
 	add_child(_node_previews)
 	_node_previews.setup(_graph, _compiler)
@@ -377,10 +381,7 @@ func _add_node(node: Node, offset: Vector2, node_name: String = "") -> void:
 	if node.has_signal("value_changed"):
 		node.value_changed.connect(_request_compile)
 		node.value_changed.connect(_mark_dirty)
-		node.value_changed.connect(func():
-			if _properties_panel and _properties_panel.visible:
-				if _properties_panel: _properties_panel.rebuild()
-		)
+		node.value_changed.connect(_refresh_blackboard)
 	if node.has_signal("edit_started"):
 		node.edit_started.connect(_push_undo_state)
 	if node.has_signal("texture_pick_requested"):
@@ -570,6 +571,39 @@ func _apply_preview_mesh_settings() -> void:
 			output.get_preview_plane_horizontal(),
 			output.get_preview_subdivisions(),
 			output.get_preview_scale())
+		_preview_panel.set_scene_path(output.get_preview_scene_path())
+
+
+# The preview panel pins/unpins a scene; persist it on OutputNode so it survives
+# save/load and mark the graph dirty.
+func _on_scene_pin_changed(path: String, pinned: bool) -> void:
+	var output := _get_output_node()
+	if output and output.has_method("set_preview_scene_path"):
+		output.set_preview_scene_path(path)
+		output.set_preview_scene_pinned(pinned)
+		_mark_dirty()
+
+
+# Editor scene-tab changed / a scene was saved — forwarded from plugin.gd's
+# EditorPlugin signals so the preview panel's follow mode can track it.
+func on_active_scene_changed(scene_root: Node) -> void:
+	if _preview_panel:
+		_preview_panel.on_active_scene_changed(scene_root)
+
+
+func on_scene_saved(filepath: String) -> void:
+	if _preview_panel:
+		_preview_panel.on_scene_saved(filepath)
+
+
+# Load-time only (not undo/redo): a graph pinned to a scene reopens in scene mode
+# showing it.
+func _restore_preview_scene() -> void:
+	var output := _get_output_node()
+	if output and _preview_panel and output.has_method("get_preview_scene_pinned"):
+		_preview_panel.restore_scene_mode(
+			output.get_preview_scene_path(),
+			output.get_preview_scene_pinned())
 
 
 func _set_preview_plane_horizontal(v: bool) -> void:
@@ -596,6 +630,63 @@ func _set_preview_scale(v: float) -> void:
 func _toggle_properties_panel() -> void:
 	if _properties_panel:
 		_properties_panel.toggle()
+
+
+var _blackboard_prev_param_count: int = 0
+
+
+func _count_exposed_params() -> int:
+	var n := 0
+	for node in _graph.get_children():
+		if node is GraphNode and node.has_method("is_param_mode") and node.call("is_param_mode"):
+			n += 1
+	return n
+
+
+# Mid-edit Blackboard upkeep (called on any node value change). Reveals the panel
+# on the 0 → ≥1 parameter transition (the first param makes it relevant) but never
+# auto-hides — once shown, the user manages it, and adding a 2nd param won't
+# fight a manual close. Keeps its rows current while it's open.
+func _refresh_blackboard() -> void:
+	if not _properties_panel:
+		return
+	var c := _count_exposed_params()
+	if c > 0 and _blackboard_prev_param_count == 0 and not _properties_panel.visible:
+		_properties_panel.visible = true
+	_blackboard_prev_param_count = c
+	if _properties_panel.visible:
+		_properties_panel.rebuild()
+	if _preview_panel:
+		_preview_panel.refresh_params()   # keep the preview's live-params drawer in sync
+
+
+# Full sync on a graph replacement (load/new): show iff the graph has params, so a
+# param-less graph starts with the Blackboard hidden and a param-carrying one
+# opens straight into it.
+func _sync_blackboard_on_graph_replace() -> void:
+	if not _properties_panel:
+		return
+	var c := _count_exposed_params()
+	_blackboard_prev_param_count = c
+	_properties_panel.visible = c > 0
+	if _properties_panel.visible:
+		_properties_panel.rebuild()
+	if _preview_panel:
+		_preview_panel.refresh_params()   # sync the preview's live-params drawer too
+
+
+func _toggle_preview_panel() -> void:
+	if _preview_panel:
+		_preview_panel.visible = not _preview_panel.visible
+
+
+func _toggle_tool_rail() -> void:
+	if _tool_rail:
+		# Place it on first reveal if the initial layout hasn't yet (it's created
+		# hidden and may be toggled before _do_setup_initial_panel_layout runs).
+		if not _tool_rail.is_placed():
+			_tool_rail.place_default(_graph_top())
+		_tool_rail.visible = not _tool_rail.visible
 
 
 func _on_shader_type_changed(idx: int) -> void:
@@ -954,7 +1045,10 @@ func _do_setup_initial_panel_layout() -> void:
 	if is_instance_valid(_tool_rail):
 		_tool_rail.place_default(_graph_top())
 	_preview_panel.place_default(_graph_top())
-	var top: float = _graph_top() + 12.0 + _preview_panel.size.y + 8.0
+	# Blackboard sits top-left under the command bar (ShaderGraph positioning),
+	# below the chrome pill's actual height.
+	var bar_h: float = _chrome_bar.size.y if is_instance_valid(_chrome_bar) else 28.0
+	var top: float = _graph_top() + NyxChromeBar.TOP_MARGIN + bar_h + 8.0
 	_properties_panel.place_default(top)
 
 
@@ -1677,6 +1771,24 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	if event.ctrl_pressed or event.meta_pressed:
 		return
+	# Esc exits the preview's focused state first, before anything else Esc might
+	# mean, and regardless of where the cursor is (checked before the over-graph
+	# gate below).
+	if event.keycode == KEY_ESCAPE and _preview_panel and _preview_panel.is_focused_state():
+		_preview_panel.exit_focus()
+		accept_event()
+		return
+	# While RMB-freelook is active in the preview, WASD/QE are camera input —
+	# swallow bare keys here so they don't fire graph shortcuts (e.g. A → search).
+	if _preview_panel and _preview_panel.visible and _preview_panel.is_freelooking():
+		return
+	# F frames the preview target when the cursor is over the preview panel
+	# (GraphEdit doesn't use F, so no conflict).
+	if event.keycode == KEY_F and _preview_panel and _preview_panel.visible \
+			and _preview_panel.get_global_rect().has_point(get_global_mouse_position()):
+		_preview_panel.frame_target()
+		accept_event()
+		return
 	if _search_popup and _search_popup.visible:
 		return
 	if _command_palette and _command_palette.visible:
@@ -1949,6 +2061,8 @@ func _new_graph() -> void:
 	_add_node(NyxRegistry.VertexOutputNode.new(), Vector2(300, 40), "VertexOutputNode")
 	_update_sink_visibility()
 	_apply_preview_mesh_settings()
+	_restore_preview_scene()  # fresh graph has no pin: drops scene mode back to follow/mesh
+	_sync_blackboard_on_graph_replace()  # fresh graph has no params: Blackboard hidden
 	_frame_default_view()
 	_request_compile()
 	_loading = false
@@ -2040,6 +2154,8 @@ func _do_load(path: String) -> void:
 	_current_nyx_path = path
 	_push_recent(path)
 	_deserialize_graph(data)  # also drives the chrome-bar badge, via _update_export_ui()
+	_restore_preview_scene()  # a pinned graph reopens straight into scene mode
+	_sync_blackboard_on_graph_replace()  # show the Blackboard iff this graph has params
 	_set_clean()  # freshly loaded from disk
 	# Any loaded (and therefore directly-usable) graph goes live by default,
 	# same as a fresh first save or a fresh export.

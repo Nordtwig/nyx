@@ -30,6 +30,8 @@ signal export_menu_selected(id: int)
 signal live_toggled(on: bool)
 signal shortcuts_pressed
 signal properties_toggled
+signal preview_toggled
+signal tool_rail_toggled
 signal undo_pressed
 signal redo_pressed
 
@@ -275,7 +277,9 @@ func _build_commands(context: Dictionary) -> Array:
 	cmds.append({"category": "Edit", "label": "Undo", "action": "undo_pressed"})
 	cmds.append({"category": "Edit", "label": "Redo", "action": "redo_pressed"})
 
+	cmds.append({"category": "View", "label": "Toggle Preview Panel", "action": "preview_toggled"})
 	cmds.append({"category": "View", "label": "Toggle Properties Panel", "action": "properties_toggled"})
+	cmds.append({"category": "View", "label": "Toggle Tool Rail", "action": "tool_rail_toggled"})
 	cmds.append({"category": "View", "label": "Keyboard Shortcuts", "action": "shortcuts_pressed", "shortcut": "?"})
 
 	if has_live_target:
@@ -505,6 +509,8 @@ func _run(entry: Dictionary) -> void:
 		"live_toggled": live_toggled.emit(entry["arg"])
 		"shortcuts_pressed": shortcuts_pressed.emit()
 		"properties_toggled": properties_toggled.emit()
+		"preview_toggled": preview_toggled.emit()
+		"tool_rail_toggled": tool_rail_toggled.emit()
 		"undo_pressed": undo_pressed.emit()
 		"redo_pressed": redo_pressed.emit()
 

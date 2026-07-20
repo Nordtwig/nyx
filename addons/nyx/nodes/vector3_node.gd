@@ -121,6 +121,10 @@ func get_param_name() -> String:
 	return _param_name
 
 
+func get_param_value() -> Variant:
+	return Vector3(_x, _y, _z)
+
+
 func get_blackboard_control() -> Control:
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
