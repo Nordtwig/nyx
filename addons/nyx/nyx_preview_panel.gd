@@ -61,6 +61,31 @@ var _cam_distance: float = 1.2
 var _cam_focus := Vector3.ZERO
 var _preview_mesh_scale: float = 1.0
 var _default_cam_distance: float = 1.2   # per-mesh default, restored by the reset button
+
+# Lighting presets + procedural environment for the mesh preview (sphere/plane/
+# cube). Scene mode uses the scene's own lighting instead (deferred: pick up the
+# scene's WorldEnvironment for in-viewport tweaking — see backlog). Presets set the
+# directional light's direction/color/energy + a procedural sky; Ctrl+drag rotates
+# the sun. NB: the preview runs the Compatibility renderer, so sky *reflections* on
+# low-roughness materials are limited — the win here is light direction + ambient.
+const _LIGHT_PRESETS := [
+	{"name": "Void", "yaw": 45.0, "pitch": -45.0, "color": Color(1.0, 1.0, 1.0), "energy": 1.0, "void": true},
+	{"name": "Studio", "yaw": 40.0, "pitch": -35.0, "color": Color(1.0, 0.98, 0.95), "energy": 1.1, "sky_top": Color(0.30, 0.36, 0.45), "sky_horizon": Color(0.55, 0.58, 0.62), "ambient": 1.0},
+	{"name": "Noon", "yaw": 30.0, "pitch": -70.0, "color": Color(1.0, 1.0, 0.97), "energy": 1.4, "sky_top": Color(0.20, 0.45, 0.85), "sky_horizon": Color(0.65, 0.78, 0.92), "ambient": 1.0},
+	{"name": "Sunset", "yaw": 80.0, "pitch": -12.0, "color": Color(1.0, 0.62, 0.35), "energy": 1.25, "sky_top": Color(0.25, 0.28, 0.55), "sky_horizon": Color(0.95, 0.55, 0.35), "ambient": 0.85},
+	{"name": "Overcast", "yaw": 45.0, "pitch": -55.0, "color": Color(0.85, 0.88, 0.92), "energy": 0.6, "sky_top": Color(0.55, 0.58, 0.62), "sky_horizon": Color(0.70, 0.72, 0.75), "ambient": 1.4},
+	{"name": "Night", "yaw": 60.0, "pitch": -40.0, "color": Color(0.55, 0.65, 0.95), "energy": 0.35, "sky_top": Color(0.03, 0.04, 0.10), "sky_horizon": Color(0.10, 0.12, 0.22), "ambient": 0.5},
+]
+var _env: WorldEnvironment
+var _preview_env: Environment
+var _sky_mat: ProceduralSkyMaterial
+var _sun_yaw_deg: float = 45.0
+var _sun_pitch_deg: float = -45.0
+var _rotating_sun: bool = false
+var _light_btn: Button
+var _light_menu: PopupMenu
+var _current_light_preset: int = 0   # 0 = Void (the clean old default look)
+
 var _orbiting: bool = false
 var _panning_cam: bool = false
 var _freelook: bool = false
@@ -109,8 +134,8 @@ var _selected_scene_material: ShaderMaterial
 var _scene_material_candidates: Array = []   # [{mat, label}], index-aligned with the dropdown
 var _own_shader_paths: Array = []            # res:// paths of this graph's exported/.nyx shader
 var _reset_cam_btn: Button
-var _resize_grip: Control
-var _resize_grip_left: Control
+var _resize_grips: Array = []    # 4 corners + 4 edges — full-perimeter resize handles
+var _active_grip: Control = null
 var _preview_plane_mesh: PlaneMesh
 var _preview_sphere_mesh: SphereMesh
 var _preview_cube_mesh: BoxMesh
@@ -120,11 +145,11 @@ var _shader_material_particle: ShaderMaterial
 var _particles: GPUParticles3D
 var _mesh_row: Control
 
+# Anchored to the bottom-right of the graph area (offsets = panel edge → graph edge).
 var _right_offset: float = 20.0
-var _top_offset: float = -1.0          # -1 = not yet placed
+var _bottom_offset: float = 20.0
+var _placed: bool = false
 var _dragging: bool = false
-var _resizing: bool = false
-var _resizing_left: bool = false
 
 # Three-rung panel-state ladder (see .nyx-notes/olympus-viewport.md):
 #   MINIMIZED — titlebar only, SubViewport rendering paused.
@@ -133,7 +158,7 @@ var _resizing_left: bool = false
 # Session state, never persisted to the .nyx (unlike Preview Mesh settings).
 enum { STATE_MINIMIZED, STATE_AMBIENT, STATE_FOCUSED }
 var _panel_state: int = STATE_AMBIENT
-var _restore_size := Vector2(300, 260)   # ambient size, restored after minimize/focus
+var _restore_size := Vector2(450, 500)   # ambient size, restored after minimize/focus (rescaled in _build)
 var _restore_position := Vector2.ZERO    # ambient position, ditto
 var _graph_top: float = 0.0              # cached from place_default/reanchor for focused fill
 var _header_wrap: PanelContainer
@@ -246,6 +271,7 @@ func update_for_shader_type(type: int) -> void:
 		_particles.emitting = type == 2
 	_refresh_body_visibility()
 	_update_scene_ui()
+	_apply_lighting_for_mode()
 	refresh_params()   # target material (and thus the header) changed with the mode
 
 
@@ -263,12 +289,12 @@ func _refresh_body_visibility() -> void:
 		_mesh_row.visible = body and _shader_type == 0
 	if _reset_cam_btn:
 		_reset_cam_btn.visible = body and (_shader_type == 0 or _shader_type == 2)
+	if _light_btn:
+		_light_btn.visible = body and _shader_type == 0 and not _scene_active
 	# Grips only make sense in the freely-sized ambient state.
 	var grips := _panel_state == STATE_AMBIENT
-	if _resize_grip:
-		_resize_grip.visible = grips
-	if _resize_grip_left:
-		_resize_grip_left.visible = grips
+	for g in _resize_grips:
+		g.visible = grips
 	_update_scene_ui()
 	_sync_drawer()   # hide the drawer when minimized, restore when not
 
@@ -284,13 +310,29 @@ func exit_focus() -> void:
 
 func place_default(graph_top: float) -> void:
 	_graph_top = graph_top
-	_top_offset = graph_top + 12.0
 	_right_offset = 20.0
-	var pos := Vector2(_graph_container.size.x - size.x - _right_offset, _top_offset)
+	_bottom_offset = 20.0
+	var pos := _anchored_position()
+	_placed = true
 	_restore_position = pos
 	_restore_size = size
 	if _panel_state == STATE_AMBIENT:
 		position = pos
+
+
+# Bottom-right-anchored position from the current right/bottom offsets.
+func _anchored_position() -> Vector2:
+	return Vector2(
+		_graph_container.size.x - size.x - _right_offset,
+		_graph_top + _graph_container.size.y - size.y - _bottom_offset
+	)
+
+
+# Recompute the right/bottom offsets from the current rect (after a drag/resize),
+# so window-resize reanchoring keeps the panel where the user put it.
+func _update_anchor_offsets() -> void:
+	_right_offset = _graph_container.size.x - position.x - size.x
+	_bottom_offset = (_graph_top + _graph_container.size.y) - (position.y + size.y)
 
 
 func reanchor(graph_top: float, outer_width: float) -> void:
@@ -298,12 +340,9 @@ func reanchor(graph_top: float, outer_width: float) -> void:
 	if _panel_state == STATE_FOCUSED:
 		_apply_focused()
 		return
-	if _top_offset < 0.0:
+	if not _placed:
 		return
-	position = Vector2(
-		_graph_container.size.x - size.x - _right_offset,
-		_top_offset
-	).clamp(
+	position = _anchored_position().clamp(
 		Vector2(0.0, graph_top),
 		Vector2(outer_width, graph_top + _graph_container.size.y) - size
 	)
@@ -317,13 +356,14 @@ func reset_last_code() -> void:
 
 
 func is_placed() -> bool:
-	return _top_offset >= 0.0
+	return _placed
 
 
 # ── UI build ──────────────────────────────────────────────────────────────────
 
 func _build() -> void:
-	size = Vector2(300, 260)
+	# 450x500 at 100% editor scale, scaled for other DPIs.
+	size = Vector2(450, 500) * EditorInterface.get_editor_scale()
 
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.14, 0.14, 0.18, 0.92)
@@ -388,9 +428,13 @@ func _build() -> void:
 	pad_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(pad_right)
 
-	# Floating source-switcher icon stack — anchored to the bottom-right of the panel.
+	# Floating source-switcher icon stack — hugs the bottom-right corner. Bottom-
+	# aligned with a generous top so the buttons stack UP from the corner rather
+	# than overflowing the bottom when the editor theme renders them taller at
+	# higher DPI (raw-sized region tuned at 0.75 was clipping at 1.0).
 	var mesh_stack := VBoxContainer.new()
 	mesh_stack.add_theme_constant_override("separation", 2)
+	mesh_stack.alignment = BoxContainer.ALIGNMENT_END
 	mesh_stack.set_anchor(SIDE_RIGHT, 1.0)
 	mesh_stack.set_anchor(SIDE_BOTTOM, 1.0)
 	mesh_stack.set_anchor(SIDE_LEFT, 1.0)
@@ -398,7 +442,7 @@ func _build() -> void:
 	mesh_stack.set_offset(SIDE_RIGHT, -8)
 	mesh_stack.set_offset(SIDE_BOTTOM, -4)
 	mesh_stack.set_offset(SIDE_LEFT, -32)
-	mesh_stack.set_offset(SIDE_TOP, -108)   # 4 switcher buttons (sphere/plane/cube/scene)
+	mesh_stack.set_offset(SIDE_TOP, -180)
 	mesh_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(mesh_stack)
 	_mesh_row = mesh_stack
@@ -469,6 +513,21 @@ func _build() -> void:
 	_default_light = DirectionalLight3D.new()
 	_default_light.rotation_degrees = Vector3(-45, 45, 0)
 	_viewport.add_child(_default_light)
+
+	# Procedural sky/ambient environment for mesh mode (disabled in scene mode so
+	# the scene's own environment shows). Preset colors are set via _apply_light_preset.
+	_sky_mat = ProceduralSkyMaterial.new()
+	var sky := Sky.new()
+	sky.sky_material = _sky_mat
+	_preview_env = Environment.new()
+	_preview_env.background_mode = Environment.BG_SKY
+	_preview_env.sky = sky
+	_preview_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	_preview_env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	_env = WorldEnvironment.new()
+	_env.environment = _preview_env
+	_viewport.add_child(_env)
+	_apply_light_preset(_current_light_preset)
 
 	# Particle preview — GPUParticles3D sharing the 3D viewport.
 	# Its process material is the compiled particle shader; the draw pass is a
@@ -572,21 +631,28 @@ func _build() -> void:
 	_params_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_params_scroll.add_child(_params_vbox)
 
-	# Wrench toggle — bottom-left overlay (mirrors the switcher stack at bottom-
-	# right). Shown only when the graph exposes parameters; green while open.
+	# Wrench toggle — bottom-left overlay, a mirror of the bottom-right switcher
+	# stack (same corner-hug + generous-region + bottom-align setup so it sits
+	# right and doesn't clip at higher DPI). Shown only when the graph exposes
+	# parameters; green while open.
+	var wrench_stack := VBoxContainer.new()
+	wrench_stack.alignment = BoxContainer.ALIGNMENT_END
+	wrench_stack.set_anchor(SIDE_LEFT, 0.0)
+	wrench_stack.set_anchor(SIDE_RIGHT, 0.0)
+	wrench_stack.set_anchor(SIDE_TOP, 1.0)
+	wrench_stack.set_anchor(SIDE_BOTTOM, 1.0)
+	wrench_stack.set_offset(SIDE_LEFT, 4)
+	wrench_stack.set_offset(SIDE_RIGHT, 28)
+	wrench_stack.set_offset(SIDE_TOP, -180)
+	wrench_stack.set_offset(SIDE_BOTTOM, -4)
+	wrench_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(wrench_stack)
+
 	_wrench_btn = _make_switcher_button("wrench", false)
 	_wrench_btn.tooltip_text = "Tune parameters"
 	_wrench_btn.visible = false
-	_wrench_btn.set_anchor(SIDE_LEFT, 0.0)
-	_wrench_btn.set_anchor(SIDE_RIGHT, 0.0)
-	_wrench_btn.set_anchor(SIDE_TOP, 1.0)
-	_wrench_btn.set_anchor(SIDE_BOTTOM, 1.0)
-	_wrench_btn.set_offset(SIDE_LEFT, 8)
-	_wrench_btn.set_offset(SIDE_RIGHT, 32)
-	_wrench_btn.set_offset(SIDE_TOP, -32)
-	_wrench_btn.set_offset(SIDE_BOTTOM, -8)
 	_wrench_btn.pressed.connect(_toggle_params_drawer)
-	add_child(_wrench_btn)
+	wrench_stack.add_child(_wrench_btn)
 
 	# Right-edge drag grip for the params column — resize its width (compact it or
 	# widen it to fit long param names). Tracks the drawer's right edge.
@@ -598,49 +664,51 @@ func _build() -> void:
 	_update_params_width()
 	resized.connect(_update_params_width)   # re-clamp/reposition when the panel resizes
 
-	# Reset-camera button — top-right corner of the viewport, on its own (a camera
-	# control, kept separate from the scene-source controls in the switcher stack).
-	# Snaps orbit back to (yaw=0, pitch=0) and zoom back to the current mesh's
-	# default distance (tracked separately from the live _cam_distance so
-	# switching meshes doesn't lose the user's own reset point).
+	# All viewport controls cluster top-left in a reflowing row. Order: reset-camera
+	# (3D modes), lighting preset (mesh only), pin + reload (scene only) — so mesh
+	# mode shows [reset][light] and scene mode [reset][pin][reload]. Per-button
+	# visibility (set in _refresh_body_visibility / _update_scene_ui) drives the
+	# reflow; the HBox skips hidden children. IGNORE filter so the empty tail of the
+	# row passes clicks through to the viewport.
+	var tl := HBoxContainer.new()
+	tl.add_theme_constant_override("separation", 2)
+	tl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tl.set_anchor(SIDE_LEFT, 0.0)
+	tl.set_anchor(SIDE_RIGHT, 0.0)
+	tl.set_anchor(SIDE_TOP, 0.0)
+	tl.set_anchor(SIDE_BOTTOM, 0.0)
+	tl.set_offset(SIDE_LEFT, 2)
+	tl.set_offset(SIDE_RIGHT, 112)   # room for up to 4 icons
+	tl.set_offset(SIDE_TOP, 37)
+	tl.set_offset(SIDE_BOTTOM, 61)
+	add_child(tl)
+
 	_reset_cam_btn = _make_switcher_button("focus", false)
 	_reset_cam_btn.tooltip_text = "Reset camera"
-	_reset_cam_btn.set_anchor(SIDE_LEFT, 1.0)
-	_reset_cam_btn.set_anchor(SIDE_RIGHT, 1.0)
-	_reset_cam_btn.set_anchor(SIDE_TOP, 0.0)
-	_reset_cam_btn.set_anchor(SIDE_BOTTOM, 0.0)
-	_reset_cam_btn.set_offset(SIDE_LEFT, -28)
-	_reset_cam_btn.set_offset(SIDE_RIGHT, -4)
-	_reset_cam_btn.set_offset(SIDE_TOP, 33)
-	_reset_cam_btn.set_offset(SIDE_BOTTOM, 57)
 	_reset_cam_btn.pressed.connect(_on_reset_camera_pressed)
-	add_child(_reset_cam_btn)
+	tl.add_child(_reset_cam_btn)
 
-	# Scene-only controls, top-left corner (opposite the reset-camera button).
-	# Pin toggles follow/lock; reload re-instances from disk. Hidden until scene
-	# mode via _update_scene_ui. Laid out as a horizontal pair: [pin][reload].
+	_light_btn = _make_switcher_button("sun", false)
+	_light_btn.tooltip_text = "Lighting preset (Ctrl+drag rotates the sun)"
+	_light_btn.pressed.connect(_open_light_menu)
+	tl.add_child(_light_btn)
+
 	_pin_btn = _make_switcher_button("pin")
 	_pin_btn.visible = false
-	_pin_btn.set_anchor(SIDE_LEFT, 0.0)
-	_pin_btn.set_anchor(SIDE_RIGHT, 0.0)
-	_pin_btn.set_offset(SIDE_LEFT, 8)
-	_pin_btn.set_offset(SIDE_RIGHT, 32)
-	_pin_btn.set_offset(SIDE_TOP, 33)
-	_pin_btn.set_offset(SIDE_BOTTOM, 57)
 	_pin_btn.pressed.connect(_on_pin_toggled)
-	add_child(_pin_btn)
+	tl.add_child(_pin_btn)
 
 	_reload_btn = _make_switcher_button("refresh", false)
 	_reload_btn.tooltip_text = "Reload scene"
 	_reload_btn.visible = false
-	_reload_btn.set_anchor(SIDE_LEFT, 0.0)
-	_reload_btn.set_anchor(SIDE_RIGHT, 0.0)
-	_reload_btn.set_offset(SIDE_LEFT, 34)
-	_reload_btn.set_offset(SIDE_RIGHT, 58)
-	_reload_btn.set_offset(SIDE_TOP, 33)
-	_reload_btn.set_offset(SIDE_BOTTOM, 57)
 	_reload_btn.pressed.connect(_on_reload_scene_pressed)
-	add_child(_reload_btn)
+	tl.add_child(_reload_btn)
+
+	_light_menu = PopupMenu.new()
+	for i in _LIGHT_PRESETS.size():
+		_light_menu.add_radio_check_item(_LIGHT_PRESETS[i].name, i)
+	_light_menu.id_pressed.connect(_apply_light_preset)
+	add_child(_light_menu)
 
 	# Centered message when scene mode has nothing to show (no active/pinned
 	# scene, or a load failure).
@@ -659,42 +727,27 @@ func _build() -> void:
 	add_child(msg)
 	_scene_msg = msg
 
-	# Resize grip (bottom-right corner). All four offsets are set explicitly —
-	# changing an anchor value does NOT recompute the opposite offset, it just
-	# reinterprets whatever raw offset is already stored under the new anchor
-	# basis. Leaving offset_right/offset_bottom at their .size-derived default
-	# (16, meant for the anchor=0 basis) silently doubled the hit-box to 32x32
-	# once anchor_right/anchor_bottom moved to 1.0 — confirmed via a headless
-	# rect dump, not assumed. Same fix applies to the bottom-left grip below.
-	var grip := Control.new()
-	grip.anchor_left = 1.0
-	grip.anchor_top = 1.0
-	grip.anchor_right = 1.0
-	grip.anchor_bottom = 1.0
-	grip.offset_left = -16
-	grip.offset_top = -16
-	grip.offset_right = 0
-	grip.offset_bottom = 0
-	grip.mouse_default_cursor_shape = 12  # CURSOR_FDIAGSIZE ("\")
-	grip.gui_input.connect(_on_resize_input)
-	add_child(grip)
-	_resize_grip = grip
-
-	# Resize grip (bottom-left corner) — mirrors the right one; growing from
-	# here keeps the top-right corner fixed, so position.x shifts with it.
-	var grip_left := Control.new()
-	grip_left.anchor_left = 0.0
-	grip_left.anchor_top = 1.0
-	grip_left.anchor_right = 0.0
-	grip_left.anchor_bottom = 1.0
-	grip_left.offset_left = 0
-	grip_left.offset_top = -16
-	grip_left.offset_right = 16
-	grip_left.offset_bottom = 0
-	grip_left.mouse_default_cursor_shape = 11  # CURSOR_BDIAGSIZE ("/")
-	grip_left.gui_input.connect(_on_resize_input_left)
-	add_child(grip_left)
-	_resize_grip_left = grip_left
+	# Full-perimeter resize handles: 4 corners (free, 2-axis) + 4 edges (1-axis).
+	# Each carries an "edges" meta [move_left, move_right, move_top, move_bottom]
+	# read by the shared _on_grip_input/_resize_by. A thin border (corners 10px,
+	# edges 6px, inset from the corners) so the interior stays draggable/orbitable
+	# and the top strip clears the titlebar buttons.
+	var c := 10.0   # corner size
+	var e := 6.0    # edge thickness
+	var fd := Control.CURSOR_FDIAGSIZE   # "\"  TL / BR
+	var bd := Control.CURSOR_BDIAGSIZE   # "/"  TR / BL
+	var vs := Control.CURSOR_VSIZE
+	var hs := Control.CURSOR_HSIZE
+	# corners: (anchors) (offsets) cursor [l,r,t,b]
+	_make_resize_grip(0, 0, 0, 0,  0, 0, c, c,        fd, [true, false, true, false])    # top-left
+	_make_resize_grip(1, 0, 1, 0,  -c, 0, 0, c,       bd, [false, true, true, false])    # top-right
+	_make_resize_grip(0, 1, 0, 1,  0, -c, c, 0,       bd, [true, false, false, true])    # bottom-left
+	_make_resize_grip(1, 1, 1, 1,  -c, -c, 0, 0,      fd, [false, true, false, true])    # bottom-right
+	# edges (span between the corners):
+	_make_resize_grip(0, 0, 1, 0,  c, 0, -c, e,       vs, [false, false, true, false])   # top
+	_make_resize_grip(0, 1, 1, 1,  c, -e, -c, 0,      vs, [false, false, false, true])   # bottom
+	_make_resize_grip(0, 0, 0, 1,  0, c, e, -c,       hs, [true, false, false, false])   # left
+	_make_resize_grip(1, 0, 1, 1,  -e, c, 0, -c,      hs, [false, true, false, false])   # right
 
 
 # ── Internal handlers ─────────────────────────────────────────────────────────
@@ -721,26 +774,29 @@ func _process(delta: float) -> void:
 			_set_freelook(false)
 		else:
 			_freelook_move(delta)
+	# Same safety net for an in-progress resize whose release was missed.
+	if _active_grip and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_active_grip = null
 	var mouse_pos := get_global_mouse_position()
 	if not get_global_rect().has_point(mouse_pos):
 		return
 	var shape := Input.CURSOR_ARROW
-	if _resizing:
-		shape = Input.CURSOR_FDIAGSIZE
-	elif _resizing_left:
-		shape = Input.CURSOR_BDIAGSIZE
+	if _active_grip:
+		shape = _active_grip.get_meta("cursor")
 	elif _params_resizing:
 		shape = Input.CURSOR_HSIZE
 	elif _orbiting or _dragging:
 		shape = Input.CURSOR_MOVE
 	elif _params_grip and _params_grip.visible and _params_grip.get_global_rect().has_point(mouse_pos):
 		shape = Input.CURSOR_HSIZE
-	elif _resize_grip and _resize_grip.visible and _resize_grip.get_global_rect().has_point(mouse_pos):
-		shape = Input.CURSOR_FDIAGSIZE
-	elif _resize_grip_left and _resize_grip_left.visible and _resize_grip_left.get_global_rect().has_point(mouse_pos):
-		shape = Input.CURSOR_BDIAGSIZE
-	elif _vpc_3d and _vpc_3d.visible and _vpc_3d.get_global_rect().has_point(mouse_pos):
-		shape = Input.CURSOR_MOVE
+	else:
+		# Perimeter resize handles take priority over the viewport orbit cursor.
+		for g in _resize_grips:
+			if g.visible and g.get_global_rect().has_point(mouse_pos):
+				shape = g.get_meta("cursor")
+				break
+		if shape == Input.CURSOR_ARROW and _vpc_3d and _vpc_3d.visible and _vpc_3d.get_global_rect().has_point(mouse_pos):
+			shape = Input.CURSOR_MOVE
 	Input.set_default_cursor_shape(shape)
 
 
@@ -750,8 +806,7 @@ func _on_header_input(event: InputEvent) -> void:
 		accept_event()
 	elif event is InputEventMouseMotion and _dragging:
 		position += event.relative
-		_right_offset = _graph_container.size.x - position.x - size.x
-		_top_offset = position.y
+		_update_anchor_offsets()
 		# Dragging a rolled-up (minimized) card should carry over to where it
 		# un-rolls, rather than snapping back to the pre-minimize spot.
 		if _panel_state == STATE_MINIMIZED:
@@ -759,30 +814,56 @@ func _on_header_input(event: InputEvent) -> void:
 		accept_event()
 
 
-func _on_resize_input(event: InputEvent) -> void:
+const _MIN_PANEL := Vector2(160.0, 120.0)
+
+
+func _make_resize_grip(al: float, at: float, ar: float, ab: float,
+		ol: float, ot: float, orr: float, ob: float, cursor: int, edges: Array) -> void:
+	var g := Control.new()
+	g.anchor_left = al
+	g.anchor_top = at
+	g.anchor_right = ar
+	g.anchor_bottom = ab
+	g.offset_left = ol
+	g.offset_top = ot
+	g.offset_right = orr
+	g.offset_bottom = ob
+	g.mouse_default_cursor_shape = cursor
+	g.set_meta("edges", edges)     # [move_left, move_right, move_top, move_bottom]
+	g.set_meta("cursor", cursor)
+	g.gui_input.connect(_on_grip_input.bind(g))
+	add_child(g)
+	_resize_grips.append(g)
+
+
+func _on_grip_input(event: InputEvent, grip: Control) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_resizing = event.pressed
+		_active_grip = grip if event.pressed else null
 		accept_event()
-	elif event is InputEventMouseMotion and _resizing:
-		var new_size: Vector2 = size + event.relative
-		new_size.x = max(new_size.x, 160.0)
-		new_size.y = max(new_size.y, 120.0)
-		size = new_size
+	elif event is InputEventMouseMotion and _active_grip == grip:
+		var m: Array = grip.get_meta("edges")
+		_resize_by(event.relative, m[0], m[1], m[2], m[3])
 		accept_event()
 
 
-func _on_resize_input_left(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_resizing_left = event.pressed
-		accept_event()
-	elif event is InputEventMouseMotion and _resizing_left:
-		var new_width: float = max(size.x - event.relative.x, 160.0)
-		var new_height: float = max(size.y + event.relative.y, 120.0)
-		var width_change := new_width - size.x
-		position.x -= width_change
-		size = Vector2(new_width, new_height)
-		_right_offset = _graph_container.size.x - position.x - size.x
-		accept_event()
+# Move the requested edges by `rel`, keeping the opposite edge fixed and clamping
+# to the minimum size (the moving edge stops, the fixed edge stays put).
+func _resize_by(rel: Vector2, ml: bool, mr: bool, mt: bool, mb: bool) -> void:
+	if ml:
+		var right := position.x + size.x
+		var nx: float = min(position.x + rel.x, right - _MIN_PANEL.x)
+		position.x = nx
+		size.x = right - nx
+	elif mr:
+		size.x = max(size.x + rel.x, _MIN_PANEL.x)
+	if mt:
+		var bottom := position.y + size.y
+		var ny: float = min(position.y + rel.y, bottom - _MIN_PANEL.y)
+		position.y = ny
+		size.y = bottom - ny
+	elif mb:
+		size.y = max(size.y + rel.y, _MIN_PANEL.y)
+	_update_anchor_offsets()
 
 
 # Shared factory for the bottom-right switcher buttons (sphere/plane/cube/scene):
@@ -793,6 +874,10 @@ func _make_switcher_button(icon_name: String, toggle: bool = true) -> Button:
 	btn.toggle_mode = toggle
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Stay at natural size, centered — don't stretch to fill a wider/taller region,
+	# so a generous container region doesn't fatten the button.
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var icon_path := "res://addons/nyx/icons/preview/%s.svg" % icon_name
 	if ResourceLoader.exists(icon_path):
 		var tex := load(icon_path) as Texture2D
@@ -853,7 +938,9 @@ func _on_viewport_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var b: int = event.button_index
 		if b == MOUSE_BUTTON_LEFT or b == MOUSE_BUTTON_MIDDLE:
-			if event.shift_pressed:
+			if event.ctrl_pressed and _shader_type == 0 and not _scene_active:
+				_rotating_sun = event.pressed   # Ctrl+drag rotates the sun (mesh mode)
+			elif event.shift_pressed:
 				_panning_cam = event.pressed
 			else:
 				_orbiting = event.pressed
@@ -876,7 +963,12 @@ func _on_viewport_input(event: InputEvent) -> void:
 			_update_camera_transform()
 			accept_event()
 	elif event is InputEventMouseMotion:
-		if _orbiting:
+		if _rotating_sun:
+			_sun_yaw_deg += event.relative.x * 0.5
+			_sun_pitch_deg = clamp(_sun_pitch_deg + event.relative.y * 0.5, -89.0, 89.0)
+			_apply_sun_direction()
+			accept_event()
+		elif _orbiting:
 			_cam_yaw -= event.relative.x * _ORBIT_SPEED
 			_cam_pitch = clamp(_cam_pitch - event.relative.y * _ORBIT_SPEED, -1.5, 1.5)
 			_update_camera_transform()
@@ -968,6 +1060,73 @@ func _update_camera_transform() -> void:
 	_preview_camera.look_at(_cam_focus, Vector3.UP)
 
 
+# ── Lighting presets (mesh mode) ─────────────────────────────────────────────────
+
+func _apply_light_preset(idx: int) -> void:
+	if idx < 0 or idx >= _LIGHT_PRESETS.size():
+		return
+	_current_light_preset = idx
+	var p: Dictionary = _LIGHT_PRESETS[idx]
+	var is_void: bool = p.get("void", false)
+	_sun_yaw_deg = p.yaw
+	_sun_pitch_deg = p.pitch
+	if _default_light:
+		_default_light.light_color = p.color
+		_default_light.light_energy = p.energy
+	_apply_sun_direction()
+	# Void = the old clean look: no sky, transparent background, directional light
+	# only. The sky presets swap in the procedural environment + ambient.
+	if _env:
+		_env.environment = null if is_void else _preview_env
+	if _viewport:
+		_viewport.transparent_bg = is_void
+	if not is_void:
+		if _sky_mat:
+			_sky_mat.sky_top_color = p.sky_top
+			_sky_mat.sky_horizon_color = p.sky_horizon
+		if _preview_env:
+			_preview_env.ambient_light_energy = p.ambient
+	_update_light_menu_check()
+
+
+func _apply_sun_direction() -> void:
+	if _default_light:
+		_default_light.rotation_degrees = Vector3(_sun_pitch_deg, _sun_yaw_deg, 0.0)
+
+
+func _update_light_menu_check() -> void:
+	if _light_menu:
+		for i in _light_menu.item_count:
+			_light_menu.set_item_checked(i, _light_menu.get_item_id(i) == _current_light_preset)
+
+
+func _open_light_menu() -> void:
+	if not _light_menu:
+		return
+	_update_light_menu_check()
+	var at := _light_btn.get_screen_position() + Vector2(_light_btn.size.x + 2, 0)
+	_light_menu.popup(Rect2i(Vector2i(at), Vector2i.ZERO))
+
+
+# Environment + light rig follow the mode: mesh mode uses our procedural sky + the
+# current preset; scene mode disables our environment and neutralises the fallback
+# light so no preset tint leaks into the scene's own lighting.
+func _apply_lighting_for_mode() -> void:
+	var mesh_lit := _shader_type == 0 and not _scene_active
+	if mesh_lit:
+		# The preset owns env / transparent_bg / light / sky (incl. Void's clean look).
+		_apply_light_preset(_current_light_preset)
+	else:
+		if _env:
+			_env.environment = null
+		if _viewport:
+			_viewport.transparent_bg = true
+		if _default_light:
+			_default_light.light_color = Color.WHITE
+			_default_light.light_energy = 1.0
+			_default_light.rotation_degrees = Vector3(-45, 45, 0)
+
+
 # ── Scene mode ──────────────────────────────────────────────────────────────────
 
 # Store the persisted pin target (nyx_main pushes it from OutputNode). Doesn't
@@ -1052,6 +1211,7 @@ func enter_scene_mode() -> void:
 	if _scene_btn:
 		_scene_btn.button_pressed = true
 	_update_pin_button()
+	_apply_lighting_for_mode()   # our env off, neutral fallback light — scene brings its own
 	_apply_saved_scene_state(_scene_path)   # restore this scene's remembered view if seen before
 	_update_scene_ui()
 	refresh_params()   # now tuning the scene material — header + write target change
@@ -1126,6 +1286,7 @@ func _teardown_scene() -> void:
 	_preview_mesh.visible = _shader_type == 0
 	if _default_light:
 		_default_light.visible = true
+	_apply_lighting_for_mode()   # back to our procedural env + the current preset
 	if not _saved_mesh_cam.is_empty():
 		_restore_cam(_saved_mesh_cam)
 	_update_scene_ui()
@@ -1765,12 +1926,14 @@ func _apply_ambient() -> void:
 
 
 func _apply_minimized() -> void:
-	# Roll up to the titlebar: keep the top-left corner, take the ambient width
-	# (so minimizing from the wide focused state doesn't leave a full-width bar),
-	# drop to header height (the hidden viewport contributes 0 once
-	# _refresh_body_visibility runs).
-	position = _restore_position
-	size = Vector2(_restore_size.x, _header_wrap.get_combined_minimum_size().y)
+	# Roll up to the titlebar, keeping the ambient BOTTOM-right corner fixed (the
+	# panel is bottom-anchored) so the bar drops to the bottom rather than floating
+	# where the ambient top was. Ambient width (so minimizing from the wide focused
+	# state doesn't leave a full-width bar); header height (the hidden viewport
+	# contributes 0 once _refresh_body_visibility runs).
+	var hh := _header_wrap.get_combined_minimum_size().y
+	position = Vector2(_restore_position.x, _restore_position.y + _restore_size.y - hh)
+	size = Vector2(_restore_size.x, hh)
 
 
 func _apply_focused() -> void:
