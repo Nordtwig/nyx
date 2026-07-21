@@ -24,6 +24,7 @@ extends Panel
 ##   on_active_scene_changed(root)    — follow the editor's active scene tab (from plugin.gd)
 ##   on_scene_saved(filepath)         — refresh the instance when its scene is saved
 ##   refresh_params()                 — rebuild the live-params drawer (on param/graph change)
+##   set_own_shader_paths(paths)      — this graph's exported/.nyx shader paths (picker default)
 ## Signals:
 ##   scene_pin_changed(path, pinned)  — emitted when the user pins/unpins a scene
 ##
@@ -80,6 +81,10 @@ var _pin_btn: Button
 var _scene_msg: Label                  # shown when there's no scene / it failed to load
 var _scene_max_distance: float = 6.0   # zoom-out cap while framing a (possibly large) scene
 var _saved_mesh_cam: Dictionary = {}   # per-mode camera state, swapped on mesh↔scene
+# Per-scene-tab memory (follow mode): path -> {params_open, material_label, cam} so
+# tabbing back to a scene restores the view/drawer instead of reframing from scratch.
+var _scene_states: Dictionary = {}
+var _pending_material_label: String = ""   # picker selection to restore on next dropdown rebuild
 
 # Inline live-params drawer — a collapsible section along the bottom of the panel
 # (wrench toggle in the titlebar). Distinct from the Blackboard: the Blackboard is
@@ -96,6 +101,13 @@ var _params_width: float = 200.0        # user-adjustable via the right-edge gri
 var _params_grip: Control
 var _params_resizing: bool = false
 var _param_overrides: Dictionary = {}   # name -> value; reapplied after mesh-mode recompiles
+
+# Scene-mode material picker: which of the scene's ShaderMaterials to tune. Defaults
+# to the one using this graph's own shader (nyx_main pushes _own_shader_paths).
+var _material_dropdown: OptionButton
+var _selected_scene_material: ShaderMaterial
+var _scene_material_candidates: Array = []   # [{mat, label}], index-aligned with the dropdown
+var _own_shader_paths: Array = []            # res:// paths of this graph's exported/.nyx shader
 var _reset_cam_btn: Button
 var _resize_grip: Control
 var _resize_grip_left: Control
@@ -542,6 +554,13 @@ func _build() -> void:
 	_params_header.add_theme_color_override("font_color", Color(0.55, 0.58, 0.64))
 	_params_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	drawer_vbox.add_child(_params_header)
+
+	# Scene-mode material picker (which ShaderMaterial in the scene to tune).
+	_material_dropdown = OptionButton.new()
+	_material_dropdown.add_theme_font_size_override("font_size", 10)
+	_material_dropdown.visible = false
+	_material_dropdown.item_selected.connect(_on_material_selected)
+	drawer_vbox.add_child(_material_dropdown)
 
 	_params_scroll = ScrollContainer.new()
 	_params_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -1033,7 +1052,7 @@ func enter_scene_mode() -> void:
 	if _scene_btn:
 		_scene_btn.button_pressed = true
 	_update_pin_button()
-	_instance_scene()
+	_apply_saved_scene_state(_scene_path)   # restore this scene's remembered view if seen before
 	_update_scene_ui()
 	refresh_params()   # now tuning the scene material — header + write target change
 
@@ -1054,17 +1073,54 @@ func on_scene_saved(filepath: String) -> void:
 
 # Re-point at the active editor scene (used on tab switch and on unpin). Passing
 # the root avoids a redundant EditorInterface lookup when the signal supplies it.
+# Remembers the outgoing scene's view and restores the incoming one's, so tabbing
+# back to a scene keeps its camera / picked material / open drawer.
 func _follow_active_scene(scene_root: Node = null) -> void:
 	var root := scene_root if scene_root else EditorInterface.get_edited_scene_root()
 	var path := root.scene_file_path if (root and not root.scene_file_path.is_empty()) else ""
 	if path == _scene_path and is_instance_valid(_scene_instance):
 		return
+	_save_current_scene_state()
 	_scene_path = path
-	_instance_scene()
+	_apply_saved_scene_state(path)
+
+
+# Snapshot the current scene tab's remembered state (called before switching away).
+func _save_current_scene_state() -> void:
+	if _scene_path == "":
+		return
+	_scene_states[_scene_path] = {
+		"params_open": _params_open,
+		"material_label": _selected_material_label(),
+		"cam": _snapshot_cam(),
+	}
+
+
+func _selected_material_label() -> String:
+	if not is_instance_valid(_selected_scene_material):
+		return ""
+	for e in _scene_material_candidates:
+		if e.mat == _selected_scene_material:
+			return e.label
+	return ""
+
+
+# Instance _scene_path, restoring its remembered drawer/material/camera if we've
+# seen it before (frame fresh scenes only). _params_open + _pending_material_label
+# are set before instancing so the refresh inside picks them up.
+func _apply_saved_scene_state(path: String) -> void:
+	var saved: Dictionary = _scene_states.get(path, {})
+	if saved.has("params_open"):
+		_params_open = saved["params_open"]
+	_pending_material_label = saved.get("material_label", "")
+	_instance_scene(not saved.has("cam"))
+	if saved.has("cam"):
+		_restore_cam(saved["cam"])
 
 
 # Return to mesh mode: free the instance, show the mesh, restore its camera.
 func _teardown_scene() -> void:
+	_save_current_scene_state()   # so re-entering scene mode restores this scene's view
 	_free_scene_instance()
 	_scene_active = false
 	_preview_mesh.visible = _shader_type == 0
@@ -1109,6 +1165,7 @@ func _instance_scene(frame: bool = true) -> void:
 	if frame:
 		_frame_scene(_compute_scene_aabb(_scene_instance))
 	_update_scene_ui()
+	refresh_params()   # repopulate the material picker for the new instance
 
 
 func _scene_has_lighting(node: Node) -> bool:
@@ -1237,7 +1294,28 @@ func _param_nodes() -> Array:
 
 
 func _has_params() -> bool:
+	# Scene mode is material-derived: the drawer tunes whatever ShaderMaterial you
+	# pick in the scene, so it's relevant whenever the scene has a tunable material
+	# (regardless of this graph's own params). Mesh mode tunes the graph's params.
+	if _scene_active:
+		for e in _collect_scene_material_entries():
+			if not _tunable_uniforms(e.mat).is_empty():
+				return true
+		return false
 	return not _param_nodes().is_empty()
+
+
+# A material's shader uniforms filtered to the tunable scalar/vector/color types
+# (skips samplers and anything else the drawer can't render a control for).
+func _tunable_uniforms(mat: ShaderMaterial) -> Array:
+	var out: Array = []
+	if mat == null or mat.shader == null:
+		return out
+	for u in mat.shader.get_shader_uniform_list():
+		var t: int = u.get("type", TYPE_NIL)
+		if t == TYPE_FLOAT or t == TYPE_VECTOR2 or t == TYPE_VECTOR3 or t == TYPE_VECTOR4 or t == TYPE_COLOR:
+			out.append(u)
+	return out
 
 
 # Wrench + drawer visibility only (no row rebuild) — safe to call on layout/state
@@ -1263,25 +1341,97 @@ func refresh_params() -> void:
 	_sync_drawer()
 	if not (_params_drawer and _params_drawer.visible) or _params_vbox == null:
 		return
-	_params_header.text = _param_target_label()
+	# Header + material picker: mesh mode edits the sandboxed preview material;
+	# scene mode lets the user pick which of the scene's materials to tune.
+	if _scene_active:
+		_params_header.text = "Tuning material in %s:" % _scene_path.get_file()
+		_material_dropdown.visible = true
+		_rebuild_material_dropdown()
+	else:
+		_params_header.text = "Tuning preview material (sandboxed)"
+		_material_dropdown.visible = false
+	_rebuild_param_rows()
+
+
+# Just the rows (not the header/dropdown) — used on material pick and reset so the
+# controls re-read their values from the current target without resetting the picker.
+func _rebuild_param_rows() -> void:
+	if _params_vbox == null:
+		return
 	for c in _params_vbox.get_children():
 		_params_vbox.remove_child(c)
 		c.queue_free()
-	for node in _param_nodes():
-		_params_vbox.add_child(_build_live_param_row(node))
+	if _scene_active:
+		# Material-derived: rows are the selected material's own uniforms.
+		if is_instance_valid(_selected_scene_material):
+			for u in _tunable_uniforms(_selected_scene_material):
+				_params_vbox.add_child(_build_uniform_row(_selected_scene_material, u))
+	else:
+		# Mesh mode: rows are the graph's exposed params (responsive, node-named).
+		for node in _param_nodes():
+			_params_vbox.add_child(_build_live_param_row(node))
+	# Placeholder when the picked material / graph exposes nothing tunable.
+	if _params_vbox.get_child_count() == 0:
+		var empty := Label.new()
+		empty.text = "No parameters exposed"
+		empty.add_theme_font_size_override("font_size", 10)
+		empty.add_theme_color_override("font_color", Color(0.5, 0.52, 0.58))
+		_params_vbox.add_child(empty)
 
 
-func _param_target_label() -> String:
-	if _scene_active and not _scene_path.is_empty():
-		return "Tuning scene material · %s" % _scene_path.get_file()
-	return "Tuning preview material (sandboxed)"
+# Sets the res:// paths of this graph's own exported/.nyx shader, so scene-mode
+# can default the picker to the material that actually uses this graph.
+func set_own_shader_paths(paths: Array) -> void:
+	_own_shader_paths = paths
+
+
+func _on_material_selected(idx: int) -> void:
+	if idx >= 0 and idx < _scene_material_candidates.size():
+		_selected_scene_material = _scene_material_candidates[idx].mat
+	_rebuild_param_rows()   # re-read the rows' values from the newly-picked material
+
+
+func _rebuild_material_dropdown() -> void:
+	_scene_material_candidates = _collect_scene_material_entries()
+	_material_dropdown.clear()
+	if _scene_material_candidates.is_empty():
+		_material_dropdown.add_item("(no ShaderMaterials in scene)")
+		_material_dropdown.disabled = true
+		_selected_scene_material = null
+		return
+	_material_dropdown.disabled = false
+	var default_idx := 0
+	for i in _scene_material_candidates.size():
+		var e = _scene_material_candidates[i]
+		_material_dropdown.add_item(e.label)
+		if _is_own_shader(e.mat.shader):
+			default_idx = i
+	# Priority: a per-scene-tab remembered selection (by label) > keep the current
+	# selection if still present > default to the material using this graph's shader.
+	var restore := -1
+	if _pending_material_label != "":
+		for i in _scene_material_candidates.size():
+			if _scene_material_candidates[i].label == _pending_material_label:
+				restore = i
+				break
+		_pending_material_label = ""
+	var keep := -1
+	for i in _scene_material_candidates.size():
+		if _scene_material_candidates[i].mat == _selected_scene_material and is_instance_valid(_selected_scene_material):
+			keep = i
+			break
+	var idx: int = restore if restore >= 0 else (keep if keep >= 0 else default_idx)
+	_material_dropdown.select(idx)
+	_selected_scene_material = _scene_material_candidates[idx].mat
+
+
+func _is_own_shader(shader: Shader) -> bool:
+	return shader != null and shader.resource_path != "" and _own_shader_paths.has(shader.resource_path)
 
 
 func _build_live_param_row(node: Node) -> Control:
 	var pname: String = node.get_param_name()
-	# Show the live override if one exists, else the node's inline default — so a
-	# rebuild never visually discards an override the material still holds.
-	var value = _param_overrides.get(pname, node.get_param_value())
+	var value = _row_initial_value(node, pname)
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
@@ -1297,6 +1447,13 @@ func _build_live_param_row(node: Node) -> Control:
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(control)
 
+	var reset := _make_reset_button()
+	reset.pressed.connect(_reset_param.bind(node))
+	row.add_child(reset)
+	return row
+
+
+func _make_reset_button() -> Button:
 	var reset := Button.new()
 	reset.text = "⟲"
 	reset.tooltip_text = "Reset to default"
@@ -1309,9 +1466,120 @@ func _build_live_param_row(node: Node) -> Control:
 	reset.add_theme_stylebox_override("hover", re)
 	reset.add_theme_stylebox_override("pressed", re)
 	reset.add_theme_stylebox_override("focus", re)
-	reset.pressed.connect(_reset_param.bind(node))
+	return reset
+
+
+# ── Scene mode: material-derived rows (tune the picked material's own uniforms) ──
+
+func _build_uniform_row(mat: ShaderMaterial, u: Dictionary) -> Control:
+	var uname: String = u.get("name", "")
+	var utype: int = u.get("type", TYPE_NIL)
+	var value = _uniform_initial_value(mat, uname, utype)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var lbl := Label.new()
+	lbl.text = uname
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color(0.80, 0.83, 0.88))
+	row.add_child(lbl)
+
+	var control := _make_uniform_control(uname, utype, u.get("hint", 0), u.get("hint_string", ""), value)
+	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(control)
+
+	var reset := _make_reset_button()
+	reset.pressed.connect(_reset_uniform.bind(mat, uname))
 	row.add_child(reset)
 	return row
+
+
+func _make_uniform_control(uname: String, utype: int, hint: int, hint_string: String, value) -> Control:
+	if utype == TYPE_COLOR:
+		var cp := ColorPickerButton.new()
+		cp.custom_minimum_size = Vector2(0, 18)
+		cp.color = value if value is Color else Color.WHITE
+		cp.edit_alpha = true
+		cp.color_changed.connect(func(c: Color) -> void: _set_param(uname, c))
+		return cp
+	if utype == TYPE_VECTOR2:
+		return _make_vec_control(uname, value, 2)
+	if utype == TYPE_VECTOR3:
+		return _make_vec_control(uname, value, 3)
+	if utype == TYPE_VECTOR4:
+		return _make_vec_control(uname, value, 4)
+	# float — parse hint_range from the uniform declaration if present.
+	var sp := EditorSpinSlider.new()
+	if hint == PROPERTY_HINT_RANGE and hint_string != "":
+		var parts := hint_string.split(",")
+		sp.min_value = float(parts[0])
+		sp.max_value = float(parts[1])
+		sp.step = float(parts[2]) if parts.size() > 2 else 0.001
+	else:
+		sp.min_value = -1e9
+		sp.max_value = 1e9
+		sp.step = 0.001
+	sp.allow_greater = true
+	sp.allow_lesser = true
+	sp.value = float(value) if value is float else 0.0
+	sp.value_changed.connect(func(v: float) -> void: _set_param(uname, v))
+	return sp
+
+
+func _make_vec_control(uname: String, value, n: int) -> Control:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 3)
+	var spins: Array[SpinBox] = []
+	for i in n:
+		var sp := SpinBox.new()
+		sp.step = 0.01
+		sp.allow_greater = true
+		sp.allow_lesser = true
+		sp.value = (value[i] if value != null else 0.0)
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(sp)
+		spins.append(sp)
+	for sp in spins:
+		sp.value_changed.connect(func(_v: float) -> void: _set_param(uname, _vec_from_spins(spins, n)))
+	return hb
+
+
+func _vec_from_spins(spins: Array, n: int):
+	if n == 2:
+		return Vector2(spins[0].value, spins[1].value)
+	if n == 3:
+		return Vector3(spins[0].value, spins[1].value, spins[2].value)
+	return Vector4(spins[0].value, spins[1].value, spins[2].value, spins[3].value)
+
+
+# Current value of a material uniform: the material's own value, else the shader's
+# declared default, else a type-appropriate zero.
+func _uniform_initial_value(mat: ShaderMaterial, uname: String, utype: int):
+	var v = mat.get_shader_parameter(uname)
+	if v != null:
+		return v
+	if mat.shader:
+		v = RenderingServer.shader_get_parameter_default(mat.shader.get_rid(), uname)
+		if v != null:
+			return v
+	match utype:
+		TYPE_COLOR:
+			return Color.WHITE
+		TYPE_VECTOR2:
+			return Vector2.ZERO
+		TYPE_VECTOR3:
+			return Vector3.ZERO
+		TYPE_VECTOR4:
+			return Vector4.ZERO
+	return 0.0
+
+
+func _reset_uniform(mat: ShaderMaterial, uname: String) -> void:
+	if is_instance_valid(mat):
+		mat.set_shader_parameter(uname, null)   # revert to the shader's declared default
+	_rebuild_param_rows()
 
 
 func _make_param_control(node: Node, value, pname: String) -> Control:
@@ -1358,49 +1626,83 @@ func _make_param_control(node: Node, value, pname: String) -> Control:
 	return sp
 
 
-# Live uniform write + override tracking. Instant — no recompile, no dirty flag.
+# Initial value for a row's control: the selected scene material's current value
+# (falling back to the node default when it hasn't set it), or in mesh mode the
+# tracked override / node default. Reading the real material also means picking a
+# different material shows ITS values, and baked-in export values show correctly.
+func _row_initial_value(node: Node, pname: String):
+	if _scene_active:
+		if is_instance_valid(_selected_scene_material):
+			var v = _selected_scene_material.get_shader_parameter(pname)
+			if v != null:
+				return v
+		return node.get_param_value()
+	return _param_overrides.get(pname, node.get_param_value())
+
+
+# Live uniform write. Instant — no recompile, no dirty flag. Scene materials hold
+# their own state (persist across code-only recompiles), so only mesh mode needs
+# the override dict for the apply_uniforms reapply.
 func _set_param(pname: String, value) -> void:
-	_param_overrides[pname] = value
+	if not _scene_active:
+		_param_overrides[pname] = value
 	_write_param_to_materials(pname, value)
 
 
 func _reset_param(node: Node) -> void:
 	var pname: String = node.get_param_name()
-	_param_overrides.erase(pname)
+	if not _scene_active:
+		_param_overrides.erase(pname)
 	_write_param_to_materials(pname, node.get_param_value())
-	refresh_params()   # rebuild so the control snaps back to the default
+	_rebuild_param_rows()   # snap the control back to the default
 
 
 func _write_param_to_materials(pname: String, value) -> void:
 	if _scene_active:
-		# Hit the scene's shared cached materials that actually declare this
-		# uniform — updates the preview and the real scene in-memory at once.
-		for mat in _collect_scene_shader_materials():
-			if _material_has_uniform(mat, pname):
-				mat.set_shader_parameter(pname, value)
+		# Only the material the user picked — the shared cached resource, so this
+		# updates the preview and the real scene in-memory at once.
+		if is_instance_valid(_selected_scene_material) and _material_has_uniform(_selected_scene_material, pname):
+			_selected_scene_material.set_shader_parameter(pname, value)
 	else:
 		var mat := get_active_material()
 		if mat:
 			mat.set_shader_parameter(pname, value)
 
 
-func _collect_scene_shader_materials() -> Array:
-	var acc: Array = []
+# Walk the instanced scene collecting each ShaderMaterial once, with a display
+# label ("<owning node> · <shader file>") for the picker.
+func _collect_scene_material_entries() -> Array:
+	var out: Array = []
 	if is_instance_valid(_scene_instance):
-		_walk_shader_materials(_scene_instance, acc)
-	return acc
+		_walk_material_entries(_scene_instance, out)
+	return out
 
 
-func _walk_shader_materials(node: Node, acc: Array) -> void:
-	if node is GeometryInstance3D and node.material_override is ShaderMaterial and not acc.has(node.material_override):
-		acc.append(node.material_override)
+func _walk_material_entries(node: Node, out: Array) -> void:
+	var mats: Array = []
+	if node is GeometryInstance3D and node.material_override is ShaderMaterial:
+		mats.append(node.material_override)
 	if node is MeshInstance3D and node.mesh:
 		for i in node.mesh.get_surface_count():
 			var m = node.get_active_material(i)
-			if m is ShaderMaterial and not acc.has(m):
-				acc.append(m)
+			if m is ShaderMaterial:
+				mats.append(m)
+	for m in mats:
+		var seen := false
+		for e in out:
+			if e.mat == m:
+				seen = true
+				break
+		if not seen:
+			out.append({"mat": m, "label": _material_label(node, m)})
 	for c in node.get_children():
-		_walk_shader_materials(c, acc)
+		_walk_material_entries(c, out)
+
+
+func _material_label(node: Node, mat: ShaderMaterial) -> String:
+	if mat.shader and mat.shader.resource_path != "":
+		return "%s · %s" % [node.name, mat.shader.resource_path.get_file()]
+	return str(node.name)
 
 
 func _material_has_uniform(mat: ShaderMaterial, pname: String) -> bool:

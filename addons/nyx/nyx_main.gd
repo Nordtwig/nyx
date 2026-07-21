@@ -890,6 +890,15 @@ func _update_export_ui() -> void:
 	if _chrome_bar:
 		_chrome_bar.set_live_badge(_live_link_on)
 		_chrome_bar.set_references(_find_referencing_files() if _has_live_target() else [])
+	# Tell the preview panel which shader is "ours" so its scene-mode material
+	# picker can default to the material that actually uses this graph.
+	if _preview_panel:
+		var own := []
+		if not _exported_shader_path.is_empty():
+			own.append(_exported_shader_path)
+		if not _current_nyx_path.is_empty():
+			own.append(_current_nyx_path)
+		_preview_panel.set_own_shader_paths(own)
 
 
 # Finds every .tscn/.tres in the project whose ResourceLoader.get_dependencies()
